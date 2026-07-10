@@ -84,6 +84,23 @@
       </nav>
     </header>
     <div class="toast" data-toast hidden></div>
+    <div class="install-panel" data-install-panel hidden>
+      <div class="install-card">
+        <button class="install-close" type="button" data-install-close aria-label="Close install help">×</button>
+        <img src="{{ url_for('static', filename='images/icon-192.png') }}" alt="" />
+        <div>
+          <h2>Install RiseTogether</h2>
+          <p data-install-message>
+            Use your browser menu and choose Install app or Add to Home Screen.
+          </p>
+          <ol>
+            <li>Open the browser menu.</li>
+            <li>Choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</li>
+            <li>Open RiseTogether from your phone or desktop home screen.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %}

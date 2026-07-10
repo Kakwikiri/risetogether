@@ -37,13 +37,17 @@
         {% if message.media_type == 'image' %}
         <div class="media-frame {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
           <img src="{{ url_for('api.serve_upload', filename=message.media_url) }}" alt="Shared image" />
+          {% if not message.view_once %}
           <a class="media-download" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download aria-label="Download image">↓</a>
+          {% endif %}
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% elif message.media_type == 'video' %}
         <div class="media-frame {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
-          <video controls preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(message.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=message.media_url) }}" src="{{ url_for('api.serve_upload', filename=message.media_url) }}">Your browser cannot play this video.</video>
+          <video controls {% if message.view_once %}controlsList="nodownload" disablepictureinpicture{% endif %} preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(message.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=message.media_url) }}" src="{{ url_for('api.serve_upload', filename=message.media_url) }}">Your browser cannot play this video.</video>
+          {% if not message.view_once %}
           <a class="media-download" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download aria-label="Download video">↓</a>
+          {% endif %}
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% elif message.media_type == 'audio' %}

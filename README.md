@@ -63,6 +63,32 @@ Visit `http://localhost:5000`
 
 The app runs locally with Flask and Socket.IO. For production, use a WSGI server like Gunicorn and set `DATABASE_URL` to your PostgreSQL endpoint.
 
+## Render Deployment
+
+Use these settings on Render:
+
+```text
+Build command: pip install -r requirements.txt
+Start command: gunicorn -w 1 --threads 100 app:app
+```
+
+Add environment variables:
+
+```env
+SECRET_KEY=your-long-random-secret
+DATABASE_URL=your-render-postgres-internal-database-url
+```
+
+Do not use `gunicorn --worker-class eventlet`; Gunicorn 26 may not find that worker. The app uses Flask-SocketIO threaded mode for Render compatibility.
+
+For uploads/videos in production, add a Render persistent disk mounted at:
+
+```text
+/opt/render/project/src/uploads
+```
+
+Without a persistent disk, uploaded files can disappear after redeploys. Browser caching is enabled for uploaded media to reduce repeat bandwidth.
+
 ---
 
 If you need the exact database schema or further deployment steps, let me know.

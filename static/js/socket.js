@@ -35,6 +35,10 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       media.dataset.viewOnce = data.view_once ? "1" : "0";
       const video = document.createElement("video");
       video.controls = true;
+      if (data.view_once) {
+        video.setAttribute("controlsList", "nodownload");
+        video.disablePictureInPicture = true;
+      }
       video.src = data.media_url;
       media.appendChild(video);
     } else if (data.media_type === "audio") {
@@ -50,7 +54,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       media.download = "";
       media.textContent = "Download file";
     }
-    if (data.media_type !== "file") {
+    if (data.media_type !== "file" && !data.view_once) {
       downloadLink = document.createElement("a");
       downloadLink.className = "media-download";
       downloadLink.href = data.media_url;

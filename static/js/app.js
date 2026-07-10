@@ -33,28 +33,48 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const installButton = document.querySelector(".install-button");
+  const installPanel = document.querySelector("[data-install-panel]");
+  const installMessage = document.querySelector("[data-install-message]");
+  const installClose = document.querySelector("[data-install-close]");
   let deferredPrompt = null;
+
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+  const openInstallPanel = (message) => {
+    if (installMessage) installMessage.textContent = message;
+    if (installPanel) installPanel.hidden = false;
+  };
+
+  if (installClose && installPanel) {
+    installClose.addEventListener("click", () => {
+      installPanel.hidden = true;
+    });
+  }
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredPrompt = event;
     if (installButton) {
       installButton.hidden = false;
+      installButton.classList.add("ready");
+      installButton.textContent = "Install app";
     }
   });
 
   if (installButton) {
     installButton.hidden = false;
     installButton.addEventListener("click", async () => {
+      if (isStandalone()) {
+        showToast("RiseTogether is already installed.");
+        return;
+      }
       if (!deferredPrompt) {
         const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(location.hostname);
-        const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-        showToast(
-          standalone
-            ? "RiseTogether is already running like an installed app."
-            : secure
-              ? "Browser install prompt is not ready. Use the browser menu and choose Add to Home Screen."
-              : "Install needs HTTPS or localhost. Open the secure site, then use Add to Home Screen.",
+        openInstallPanel(
+          secure
+            ? "Chrome has not released the automatic install prompt yet. You can still install RiseTogether from the browser menu."
+            : "Install needs HTTPS or localhost. Open the secure Render site, then use Add to Home Screen.",
         );
         return;
       }
@@ -75,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (installButton) {
       installButton.hidden = true;
     }
+    if (installPanel) installPanel.hidden = true;
     showToast("RiseTogether installed successfully.");
   });
 
@@ -158,6 +179,13 @@ document.addEventListener("DOMContentLoaded", () => {
           showVideoFallback(video);
         }
       }, 400);
+    });
+  });
+
+  document.querySelectorAll(".view-once-media").forEach((frame) => {
+    frame.addEventListener("contextmenu", (event) => event.preventDefault());
+    frame.querySelectorAll("img, video").forEach((media) => {
+      media.draggable = false;
     });
   });
 

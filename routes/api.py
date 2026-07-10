@@ -1,14 +1,25 @@
 from flask import Blueprint, current_app, jsonify, send_from_directory
 from flask_login import current_user, login_required
 
-from models import Family
+from models import Family, Message
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 @api_bp.route("/uploads/<path:filename>")
 def serve_upload(filename):
-    return send_from_directory(current_app.config["UPLOAD_FOLDER"], filename)
+    is_view_once = Message.query.filter_by(media_url=filename, view_once=True).first()
+    response = send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        filename,
+        conditional=True,
+        max_age=0 if is_view_once else 60 * 60 * 24 * 7,
+    )
+    if is_view_once:
+        response.headers["Cache-Control"] = "no-store, private, max-age=0"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=604800"
+    return response
 
 
 @api_bp.route("/users/current")

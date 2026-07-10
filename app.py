@@ -9,14 +9,22 @@ from sqlalchemy import text
 from extensions import db, login_manager, socketio
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env", override=True)
+load_dotenv(BASE_DIR / ".env", override=False)
+
+database_url = os.getenv(
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rise_together"
+)
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "rise-together-secret")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rise_together"
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280,
+}
 app.config["UPLOAD_FOLDER"] = str(BASE_DIR / "uploads")
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 
@@ -26,7 +34,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "auth.login"
 login_manager.login_message_category = "info"
-socketio.init_app(app, async_mode="eventlet")
+socketio.init_app(app, async_mode="threading")
 
 
 def ensure_schema_compatibility():
