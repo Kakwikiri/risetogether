@@ -55,12 +55,12 @@
         <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
         <a href="{{ url_for('main.live_sessions') }}" data-icon="▶"><span>Live</span></a>
         <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
-          data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge"
+          data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge" data-message-badge
             >{{ unread_messages }}</span
           >{% endif %}</a
         >
         <a href="{{ url_for('main.notifications') }}"
-          data-icon="●"><span>Notifications</span> {% if unread_notifications %}<span class="nav-badge"
+          data-icon="●"><span>Notifications</span> {% if unread_notifications %}<span class="nav-badge" data-notification-badge
             >{{ unread_notifications }}</span
           >{% endif %}</a
         >
@@ -111,7 +111,7 @@
       </section>
       {% endif %} {% endwith %} {% block content %}{% endblock %}
     </main>
-    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.calls'] %}
+    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.calls', 'main.live_room'] %}
     <footer class="footer">
       <p>
         RiseTogether — a safe, supportive community for stories, hope, and

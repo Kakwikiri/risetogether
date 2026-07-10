@@ -1,0 +1,45 @@
+{% extends 'base.html' %} {% block content %}
+<section class="live-room" data-live-room>
+  <header class="live-room-header">
+    <div>
+      <span class="eyebrow">{{ 'Broadcasting' if is_host else 'Watching live' }}</span>
+      <h1>{{ session.title }}</h1>
+      <p>{{ session.description or session.user.profile.display_name }}</p>
+    </div>
+    <a class="button secondary" href="{{ url_for('main.live_sessions') }}">Live list</a>
+  </header>
+
+  <div class="live-stage">
+    <video
+      id="live-video"
+      class="live-video"
+      autoplay
+      {% if is_host %}muted{% endif %}
+      playsinline
+      controls
+    ></video>
+    <div class="live-empty-state" id="live-status">
+      {{ 'Starting camera...' if is_host else 'Waiting for the live stream...' }}
+    </div>
+  </div>
+
+  <div class="live-controls">
+    {% if is_host %}
+    <button class="call-control" id="live-mute" type="button">Mute</button>
+    <button class="call-control" id="live-camera" type="button">Camera</button>
+    <form action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
+      <button class="call-control end-call" type="submit">End live</button>
+    </form>
+    {% else %}
+    <span class="status-pill">{{ session.user.profile.display_name }}</span>
+    {% endif %}
+  </div>
+</section>
+<script>
+  const liveConfig = {
+      sessionId: {{ session.id }},
+      isHost: {{ 'true' if is_host else 'false' }},
+      status: '{{ session.status }}',
+  };
+</script>
+{% endblock %}

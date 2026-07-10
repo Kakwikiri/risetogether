@@ -206,7 +206,7 @@ def reset_password(token):
 def google_login():
     client_id = os.getenv("GOOGLE_CLIENT_ID") or setting_value("google_client_id")
     if not client_id:
-        flash("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.", "warning")
+        flash("Google login needs a Google Client ID and Client Secret.", "warning")
         return redirect(url_for("auth.login"))
     state = secrets.token_urlsafe(16)
     session["google_oauth_state"] = state
@@ -225,6 +225,9 @@ def google_login():
 
 @auth_bp.route("/login/google/callback")
 def google_callback():
+    if request.args.get("error"):
+        flash("Google login was cancelled or denied.", "warning")
+        return redirect(url_for("auth.login"))
     if request.args.get("state") != session.pop("google_oauth_state", None):
         flash("Google login could not be verified.", "danger")
         return redirect(url_for("auth.login"))
@@ -267,6 +270,9 @@ def google_callback():
     if not email:
         flash("Google did not provide an email address.", "danger")
         return redirect(url_for("auth.login"))
+    if info.get("verified_email") is False:
+        flash("Please verify your Google email before using Google login.", "warning")
+        return redirect(url_for("auth.login"))
     user = User.query.filter_by(email=email).first()
     if not user:
         username = email.split("@")[0]
@@ -275,11 +281,17 @@ def google_callback():
         while User.query.filter_by(username=username).first():
             counter += 1
             username = f"{base_username}{counter}"
-        user = User(username=username, email=email)
+        user = User(username=username, email=email, country="Other")
         user.set_password(secrets.token_urlsafe(24))
+        admin_email = os.getenv("ADMIN_EMAIL")
+        if admin_email and email == admin_email.lower():
+            user.is_admin = True
         db.session.add(user)
         db.session.commit()
         db.session.add(Profile(user_id=user.id, display_name=info.get("name") or username))
+        db.session.commit()
+    elif not user.profile:
+        db.session.add(Profile(user_id=user.id, display_name=info.get("name") or user.username))
         db.session.commit()
     if user.is_banned:
         flash("This account has been banned. Please contact an admin.", "danger")

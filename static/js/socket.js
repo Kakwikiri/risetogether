@@ -118,14 +118,49 @@ socket.on("user_status", (data) => {
 
 socket.on("new_private_message", (data) => {
   console.log("Private message", data);
+  if (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId) {
+    incrementBadge("[data-message-badge]", "/messages");
+  }
 });
 
 socket.on("new_family_message", (data) => {
   console.log("Family message", data);
+  if (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId) {
+    incrementBadge("[data-message-badge]", "/messages");
+  }
 });
 
 socket.on("room_joined", (data) => {
   console.log("Joined room", data);
+});
+
+const incrementBadge = (selector, linkHref) => {
+  let badge = document.querySelector(selector);
+  if (!badge && linkHref) {
+    const link = document.querySelector(`a[href="${linkHref}"]`);
+    if (link) {
+      badge = document.createElement("span");
+      badge.className = "nav-badge";
+      badge.dataset[selector.includes("notification") ? "notificationBadge" : "messageBadge"] = "";
+      link.append(" ", badge);
+    }
+  }
+  if (!badge) return;
+  const current = Number.parseInt(badge.textContent || "0", 10) || 0;
+  badge.textContent = current + 1;
+};
+
+socket.on("notification_received", (data) => {
+  incrementBadge("[data-notification-badge]", "/notifications");
+  const toast = document.querySelector("[data-toast]");
+  if (toast) {
+    toast.textContent = data.message || "New notification";
+    toast.hidden = false;
+    window.clearTimeout(toast.notificationTimer);
+    toast.notificationTimer = window.setTimeout(() => {
+      toast.hidden = true;
+    }, 5200);
+  }
 });
 
 if (typeof chatConfig !== "undefined") {
@@ -406,6 +441,35 @@ if (typeof chatConfig !== "undefined") {
 
 socket.on("incoming_call", (data) => {
   if (typeof callConfig !== "undefined") return;
+  const playTone = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return null;
+      const context = new AudioContext();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.0001;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      let loud = false;
+      const pulse = window.setInterval(() => {
+        loud = !loud;
+        gain.gain.setTargetAtTime(loud ? 0.08 : 0.0001, context.currentTime, 0.04);
+      }, 420);
+      return () => {
+        window.clearInterval(pulse);
+        oscillator.stop();
+        context.close();
+      };
+    } catch (error) {
+      return null;
+    }
+  };
+  const stopTone = playTone();
+  window.currentIncomingCallStop = stopTone;
   let overlay = document.querySelector(".incoming-call-overlay");
   if (!overlay) {
     overlay = document.createElement("div");
@@ -425,11 +489,24 @@ socket.on("incoming_call", (data) => {
   `;
   overlay.hidden = false;
   overlay.querySelector("[data-answer-call]").addEventListener("click", () => {
+    if (stopTone) stopTone();
     window.location.href = `/calls/${data.sender_id}?answer=1&mode=${data.mode || "video"}`;
   });
   overlay.querySelector("[data-decline-call]").addEventListener("click", () => {
+    if (stopTone) stopTone();
+    socket.emit("call_declined", { target_id: data.sender_id, mode: data.mode || "video" });
     overlay.hidden = true;
   });
+});
+
+socket.on("call_ended", () => {
+  if (typeof callConfig !== "undefined") return;
+  if (window.currentIncomingCallStop) {
+    window.currentIncomingCallStop();
+    window.currentIncomingCallStop = null;
+  }
+  const overlay = document.querySelector(".incoming-call-overlay");
+  if (overlay) overlay.hidden = true;
 });
 
 if (typeof callConfig !== "undefined") {
@@ -446,6 +523,7 @@ if (typeof callConfig !== "undefined") {
     let peerConnection = null;
     let localStream = null;
     let started = false;
+    let finished = false;
 
     const configuration = {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -453,6 +531,27 @@ if (typeof callConfig !== "undefined") {
 
     const setStatus = (text) => {
       if (callStatus) callStatus.textContent = text;
+    };
+
+    const emitWhenConnected = (eventName, payload) => {
+      if (socket.connected) {
+        socket.emit(eventName, payload);
+        return;
+      }
+      socket.once("connect", () => socket.emit(eventName, payload));
+    };
+
+    const cleanupCall = () => {
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+        localStream = null;
+      }
+      if (remoteVideo) remoteVideo.srcObject = null;
+      if (localVideo) localVideo.srcObject = null;
     };
 
     const setVoiceMode = (enabled) => {
@@ -541,10 +640,10 @@ if (typeof callConfig !== "undefined") {
       }
       if (callConfig.autoAnswer) {
         setStatus("Connecting...");
-        socket.emit("ready_for_call", { target_id: callConfig.targetUserId });
+        emitWhenConnected("ready_for_call", { target_id: callConfig.targetUserId });
       } else {
         setStatus("Ringing...");
-        socket.emit("call_invite", {
+        emitWhenConnected("call_invite", {
           target_id: callConfig.targetUserId,
           mode: callConfig.mode,
         });
@@ -552,9 +651,10 @@ if (typeof callConfig !== "undefined") {
     };
 
     const endCall = () => {
+      if (finished) return;
+      finished = true;
       socket.emit("call_ended", { target_id: callConfig.targetUserId, mode: callConfig.mode });
-      if (peerConnection) peerConnection.close();
-      if (localStream) localStream.getTracks().forEach((track) => track.stop());
+      cleanupCall();
       window.location.href = document.referrer || "/messages";
     };
 
@@ -605,9 +705,13 @@ if (typeof callConfig !== "undefined") {
     });
 
     socket.on("call_ended", () => {
+      if (finished) return;
+      finished = true;
       setStatus("Call ended");
-      if (peerConnection) peerConnection.close();
-      if (localStream) localStream.getTracks().forEach((track) => track.stop());
+      cleanupCall();
+      window.setTimeout(() => {
+        window.location.href = document.referrer || "/messages";
+      }, 900);
     });
 
     socket.on("webrtc_offer", async (data) => {
@@ -629,6 +733,202 @@ if (typeof callConfig !== "undefined") {
     socket.on("ice_candidate", async (data) => {
       if (peerConnection && data.candidate) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    });
+  });
+}
+
+if (typeof liveConfig !== "undefined") {
+  document.addEventListener("DOMContentLoaded", async () => {
+    const liveVideo = document.getElementById("live-video");
+    const liveStatus = document.getElementById("live-status");
+    const muteButton = document.getElementById("live-mute");
+    const cameraButton = document.getElementById("live-camera");
+    const hostConnections = new Map();
+    let localStream = null;
+    let viewerConnection = null;
+
+    const configuration = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    };
+
+    const setLiveStatus = (message) => {
+      if (liveStatus) {
+        liveStatus.textContent = message;
+        liveStatus.hidden = !message;
+      }
+    };
+
+    const joinLive = () => {
+      const payload = {
+        session_id: liveConfig.sessionId,
+        role: liveConfig.isHost ? "host" : "viewer",
+      };
+      if (socket.connected) socket.emit("join_live", payload);
+      else socket.once("connect", () => socket.emit("join_live", payload));
+    };
+
+    const startHostStream = async () => {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { facingMode: "user" },
+        });
+      } catch (error) {
+        setLiveStatus("Camera or microphone is blocked by the browser.");
+        return;
+      }
+      if (liveVideo) {
+        liveVideo.srcObject = localStream;
+        liveVideo.muted = true;
+        liveVideo.controls = false;
+      }
+      setLiveStatus("");
+      joinLive();
+    };
+
+    const createHostConnection = async (viewerSid) => {
+      if (!localStream || hostConnections.has(viewerSid)) return;
+      const connection = new RTCPeerConnection(configuration);
+      hostConnections.set(viewerSid, connection);
+      localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
+      connection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("live_ice_candidate", {
+            session_id: liveConfig.sessionId,
+            candidate: event.candidate,
+            target_sid: viewerSid,
+          });
+        }
+      };
+      connection.onconnectionstatechange = () => {
+        if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
+          hostConnections.delete(viewerSid);
+        }
+      };
+      const offer = await connection.createOffer();
+      await connection.setLocalDescription(offer);
+      socket.emit("live_offer", {
+        session_id: liveConfig.sessionId,
+        viewer_sid: viewerSid,
+        offer,
+      });
+    };
+
+    const startViewerConnection = async (offer) => {
+      viewerConnection = new RTCPeerConnection(configuration);
+      viewerConnection.ontrack = (event) => {
+        if (liveVideo) {
+          liveVideo.srcObject = event.streams[0];
+          liveVideo.controls = true;
+        }
+        setLiveStatus("");
+      };
+      viewerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("live_ice_candidate", {
+            session_id: liveConfig.sessionId,
+            candidate: event.candidate,
+            target_sid: dataHostSid,
+          });
+        }
+      };
+      await viewerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await viewerConnection.createAnswer();
+      await viewerConnection.setLocalDescription(answer);
+      socket.emit("live_answer", {
+        session_id: liveConfig.sessionId,
+        answer,
+      });
+    };
+
+    let dataHostSid = null;
+
+    if (liveConfig.status !== "live") {
+      setLiveStatus("This live session has ended.");
+      return;
+    }
+
+    if (liveConfig.isHost) {
+      await startHostStream();
+    } else {
+      joinLive();
+    }
+
+    if (muteButton) {
+      muteButton.addEventListener("click", () => {
+        if (!localStream) return;
+        localStream.getAudioTracks().forEach((track) => {
+          track.enabled = !track.enabled;
+          muteButton.textContent = track.enabled ? "Mute" : "Unmute";
+          muteButton.classList.toggle("active", !track.enabled);
+        });
+      });
+    }
+
+    if (cameraButton) {
+      cameraButton.addEventListener("click", () => {
+        if (!localStream) return;
+        localStream.getVideoTracks().forEach((track) => {
+          track.enabled = !track.enabled;
+          cameraButton.textContent = track.enabled ? "Camera" : "Show camera";
+          cameraButton.classList.toggle("active", !track.enabled);
+        });
+      });
+    }
+
+    socket.on("live_viewer_joined", (data) => {
+      if (!liveConfig.isHost || data.session_id !== liveConfig.sessionId) return;
+      createHostConnection(data.viewer_sid);
+    });
+
+    socket.on("live_offer", async (data) => {
+      if (liveConfig.isHost || data.session_id !== liveConfig.sessionId) return;
+      dataHostSid = data.sender_sid || null;
+      await startViewerConnection(data.offer);
+    });
+
+    socket.on("live_answer", async (data) => {
+      if (!liveConfig.isHost || data.session_id !== liveConfig.sessionId) return;
+      const connection = hostConnections.get(data.viewer_sid);
+      if (connection) {
+        await connection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      }
+    });
+
+    socket.on("live_ice_candidate", async (data) => {
+      if (data.session_id !== liveConfig.sessionId || !data.candidate) return;
+      if (liveConfig.isHost) {
+        const connection = hostConnections.get(data.sender_sid);
+        if (connection) await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } else if (viewerConnection) {
+        await viewerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    });
+
+    socket.on("live_waiting_for_host", (data) => {
+      if (data.session_id === liveConfig.sessionId) {
+        setLiveStatus("Waiting for the broadcaster to connect...");
+      }
+    });
+
+    socket.on("live_host_ready", (data) => {
+      if (!liveConfig.isHost && data.session_id === liveConfig.sessionId) {
+        setLiveStatus("Connecting to the live stream...");
+        joinLive();
+      }
+    });
+
+    socket.on("live_host_left", (data) => {
+      if (data.session_id === liveConfig.sessionId) {
+        setLiveStatus("The live stream has ended.");
+        if (liveVideo) liveVideo.srcObject = null;
+      }
+    });
+
+    socket.on("live_unavailable", (data) => {
+      if (data.session_id === liveConfig.sessionId) {
+        setLiveStatus("This live stream is unavailable.");
       }
     });
   });

@@ -3,6 +3,10 @@
   <h2>Admin Settings</h2>
   <form action="" method="post">
     <h3>Google Login</h3>
+    <p class="muted-meta">
+      Add this exact redirect URI in Google Cloud:
+      <strong>{{ url_for('auth.google_callback', _external=True) }}</strong>
+    </p>
     <label>Google Client ID</label>
     <input type="text" name="google_client_id" value="{{ settings.google_client_id }}" />
     <label>Google Client Secret</label>

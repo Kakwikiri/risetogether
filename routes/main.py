@@ -1,8 +1,11 @@
+import re
+
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
+from markupsafe import Markup, escape
 
-from extensions import db
+from extensions import db, socketio
 from helpers import REACTION_LABELS, allowed_file, get_media_type, save_media
 from models import (
     Block,
@@ -22,6 +25,69 @@ from models import (
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
+MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_]{2,80})")
+
+
+def emit_notification(notification):
+    socketio.emit(
+        "notification_received",
+        {
+            "id": notification.id,
+            "category": notification.category,
+            "message": notification.message,
+            "action_url": notification.action_url,
+            "created_at": notification.created_at.strftime("%Y-%m-%d %H:%M"),
+        },
+        room=f"user-{notification.user_id}",
+    )
+
+
+def add_notification(user_id, category, message, action_url=""):
+    notification = Notification(
+        user_id=user_id,
+        category=category,
+        message=message,
+        action_url=action_url,
+    )
+    db.session.add(notification)
+    db.session.flush()
+    emit_notification(notification)
+    return notification
+
+
+def mentioned_usernames(content):
+    return {match.group(1).lower() for match in MENTION_RE.finditer(content or "")}
+
+
+def link_mentions(content):
+    text = content or ""
+    pieces = []
+    last = 0
+    found_names = mentioned_usernames(text)
+    users = {}
+    if found_names:
+        users = {
+            user.username.lower(): user
+            for user in User.query.filter(
+                db.func.lower(User.username).in_(found_names),
+                User.is_hidden_from_directory == False,
+            ).all()
+        }
+    for match in MENTION_RE.finditer(text):
+        pieces.append(escape(text[last : match.start()]))
+        username = match.group(1)
+        user = users.get(username.lower())
+        if user:
+            pieces.append(
+                Markup(
+                    '<a class="mention-link" href="{}">@{}</a>'
+                ).format(url_for("main.profile", username=user.username), user.username)
+            )
+        else:
+            pieces.append(escape(match.group(0)))
+        last = match.end()
+    pieces.append(escape(text[last:]))
+    return Markup("").join(pieces)
 
 
 @main_bp.route("/")
@@ -210,6 +276,7 @@ def edit_profile():
         display_name = request.form.get("display_name", "").strip()
         bio = request.form.get("bio", "").strip()
         privacy = request.form.get("privacy_posts", "public")
+        wants_password_change = request.form.get("change_password") == "1"
         current_password = request.form.get("current_password", "")
         new_password = request.form.get("new_password", "").strip()
         confirm_password = request.form.get("confirm_password", "").strip()
@@ -222,7 +289,7 @@ def edit_profile():
         profile.display_name = display_name or profile.display_name
         profile.bio = bio
         profile.privacy_posts = privacy if privacy in POST_AUDIENCES else "public"
-        if current_password or new_password or confirm_password:
+        if wants_password_change:
             if not current_user.check_password(current_password):
                 flash("Current password is incorrect.", "danger")
                 return redirect(url_for("main.edit_profile"))
@@ -292,13 +359,11 @@ def create_post():
     db.session.commit()
     for follow in Follow.query.filter_by(followed_id=current_user.id).all():
         if follow.follower_id != current_user.id:
-            db.session.add(
-                Notification(
-                    user_id=follow.follower_id,
-                    category="followed_post",
-                    message=f"{current_user.username} shared a new post.",
-                    action_url=url_for("main.post_detail", post_id=post.id),
-                )
+            add_notification(
+                follow.follower_id,
+                "followed_post",
+                f"{current_user.username} shared a new post.",
+                url_for("main.post_detail", post_id=post.id),
             )
     db.session.commit()
     flash("Post shared with RiseTogether.", "success")
@@ -320,13 +385,11 @@ def toggle_follow(user_id):
         flash("Unfollowed.", "info")
     else:
         db.session.add(Follow(follower_id=current_user.id, followed_id=target.id))
-        db.session.add(
-            Notification(
-                user_id=target.id,
-                category="follow",
-                message=f"{current_user.username} followed you.",
-                action_url=url_for("main.profile", username=current_user.username),
-            )
+        add_notification(
+            target.id,
+            "follow",
+            f"{current_user.username} followed you.",
+            url_for("main.profile", username=current_user.username),
         )
         flash("Following.", "success")
     db.session.commit()
@@ -355,13 +418,11 @@ def react_post(post_id):
     reaction = Reaction(post_id=post.id, user_id=current_user.id, type=reaction_type)
     db.session.add(reaction)
     if post.user_id != current_user.id:
-        db.session.add(
-            Notification(
-                user_id=post.user_id,
-                category="reaction",
-                message=f"{current_user.username} reacted with {REACTION_LABELS[reaction_type]} on your post.",
-                action_url=url_for("main.post_detail", post_id=post.id),
-            )
+        add_notification(
+            post.user_id,
+            "reaction",
+            f"{current_user.username} reacted with {REACTION_LABELS[reaction_type]} on your post.",
+            url_for("main.post_detail", post_id=post.id),
         )
     db.session.commit()
     flash("Your support reaction has been added.", "success")
@@ -418,24 +479,20 @@ def share_post(post_id):
                     recipient_id=recipient.id,
                 )
             )
-            db.session.add(
-                Notification(
-                    user_id=recipient.id,
-                    category="share",
-                    message=f"{current_user.username} shared a post with you.",
-                    action_url=url_for("main.post_detail", post_id=post.id),
-                )
+            add_notification(
+                recipient.id,
+                "share",
+                f"{current_user.username} shared a post with you.",
+                url_for("main.post_detail", post_id=post.id),
             )
             shared_count += 1
 
         if shared_count and post.user_id != current_user.id:
-            db.session.add(
-                Notification(
-                    user_id=post.user_id,
-                    category="share",
-                    message=f"{current_user.username} shared your post with {shared_count} people.",
-                    action_url=url_for("main.post_detail", post_id=post.id),
-                )
+            add_notification(
+                post.user_id,
+                "share",
+                f"{current_user.username} shared your post with {shared_count} people.",
+                url_for("main.post_detail", post_id=post.id),
             )
         db.session.commit()
         if shared_count:
@@ -475,17 +532,34 @@ def post_detail(post_id):
             db.session.add(comment)
             notify_user_id = parent.user_id if parent else post.user_id
             if notify_user_id != current_user.id:
-                notification = Notification(
-                    user_id=notify_user_id,
-                    category="comment",
-                    message=(
+                add_notification(
+                    notify_user_id,
+                    "comment",
+                    (
                         f"{current_user.username} replied to your comment."
                         if parent
                         else f"{current_user.username} commented on your post."
                     ),
-                    action_url=url_for("main.post_detail", post_id=post.id),
+                    url_for("main.post_detail", post_id=post.id),
                 )
-                db.session.add(notification)
+            mentioned_users = []
+            names = mentioned_usernames(content)
+            if names:
+                mentioned_users = User.query.filter(
+                    db.func.lower(User.username).in_(names),
+                    User.is_hidden_from_directory == False,
+                ).all()
+            already_notified = {current_user.id, notify_user_id}
+            for mentioned in mentioned_users:
+                if mentioned.id in already_notified:
+                    continue
+                add_notification(
+                    mentioned.id,
+                    "mention",
+                    f"{current_user.username} mentioned you in a comment.",
+                    url_for("main.post_detail", post_id=post.id),
+                )
+                already_notified.add(mentioned.id)
             db.session.commit()
             flash("Your comment is added.", "success")
         return redirect(url_for("main.post_detail", post_id=post.id))
@@ -498,6 +572,7 @@ def post_detail(post_id):
         comments=comments,
         reactions=REACTION_LABELS,
         reaction_counts=get_reaction_counts(post),
+        link_mentions=link_mentions,
     )
 
 
@@ -533,13 +608,11 @@ def like_comment(comment_id):
     else:
         db.session.add(CommentReaction(comment_id=comment.id, user_id=current_user.id))
         if comment.user_id != current_user.id:
-            db.session.add(
-                Notification(
-                    user_id=comment.user_id,
-                    category="comment",
-                    message=f"{current_user.username} liked your comment.",
-                    action_url=url_for("main.post_detail", post_id=comment.post_id),
-                )
+            add_notification(
+                comment.user_id,
+                "comment",
+                f"{current_user.username} liked your comment.",
+                url_for("main.post_detail", post_id=comment.post_id),
             )
         flash("Comment liked.", "success")
     db.session.commit()
@@ -607,14 +680,24 @@ def live_sessions():
         if not title:
             flash("Add a title before going live.", "warning")
             return redirect(url_for("main.live_sessions"))
-        db.session.add(
-            LiveSession(user_id=current_user.id, title=title, description=description)
-        )
+        session = LiveSession(user_id=current_user.id, title=title, description=description)
+        db.session.add(session)
         db.session.commit()
         flash("Live session started. Share your room link with viewers.", "success")
-        return redirect(url_for("main.live_sessions"))
+        return redirect(url_for("main.live_room", session_id=session.id))
     sessions = LiveSession.query.order_by(LiveSession.created_at.desc()).all()
     return render_template("live_sessions.html", sessions=sessions)
+
+
+@main_bp.route("/live/<int:session_id>")
+@login_required
+def live_room(session_id):
+    session = LiveSession.query.get_or_404(session_id)
+    return render_template(
+        "live_room.html",
+        session=session,
+        is_host=session.user_id == current_user.id,
+    )
 
 
 @main_bp.route("/live/<int:session_id>/end", methods=["POST"])
@@ -628,6 +711,11 @@ def end_live_session(session_id):
     session.status = "ended"
     session.ended_at = datetime.utcnow()
     db.session.commit()
+    socketio.emit(
+        "live_host_left",
+        {"session_id": session.id},
+        room=f"live-{session.id}",
+    )
     flash("Live session ended.", "info")
     return redirect(url_for("main.live_sessions"))
 
@@ -652,13 +740,11 @@ def send_friend_request(user_id):
         return redirect(url_for("main.profile", username=target.username))
     friend_request = FriendRequest(sender_id=current_user.id, receiver_id=target.id)
     db.session.add(friend_request)
-    db.session.add(
-        Notification(
-            user_id=target.id,
-            category="friend_request",
-            message=f"{current_user.username} sent you a friend request.",
-            action_url=url_for("main.people"),
-        )
+    add_notification(
+        target.id,
+        "friend_request",
+        f"{current_user.username} sent you a friend request.",
+        url_for("main.people"),
     )
     db.session.commit()
     flash("Friend request sent.", "success")
@@ -679,13 +765,11 @@ def respond_friend_request(request_id, action):
     friend_request.status = "accepted" if action == "accept" else "declined"
     friend_request.responded_at = datetime.utcnow()
     if action == "accept":
-        db.session.add(
-            Notification(
-                user_id=friend_request.sender_id,
-                category="friend_request",
-                message=f"{current_user.username} accepted your friend request.",
-                action_url=url_for("main.profile", username=current_user.username),
-            )
+        add_notification(
+            friend_request.sender_id,
+            "friend_request",
+            f"{current_user.username} accepted your friend request.",
+            url_for("main.profile", username=current_user.username),
         )
     db.session.commit()
     flash("Friend request updated.", "success")

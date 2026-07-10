@@ -76,7 +76,7 @@
     <div class="comment">
       <strong>{{ comment.user.username }}</strong>
       <span>{{ comment.created_at.strftime('%b %d, %Y %H:%M') }}</span>
-      <p>{{ comment.content }}</p>
+      <p>{{ link_mentions(comment.content) }}</p>
       <div class="comment-actions">
         <form action="{{ url_for('main.like_comment', comment_id=comment.id) }}" method="post">
           <button class="text-button" type="submit">Like {{ comment.likes.count() }}</button>
@@ -86,7 +86,7 @@
       <div class="comment reply">
         <strong>{{ reply.user.username }}</strong>
         <span>{{ reply.created_at.strftime('%b %d, %Y %H:%M') }}</span>
-        <p>{{ reply.content }}</p>
+        <p>{{ link_mentions(reply.content) }}</p>
         <form action="{{ url_for('main.like_comment', comment_id=reply.id) }}" method="post">
           <button class="text-button" type="submit">Like {{ reply.likes.count() }}</button>
         </form>

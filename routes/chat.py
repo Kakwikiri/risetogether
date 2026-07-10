@@ -6,10 +6,11 @@ from flask_socketio import emit, join_room
 
 from extensions import db, socketio
 from helpers import allowed_file, get_media_type, save_media
-from models import Family, FamilyMember, Message, Notification, User
+from models import Family, FamilyMember, LiveSession, Message, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
+live_broadcasters = {}
 
 
 def parse_user_id(value):
@@ -79,6 +80,20 @@ def create_call_history(sender_id, recipient_id, mode, status):
     room = room_for_private_chat(sender_id, recipient_id)
     socketio.emit("new_private_message", serialize_message(message), room=room)
     return message
+
+
+def emit_notification(user_id, notification):
+    socketio.emit(
+        "notification_received",
+        {
+            "id": notification.id,
+            "category": notification.category,
+            "message": notification.message,
+            "action_url": notification.action_url,
+            "created_at": notification.created_at.strftime("%Y-%m-%d %H:%M"),
+        },
+        room=f"user-{user_id}",
+    )
 
 
 @chat_bp.route("/messages")
@@ -366,6 +381,7 @@ def on_connect():
     if not current_user.is_authenticated:
         return False
     connected_users[current_user.id] = request.sid
+    join_room(f"user-{current_user.id}")
     emit(
         "user_status", {"user_id": current_user.id, "status": "online"}, broadcast=True
     )
@@ -374,6 +390,18 @@ def on_connect():
 @socketio.on("disconnect")
 def on_disconnect():
     if current_user.is_authenticated and current_user.id in connected_users:
+        stale_live_sessions = [
+            session_id
+            for session_id, sid in live_broadcasters.items()
+            if sid == request.sid
+        ]
+        for session_id in stale_live_sessions:
+            live_broadcasters.pop(session_id, None)
+            socketio.emit(
+                "live_host_left",
+                {"session_id": session_id},
+                room=f"live-{session_id}",
+            )
         connected_users.pop(current_user.id, None)
         emit(
             "user_status",
@@ -421,6 +449,7 @@ def private_message(data):
     )
     db.session.add(notification)
     db.session.commit()
+    emit_notification(recipient_id, notification)
     emit(
         "new_private_message",
         {
@@ -462,6 +491,8 @@ def family_message(data):
                 action_url=url_for("chat.family_chat", family_id=family.id),
             )
             db.session.add(notification)
+            db.session.flush()
+            emit_notification(member.user_id, notification)
     db.session.commit()
     room = f"family-{family.id}"
     emit(
@@ -570,4 +601,88 @@ def call_ended(data):
             "call_ended",
             {"sender_id": current_user.id},
             room=connected_users[target_id],
+        )
+
+
+@socketio.on("call_declined")
+def call_declined(data):
+    target_id = parse_user_id(data.get("target_id"))
+    if target_id in connected_users:
+        emit(
+            "call_ended",
+            {"sender_id": current_user.id, "declined": True},
+            room=connected_users[target_id],
+        )
+
+
+@socketio.on("join_live")
+def join_live(data):
+    session_id = parse_user_id(data.get("session_id"))
+    role = data.get("role", "viewer")
+    session = LiveSession.query.get(session_id) if session_id else None
+    if not session or session.status != "live":
+        emit("live_unavailable", {"session_id": session_id}, room=request.sid)
+        return
+    room = f"live-{session.id}"
+    join_room(room)
+    if role == "host" and session.user_id == current_user.id:
+        live_broadcasters[session.id] = request.sid
+        emit("live_status", {"status": "broadcasting"}, room=request.sid)
+        emit("live_host_ready", {"session_id": session.id}, room=room, include_self=False)
+        return
+    host_sid = live_broadcasters.get(session.id)
+    if host_sid:
+        emit(
+            "live_viewer_joined",
+            {"session_id": session.id, "viewer_id": current_user.id, "viewer_sid": request.sid},
+            room=host_sid,
+        )
+    else:
+        emit("live_waiting_for_host", {"session_id": session.id}, room=request.sid)
+
+
+@socketio.on("live_offer")
+def live_offer(data):
+    viewer_sid = data.get("viewer_sid")
+    offer = data.get("offer")
+    session_id = parse_user_id(data.get("session_id"))
+    session = LiveSession.query.get(session_id) if session_id else None
+    if viewer_sid and offer and session and session.user_id == current_user.id:
+        emit(
+            "live_offer",
+            {
+                "session_id": session.id,
+                "offer": offer,
+                "host_name": current_user.profile.display_name,
+                "sender_sid": request.sid,
+            },
+            room=viewer_sid,
+        )
+
+
+@socketio.on("live_answer")
+def live_answer(data):
+    session_id = parse_user_id(data.get("session_id"))
+    answer = data.get("answer")
+    session = LiveSession.query.get(session_id) if session_id else None
+    host_sid = live_broadcasters.get(session_id)
+    if answer and session and host_sid:
+        emit(
+            "live_answer",
+            {"session_id": session.id, "answer": answer, "viewer_sid": request.sid},
+            room=host_sid,
+        )
+
+
+@socketio.on("live_ice_candidate")
+def live_ice_candidate(data):
+    session_id = parse_user_id(data.get("session_id"))
+    candidate = data.get("candidate")
+    target_sid = data.get("target_sid")
+    session = LiveSession.query.get(session_id) if session_id else None
+    if candidate and target_sid and session:
+        emit(
+            "live_ice_candidate",
+            {"session_id": session.id, "candidate": candidate, "sender_sid": request.sid},
+            room=target_sid,
         )

@@ -21,13 +21,21 @@
     <label>Avatar image</label>
     <input type="file" name="avatar" accept="image/*" />
     <hr />
-    <h3>Change password</h3>
-    <label>Current password</label>
-    <input type="password" name="current_password" autocomplete="current-password" />
-    <label>New password</label>
-    <input type="password" name="new_password" autocomplete="new-password" />
-    <label>Confirm new password</label>
-    <input type="password" name="confirm_password" autocomplete="new-password" />
+    <div class="form-section-header">
+      <h3>Security</h3>
+      <button class="button secondary" type="button" data-toggle-password-fields>
+        Change password
+      </button>
+    </div>
+    <div class="password-change-panel" data-password-fields hidden>
+      <input type="hidden" name="change_password" value="0" data-password-change-flag />
+      <label>Current password</label>
+      <input type="password" name="current_password" autocomplete="current-password" />
+      <label>New password</label>
+      <input type="password" name="new_password" autocomplete="new-password" />
+      <label>Confirm new password</label>
+      <input type="password" name="confirm_password" autocomplete="new-password" />
+    </div>
     <hr />
     <h3>Reset word</h3>
     <label>Private reset word</label>

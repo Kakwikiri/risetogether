@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_login import current_user
 from sqlalchemy import text
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import db, login_manager, socketio
 
@@ -18,9 +19,11 @@ if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "rise-together-secret")
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["PREFERRED_URL_SCHEME"] = "https"
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 280,

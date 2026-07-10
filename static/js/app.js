@@ -1,7 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const offsetTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
+    const bottomInset = window.visualViewport
+      ? Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop)
+      : 0;
     document.documentElement.style.setProperty("--visual-vh", `${height}px`);
+    document.documentElement.style.setProperty("--visual-offset-top", `${offsetTop}px`);
+    document.documentElement.style.setProperty("--keyboard-inset", `${bottomInset}px`);
   };
   syncVisualViewportHeight();
   window.addEventListener("resize", syncVisualViewportHeight);
@@ -82,10 +88,16 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (!deferredPrompt) {
         const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(location.hostname);
+        const isFirefox = navigator.userAgent.toLowerCase().includes("firefox");
+        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
         openInstallPanel(
-          secure
-            ? "Chrome has not released the automatic install prompt yet. You can still install RiseTogether from the browser menu."
-            : "Install needs HTTPS or localhost. Open the secure Render site, then use Add to Home Screen.",
+          !secure
+            ? "Install needs HTTPS or localhost. Open the secure site, then use Add to Home Screen."
+            : isIos
+              ? "On iPhone or iPad, tap Share, then Add to Home Screen."
+              : isFirefox
+                ? "Firefox installs web apps from the browser menu on supported devices. Choose Install or Add to Home screen."
+                : "Use the browser menu and choose Install app or Add to Home screen.",
         );
         return;
       }
@@ -124,6 +136,26 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     });
   });
+
+  const passwordFields = document.querySelector("[data-password-fields]");
+  const passwordToggle = document.querySelector("[data-toggle-password-fields]");
+  const passwordFlag = document.querySelector("[data-password-change-flag]");
+  if (passwordFields && passwordToggle && passwordFlag) {
+    passwordToggle.addEventListener("click", () => {
+      const willOpen = passwordFields.hidden;
+      passwordFields.hidden = !willOpen;
+      passwordFlag.value = willOpen ? "1" : "0";
+      passwordToggle.textContent = willOpen ? "Cancel password change" : "Change password";
+      if (willOpen) {
+        const firstPassword = passwordFields.querySelector("input[type='password']");
+        if (firstPassword) firstPassword.focus();
+      } else {
+        passwordFields.querySelectorAll("input[type='password']").forEach((input) => {
+          input.value = "";
+        });
+      }
+    });
+  }
 
   document.querySelectorAll("[data-media-input]").forEach((input) => {
     input.addEventListener("change", () => {

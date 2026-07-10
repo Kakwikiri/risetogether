@@ -20,6 +20,11 @@
         {{ session.user.profile.display_name }} · {{ session.status }} ·
         {{ session.created_at.strftime('%b %d, %H:%M') }}
       </small>
+      <div class="card-actions">
+        <a class="button" href="{{ url_for('main.live_room', session_id=session.id) }}">
+          {% if session.status == 'live' %}Open live{% else %}View session{% endif %}
+        </a>
+      </div>
       {% if session.user_id == current_user.id or current_user.is_admin %}
       <form action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
         <button class="button secondary" type="submit">End live</button>
