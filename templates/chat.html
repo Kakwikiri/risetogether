@@ -1,16 +1,21 @@
 {% extends 'base.html' %} {% block content %}
 <section class="chat-card">
   <header class="chat-header">
-    <div>
+    <div class="chat-title">
       <h2>
+        {% if not family %}
+        <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
+        {% endif %}
         {% if family %}{{ family.name }}{% else %}{{ other.username }}{% endif %}
       </h2>
-      <span>{% if family %}Family chat{% else %}Direct message{% endif %}</span>
+      <span data-presence-label>
+        {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
+      </span>
     </div>
     <div class="chat-header-actions">
       {% if not family %}
-      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='audio', start='1') }}" aria-label="Audio call">☎</a>
-      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='video', start='1') }}" aria-label="Video call">▣</a>
+      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='audio', start='1') }}" aria-label="Audio call" title="Audio call">☎</a>
+      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='video', start='1') }}" aria-label="Video call" title="Video call">▣</a>
       {% endif %}
     </div>
   </header>
@@ -30,7 +35,7 @@
       {% if family and message.sender_id != current_user.id %}
       <span class="chat-user">{{ message.sender.username }}</span>
       {% endif %}
-      {% if message.content %}
+      {% if message.content and message.media_type != 'call' %}
       <p>{{ message.content }}</p>
       {% endif %}
       {% if message.media_url %}
@@ -56,6 +61,9 @@
         {% else %}
         <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" target="_blank" rel="noopener" download>Download file</a>
         {% endif %}
+      {% endif %}
+      {% if message.media_type == 'call' %}
+      <span class="call-history-pill">{{ message.content }}</span>
       {% endif %}
       <small class="message-meta">
         {{ message.created_at.strftime('%H:%M') }}

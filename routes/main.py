@@ -359,7 +359,7 @@ def react_post(post_id):
             Notification(
                 user_id=post.user_id,
                 category="reaction",
-                message=f"{current_user.username} reacted to your post.",
+                message=f"{current_user.username} reacted with {REACTION_LABELS[reaction_type]} on your post.",
                 action_url=url_for("main.post_detail", post_id=post.id),
             )
         )
@@ -452,6 +452,13 @@ def post_detail(post_id):
     post = Post.query.get_or_404(post_id)
     if not can_view_post(post):
         abort(404)
+    if current_user.is_authenticated:
+        Notification.query.filter(
+            Notification.user_id == current_user.id,
+            Notification.action_url == url_for("main.post_detail", post_id=post.id),
+            Notification.seen == False,
+        ).update({"seen": True})
+        db.session.commit()
     if request.method == "POST" and current_user.is_authenticated:
         content = request.form.get("comment", "").strip()
         parent_id = request.form.get("parent_id")
@@ -705,6 +712,17 @@ def mark_notification_read(notification_id):
     notification.seen = True
     db.session.commit()
     return redirect(url_for("main.notifications"))
+
+
+@main_bp.route("/notification/open/<int:notification_id>")
+@login_required
+def open_notification(notification_id):
+    notification = Notification.query.filter_by(
+        id=notification_id, user_id=current_user.id
+    ).first_or_404()
+    notification.seen = True
+    db.session.commit()
+    return redirect(notification.action_url or url_for("main.notifications"))
 
 
 @main_bp.route("/notifications/mark-all-read", methods=["POST"])

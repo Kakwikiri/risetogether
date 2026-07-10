@@ -2,6 +2,9 @@ const socket = io();
 
 const appendChatMessage = (chatLog, data, isOwn) => {
   if (!chatLog) return;
+  if (data.message_id && chatLog.querySelector(`[data-message-id="${data.message_id}"]`)) {
+    return;
+  }
   const message = document.createElement("div");
   message.className = `chat-message${isOwn ? " own" : ""}`;
   if (data.message_id) {
@@ -14,7 +17,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   user.textContent = isOwn ? "You" : data.sender_name || `User ${data.sender_id}`;
 
   const body = document.createElement("p");
-  body.textContent = data.content || "";
+  body.textContent = data.media_type === "call" ? "" : data.content || "";
 
   let media = null;
   let downloadLink = null;
@@ -85,6 +88,12 @@ const appendChatMessage = (chatLog, data, isOwn) => {
     message.appendChild(body);
   }
   if (media) message.appendChild(media);
+  if (data.media_type === "call") {
+    const callPill = document.createElement("span");
+    callPill.className = "call-history-pill";
+    callPill.textContent = data.content || "Call";
+    message.appendChild(callPill);
+  }
   if (downloadLink) message.appendChild(downloadLink);
   message.appendChild(time);
   chatLog.appendChild(message);
@@ -97,6 +106,14 @@ socket.on("connect", () => {
 
 socket.on("user_status", (data) => {
   console.log("User status", data);
+  document.querySelectorAll(`[data-presence-user="${data.user_id}"]`).forEach((dot) => {
+    dot.classList.toggle("online", data.status === "online");
+    dot.classList.toggle("offline", data.status !== "online");
+  });
+  if (typeof chatConfig !== "undefined" && data.user_id === chatConfig.targetUserId) {
+    const label = document.querySelector("[data-presence-label]");
+    if (label) label.textContent = data.status === "online" ? "Online" : "Offline";
+  }
 });
 
 socket.on("new_private_message", (data) => {
@@ -163,6 +180,12 @@ if (typeof chatConfig !== "undefined") {
       });
       if (!response.ok) {
         window.alert("File could not be sent.");
+        return;
+      }
+      const data = await response.json();
+      appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
+      if (chatLog) {
+        chatLog.scrollTop = chatLog.scrollHeight;
       }
     };
 
@@ -521,7 +544,7 @@ if (typeof callConfig !== "undefined") {
     };
 
     const endCall = () => {
-      socket.emit("call_ended", { target_id: callConfig.targetUserId });
+      socket.emit("call_ended", { target_id: callConfig.targetUserId, mode: callConfig.mode });
       if (peerConnection) peerConnection.close();
       if (localStream) localStream.getTracks().forEach((track) => track.stop());
       window.location.href = document.referrer || "/messages";
@@ -568,7 +591,9 @@ if (typeof callConfig !== "undefined") {
 
     socket.on("call_unavailable", () => {
       setStatus("User is offline");
-      window.alert("This user is not online right now.");
+      window.setTimeout(() => {
+        window.location.href = `/chat/${callConfig.targetUserId}`;
+      }, 1400);
     });
 
     socket.on("call_ended", () => {

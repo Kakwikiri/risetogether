@@ -36,6 +36,51 @@ def can_access_message(message):
     return False
 
 
+def room_for_private_chat(user_id, other_id):
+    return f"private-{min(user_id, other_id)}-{max(user_id, other_id)}"
+
+
+def serialize_message(message):
+    return {
+        "sender_id": message.sender_id,
+        "sender_name": message.sender.username,
+        "recipient_id": message.recipient_id,
+        "family_id": message.family_id,
+        "content": message.content,
+        "media_url": (
+            url_for("api.serve_upload", filename=message.media_url)
+            if message.media_url
+            else ""
+        ),
+        "media_type": message.media_type,
+        "message_id": message.id,
+        "reply_to_id": message.reply_to_id,
+        "view_once": message.view_once,
+        "delivered": message.delivered,
+        "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+def create_call_history(sender_id, recipient_id, mode, status):
+    label = "audio" if mode == "audio" else "video"
+    messages = {
+        "started": f"{label.title()} call started",
+        "missed": f"Missed {label} call",
+        "ended": f"{label.title()} call ended",
+    }
+    message = Message(
+        sender_id=sender_id,
+        recipient_id=recipient_id,
+        content=messages.get(status, f"{label.title()} call"),
+        media_type="call",
+    )
+    db.session.add(message)
+    db.session.commit()
+    room = room_for_private_chat(sender_id, recipient_id)
+    socketio.emit("new_private_message", serialize_message(message), room=room)
+    return message
+
+
 @chat_bp.route("/messages")
 @login_required
 def inbox():
@@ -86,8 +131,20 @@ def direct_chat(user_id):
     Message.query.filter_by(
         sender_id=other.id, recipient_id=current_user.id, delivered=False
     ).update({"delivered": True})
+    Notification.query.filter(
+        Notification.user_id == current_user.id,
+        Notification.category.in_(["message", "call"]),
+        Notification.action_url == url_for("chat.direct_chat", user_id=other.id),
+        Notification.seen == False,
+    ).update({"seen": True})
     db.session.commit()
-    return render_template("chat.html", other=other, messages=messages, family=None)
+    return render_template(
+        "chat.html",
+        other=other,
+        messages=messages,
+        family=None,
+        is_other_online=other.id in connected_users,
+    )
 
 
 @chat_bp.route("/family/<int:family_id>/chat")
@@ -108,6 +165,13 @@ def family_chat(family_id):
         .order_by(Message.created_at.asc())
         .all()
     )
+    Notification.query.filter_by(
+        user_id=current_user.id,
+        category="family_chat",
+        action_url=url_for("chat.family_chat", family_id=family.id),
+        seen=False,
+    ).update({"seen": True})
+    db.session.commit()
     return render_template("chat.html", other=None, messages=messages, family=family)
 
 
@@ -172,7 +236,7 @@ def upload_message_file():
         if not recipient:
             return jsonify({"error": "Recipient not found."}), 404
         message.recipient_id = recipient.id
-        room = f"private-{min(current_user.id, recipient.id)}-{max(current_user.id, recipient.id)}"
+        room = room_for_private_chat(current_user.id, recipient.id)
         recipients = [recipient.id]
     else:
         return jsonify({"error": "Choose a chat first."}), 400
@@ -192,20 +256,7 @@ def upload_message_file():
             )
         )
     db.session.commit()
-    payload = {
-        "sender_id": current_user.id,
-        "sender_name": current_user.username,
-        "recipient_id": message.recipient_id,
-        "family_id": message.family_id,
-        "content": message.content,
-        "media_url": url_for("api.serve_upload", filename=message.media_url),
-        "media_type": message.media_type,
-        "message_id": message.id,
-        "reply_to_id": message.reply_to_id,
-        "view_once": message.view_once,
-        "delivered": message.delivered,
-        "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
-    }
+    payload = serialize_message(message)
     socketio.emit(
         "new_family_message" if message.family_id else "new_private_message",
         payload,
@@ -353,7 +404,7 @@ def private_message(data):
     recipient = User.query.get(recipient_id)
     if not recipient:
         return
-    room = f"private-{min(current_user.id, recipient_id)}-{max(current_user.id, recipient_id)}"
+    room = room_for_private_chat(current_user.id, recipient_id)
     message = Message(
         sender_id=current_user.id,
         recipient_id=recipient_id,
@@ -373,16 +424,7 @@ def private_message(data):
     emit(
         "new_private_message",
         {
-            "sender_id": current_user.id,
-            "sender_name": current_user.username,
-            "recipient_id": recipient_id,
-            "content": content,
-            "message_id": message.id,
-            "reply_to_id": message.reply_to_id,
-            "media_url": "",
-            "media_type": "text",
-            "delivered": message.delivered,
-            "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
+            **serialize_message(message),
         },
         room=room,
     )
@@ -425,16 +467,7 @@ def family_message(data):
     emit(
         "new_family_message",
         {
-            "sender_id": current_user.id,
-            "sender_name": current_user.username,
-            "family_id": family.id,
-            "content": content,
-            "message_id": message.id,
-            "reply_to_id": message.reply_to_id,
-            "media_url": "",
-            "media_type": "text",
-            "delivered": message.delivered,
-            "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
+            **serialize_message(message),
         },
         room=room,
     )
@@ -486,9 +519,25 @@ def ice_candidate(data):
 def call_invite(data):
     target_id = parse_user_id(data.get("target_id"))
     mode = data.get("mode", "video")
-    if not target_id or target_id not in connected_users:
+    if not target_id:
+        return
+    target = User.query.get(target_id)
+    if not target:
+        return
+    if target_id not in connected_users:
+        create_call_history(current_user.id, target_id, mode, "missed")
+        db.session.add(
+            Notification(
+                user_id=target_id,
+                category="call",
+                message=f"Missed {mode} call from {current_user.username}",
+                action_url=url_for("chat.direct_chat", user_id=current_user.id),
+            )
+        )
+        db.session.commit()
         emit("call_unavailable", {"target_id": target_id}, room=request.sid)
         return
+    create_call_history(current_user.id, target_id, mode, "started")
     emit(
         "incoming_call",
         {
@@ -514,6 +563,8 @@ def ready_for_call(data):
 @socketio.on("call_ended")
 def call_ended(data):
     target_id = parse_user_id(data.get("target_id"))
+    if target_id and User.query.get(target_id):
+        create_call_history(current_user.id, target_id, data.get("mode", "video"), "ended")
     if target_id in connected_users:
         emit(
             "call_ended",

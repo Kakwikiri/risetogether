@@ -10,8 +10,21 @@
   <article
     class="notification-card {% if not notification.seen %}unseen{% endif %}"
   >
-    <p>{{ notification.message }}</p>
-    <small>{{ notification.created_at.strftime('%b %d, %Y %H:%M') }}</small>
+    {% if notification.action_url %}
+    <a class="notification-main" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+      <span>{{ notification.message }}</span>
+      <small>{{ notification.created_at.strftime('%b %d, %Y %H:%M') }}</small>
+    </a>
+    <a class="button secondary notification-view" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+      {% if notification.category in ['message', 'family_chat'] %}View message{% elif notification.category in ['reaction', 'comment'] %}View post{% else %}View{% endif %}
+    </a>
+    {% else %}
+    <div class="notification-main">
+      <span>{{ notification.message }}</span>
+      <small>{{ notification.created_at.strftime('%b %d, %Y %H:%M') }}</small>
+    </div>
+    {% endif %}
+    {#
     {% if notification.action_url %}
     <p>
       <a class="button secondary" href="{{ notification.action_url }}">
@@ -19,6 +32,7 @@
       </a>
     </p>
     {% endif %}
+    #}
     {% if notification.category == 'family_invite' %}
     <p>
       <a class="button secondary" href="{{ url_for('family.families') }}"
