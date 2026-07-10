@@ -285,6 +285,14 @@ if (typeof chatConfig !== "undefined") {
       });
     }
 
+    if (chatInput && chatLog) {
+      chatInput.addEventListener("focus", () => {
+        window.setTimeout(() => {
+          chatLog.scrollTop = chatLog.scrollHeight;
+        }, 250);
+      });
+    }
+
     if (chatFile && filePreview) {
       chatFile.addEventListener("change", () => {
         filePreview.innerHTML = "";

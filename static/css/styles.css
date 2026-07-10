@@ -388,7 +388,7 @@ a {
 .chat-page-content {
   width: 100%;
   max-width: 100%;
-  height: calc(100dvh - 68px);
+  height: calc(var(--visual-vh, 100dvh) - 68px);
   overflow: hidden;
   padding: 0.75rem 0.75rem 0;
 }
@@ -2113,13 +2113,16 @@ textarea:focus {
   }
 
   .chat-page-content {
-    height: calc(100dvh - 64px);
+    height: calc(var(--visual-vh, 100dvh) - 64px);
     overflow: hidden;
-    padding: 0.45rem;
+    padding: 0;
   }
 
   .chat-card {
-    border-radius: 8px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .chat-header {

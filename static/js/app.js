@@ -1,4 +1,15 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const syncVisualViewportHeight = () => {
+    const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty("--visual-vh", `${height}px`);
+  };
+  syncVisualViewportHeight();
+  window.addEventListener("resize", syncVisualViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncVisualViewportHeight);
+    window.visualViewport.addEventListener("scroll", syncVisualViewportHeight);
+  }
+
   const savedTheme = localStorage.getItem("theme") || "light";
   document.documentElement.dataset.theme = savedTheme;
   const themeToggle = document.querySelector("[data-theme-toggle]");
