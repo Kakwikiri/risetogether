@@ -1,0 +1,43 @@
+{% extends 'base.html' %} {% block content %}
+<section class="panel">
+  <div class="panel-header split-header">
+    <h2>Messages</h2>
+    <a class="button secondary" href="{{ url_for('main.people') }}">New chat</a>
+  </div>
+  <div class="message-list">
+    {% for item in conversations %}
+    <a class="message-row" href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}">
+      <img
+        class="avatar"
+        src="{{ url_for('static', filename='images/default-avatar.png') if not item.user.profile.avatar else url_for('api.serve_upload', filename=item.user.profile.avatar) }}"
+        alt="Avatar"
+      />
+      <div>
+        <strong>{{ item.user.profile.display_name }}</strong>
+        <p>{{ item.message.content }}</p>
+      </div>
+      <span>{{ item.message.created_at.strftime('%H:%M') }}</span>
+    </a>
+    {% else %}
+    <p>No direct messages yet.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Family Chats</h2>
+  <div class="message-list">
+    {% for family in families %}
+    <a class="message-row" href="{{ url_for('chat.family_chat', family_id=family.id) }}">
+      <div class="avatar family-avatar">{{ family.name[:1]|upper }}</div>
+      <div>
+        <strong>{{ family.name }}</strong>
+        <p>Open family conversation</p>
+      </div>
+    </a>
+    {% else %}
+    <p>Join a family to see group chats here.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

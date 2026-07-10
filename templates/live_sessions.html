@@ -1,0 +1,34 @@
+{% extends 'base.html' %} {% block content %}
+<section class="panel">
+  <div class="split-header">
+    <h2>Live Sessions</h2>
+    <span class="status-pill">Motivation, stories, and support</span>
+  </div>
+  <form action="" method="post" class="compact-composer">
+    <label>Live title</label>
+    <input type="text" name="title" placeholder="What are you sharing live?" required />
+    <label>Description</label>
+    <textarea name="description" rows="3" placeholder="Short note for viewers..."></textarea>
+    <button class="button" type="submit">Go live</button>
+  </form>
+  <div class="people-list">
+    {% for session in sessions %}
+    <article class="family-card">
+      <h3>{{ session.title }}</h3>
+      <p>{{ session.description or 'No description.' }}</p>
+      <small>
+        {{ session.user.profile.display_name }} · {{ session.status }} ·
+        {{ session.created_at.strftime('%b %d, %H:%M') }}
+      </small>
+      {% if session.user_id == current_user.id or current_user.is_admin %}
+      <form action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
+        <button class="button secondary" type="submit">End live</button>
+      </form>
+      {% endif %}
+    </article>
+    {% else %}
+    <p>No live sessions yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

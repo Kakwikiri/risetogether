@@ -1,0 +1,41 @@
+# Python/runtime
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+instance/
+
+# User uploads and generated media
+uploads/
+
+# Databases and local state
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Accidental local shell fragments
+ql -U postgres*
+ts' if rows else 'missing')

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="RiseTogether" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="description"
+      content="RiseTogether is a safe support community for stories, families, chat, and encouragement."
+    />
+    <title>RiseTogether - {{ title if title else 'Safe Community' }}</title>
+    <link
+      rel="manifest"
+      href="{{ url_for('static', filename='manifest.json') }}"
+    />
+    <link
+      rel="apple-touch-icon"
+      href="{{ url_for('static', filename='images/icon-192.png') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+    <script
+      defer
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
+    ></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script
+      defer
+      src="{{ url_for('static', filename='js/socket.js') }}"
+    ></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <a href="{{ url_for('main.home') }}">
+          <img class="brand-logo" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="" />
+          <span>RiseTogether</span>
+        </a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="nav-links">
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('main.home') }}" data-icon="⌂"><span>Feed</span></a>
+        <a href="{{ url_for('main.people') }}" data-icon="☻"><span>People</span></a>
+        <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
+        <a href="{{ url_for('main.live_sessions') }}" data-icon="▶"><span>Live</span></a>
+        <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
+          data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge"
+            >{{ unread_messages }}</span
+          >{% endif %}</a
+        >
+        <a href="{{ url_for('main.notifications') }}"
+          data-icon="●"><span>Notifications</span> {% if unread_notifications %}<span class="nav-badge"
+            >{{ unread_notifications }}</span
+          >{% endif %}</a
+        >
+        <a href="{{ url_for('main.profile', username=current_user.username) }}"
+          data-icon="◉"><span>Profile</span></a
+        >
+        <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('moderation.admin_reports') }}" data-icon="!"><span>Reports</span></a>
+        <a href="{{ url_for('moderation.admin_users') }}" data-icon="⚙"><span>Admin</span></a>
+        <a href="{{ url_for('moderation.admin_help_requests') }}" data-icon="?"><span>Requests</span></a>
+        <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Settings</span></a>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}" data-icon="⇥"><span>Logout</span></a>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}">Login</a>
+        <a href="{{ url_for('auth.signup') }}">Signup</a>
+        {% endif %}
+        <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
+        <button class="install-button" type="button" hidden>Install</button>
+      </nav>
+    </header>
+    <div class="toast" data-toast hidden></div>
+    <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <section class="flash-container">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </section>
+      {% endif %} {% endwith %} {% block content %}{% endblock %}
+    </main>
+    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.calls'] %}
+    <footer class="footer">
+      <p>
+        RiseTogether — a safe, supportive community for stories, hope, and
+        healing.
+      </p>
+    </footer>
+    {% endif %}
+    <script>
+      if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+              navigator.serviceWorker.register('{{ url_for('static', filename='service-worker.js') }}')
+              .catch(err => console.warn('SW registration failed:', err));
+          });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <h2>Edit Family</h2>
+  <form action="" method="post">
+    <label>Family name</label>
+    <input type="text" name="name" value="{{ family.name }}" required />
+    <label>Description</label>
+    <textarea name="description" rows="4">{{ family.description }}</textarea>
+    <label>Privacy</label>
+    <select name="privacy">
+      <option value="public" {% if family.privacy == 'public' %}selected{% endif %}>Public</option>
+      <option value="private" {% if family.privacy == 'private' %}selected{% endif %}>Private</option>
+    </select>
+    <button class="button" type="submit">Save family</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <h2>Admin Settings</h2>
+  <form action="" method="post">
+    <h3>Google Login</h3>
+    <label>Google Client ID</label>
+    <input type="text" name="google_client_id" value="{{ settings.google_client_id }}" />
+    <label>Google Client Secret</label>
+    <input type="password" name="google_client_secret" placeholder="{% if settings.google_client_secret %}Saved - enter a new value to replace{% else %}Paste client secret{% endif %}" />
+
+    <h3>Password Reset Email</h3>
+    <label>SMTP Host</label>
+    <input type="text" name="smtp_host" value="{{ settings.smtp_host }}" />
+    <label>SMTP From Email</label>
+    <input type="email" name="smtp_from" value="{{ settings.smtp_from }}" />
+    <label>SMTP Username</label>
+    <input type="text" name="smtp_username" value="{{ settings.smtp_username }}" />
+    <label>SMTP Password</label>
+    <input type="password" name="smtp_password" placeholder="{% if settings.smtp_password %}Saved - enter a new value to replace{% else %}Paste SMTP password{% endif %}" />
+
+    <button class="button" type="submit">Save settings</button>
+  </form>
+</section>
+{% endblock %}

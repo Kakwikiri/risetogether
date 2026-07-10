@@ -1,0 +1,30 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card panel">
+  <h2>Admin - Help Requests</h2>
+  <div class="people-list">
+    {% for item in requests %}
+    <article class="request-card">
+      <strong>{{ item.subject }}</strong>
+      <p>{{ item.message }}</p>
+      <small>
+        {{ item.user.username if item.user else 'Deleted user' }} ·
+        {{ item.status }} · {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}
+      </small>
+      <div class="admin-actions">
+        <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='reviewed') }}" method="post">
+          <button class="button secondary" type="submit">Reviewed</button>
+        </form>
+        <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='closed') }}" method="post">
+          <button class="button" type="submit">Close</button>
+        </form>
+        <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='open') }}" method="post">
+          <button class="button secondary" type="submit">Reopen</button>
+        </form>
+      </div>
+    </article>
+    {% else %}
+    <p>No help requests yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

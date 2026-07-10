@@ -1,0 +1,108 @@
+{% extends 'base.html' %} {% block content %}
+<div class="grid-layout">
+  <section class="panel">
+    <div class="panel-header">
+      <h2>People</h2>
+    </div>
+    <form class="people-search" method="get" action="{{ url_for('main.people') }}">
+      <input
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search username or email"
+        aria-label="Search people"
+      />
+      <button class="button" type="submit">Search</button>
+    </form>
+
+    <div class="people-list">
+      {% for user in users %}
+      <article class="person-card">
+        <img
+          class="avatar"
+          src="{{ url_for('static', filename='images/default-avatar.png') if not user.profile.avatar else url_for('api.serve_upload', filename=user.profile.avatar) }}"
+          alt="Avatar"
+        />
+        <div>
+          <h3>
+            <a href="{{ url_for('main.profile', username=user.username) }}"
+              >{{ user.profile.display_name }}</a
+            >{% if user.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}
+          </h3>
+          <p>@{{ user.username }}</p>
+        </div>
+        <div class="person-actions">
+          <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
+            <button class="button secondary" type="submit">Add friend</button>
+          </form>
+          <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=user.id) }}"
+            >Message</a
+          >
+          <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='audio', start='1') }}"
+            >Audio</a
+          >
+          <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='video', start='1') }}"
+            >Video</a
+          >
+        </div>
+      </article>
+      {% else %}
+      <p>No people found yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="panel panel-sidebar">
+    <section class="card">
+      <h3>Friend requests</h3>
+      {% for request in incoming_requests %}
+      <article class="request-card">
+        <p>
+          <a href="{{ url_for('main.profile', username=request.sender.username) }}"
+            >{{ request.sender.username }}</a
+          >
+          wants to connect.
+        </p>
+        <div class="cta-buttons">
+          <form
+            action="{{ url_for('main.respond_friend_request', request_id=request.id, action='accept') }}"
+            method="post"
+          >
+            <button class="button" type="submit">Accept</button>
+          </form>
+          <form
+            action="{{ url_for('main.respond_friend_request', request_id=request.id, action='decline') }}"
+            method="post"
+          >
+            <button class="button secondary" type="submit">Decline</button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <p>No pending requests.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card">
+      <h3>Friends</h3>
+      {% for request in accepted_requests %}
+      {% set friend = request.receiver if request.sender_id == current_user.id else request.sender %}
+      <article class="friend-row">
+        <a href="{{ url_for('main.profile', username=friend.username) }}"
+          >{{ friend.username }}</a
+        >
+        <span>
+          <a href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a>
+          ·
+          <a href="{{ url_for('chat.calls', user_id=friend.id, mode='audio', start='1') }}">Audio</a>
+          ·
+          <a href="{{ url_for('chat.calls', user_id=friend.id, mode='video', start='1') }}">Video</a>
+        </span>
+      </article>
+      {% else %}
+      <p>No friends yet. Search for someone to connect with.</p>
+      {% endfor %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

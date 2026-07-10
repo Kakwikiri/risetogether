@@ -1,0 +1,12 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <h2>Contact Admin</h2>
+  <form action="" method="post">
+    <label>Subject</label>
+    <input type="text" name="subject" required />
+    <label>Message</label>
+    <textarea name="message" rows="6" required placeholder="Tell the admin what you need help with or what improvement you suggest..."></textarea>
+    <button class="button" type="submit">Send request</button>
+  </form>
+</section>
+{% endblock %}

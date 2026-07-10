@@ -1,0 +1,46 @@
+{% extends 'base.html' %} {% block content %}
+<section class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-intro">
+      <span class="eyebrow">Start gently</span>
+      <h1>Create your account</h1>
+      <p>Your password is stored securely as a hash, not plain text.</p>
+    </div>
+    <form action="" method="post" class="stacked-form">
+      <label for="username">Username</label>
+      <input id="username" type="text" name="username" required autocomplete="username" />
+      <label for="email">Email address</label>
+      <input id="email" type="email" name="email" required autocomplete="email" />
+      <label for="country">Country</label>
+      <select id="country" name="country" required autocomplete="country-name">
+        <option value="">Select your country</option>
+        {% for country in countries %}
+        <option value="{{ country }}">{{ country }}</option>
+        {% endfor %}
+      </select>
+      <label for="password">Password</label>
+      <div class="password-field">
+        <input
+          id="password"
+          type="password"
+          name="password"
+          required
+          autocomplete="new-password"
+          minlength="8"
+        />
+        <button type="button" class="password-toggle" aria-label="Show password">
+          Show
+        </button>
+      </div>
+      <button class="button full-width" type="submit">Sign up</button>
+    </form>
+    <a class="button secondary full-width google-button" href="{{ url_for('auth.google_login') }}">
+      Continue with Google
+    </a>
+    <p class="auth-switch">
+      Already have an account?
+      <a href="{{ url_for('auth.login') }}">Login here</a>.
+    </p>
+  </div>
+</section>
+{% endblock %}

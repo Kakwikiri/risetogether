@@ -1,0 +1,200 @@
+{% extends 'base.html' %} {% block content %}
+<div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
+  <section class="panel panel-feed">
+    <div class="panel-header">
+      <h2>{{ 'Videos' if video_only else 'Your feed' }}</h2>
+      <div class="feed-tabs">
+        <a class="button secondary" href="{{ url_for('main.home') }}">All</a>
+        <a class="button secondary" href="{{ url_for('main.home', type='videos') }}">Videos only</a>
+        {% if video_only %}
+        <label class="status-pill"><input type="checkbox" data-auto-slide checked /> Auto slide</label>
+        {% endif %}
+      </div>
+    </div>
+    {% if video_only %}
+    <div class="video-quick-actions">
+      <form action="{{ url_for('main.home') }}" method="get" class="video-search">
+        <input type="hidden" name="type" value="videos" />
+        <input type="search" name="q" value="{{ query }}" placeholder="Search videos..." />
+        <button class="icon-button" type="submit" aria-label="Search videos">⌕</button>
+      </form>
+      <a class="icon-button" href="{{ url_for('main.home') }}" aria-label="Upload video">+</a>
+      <a class="icon-button" href="#trending-videos" aria-label="Trending videos">★</a>
+    </div>
+    {% endif %}
+    {% if not video_only %}
+    <section class="composer-card">
+      <h3>Share your story</h3>
+      <form
+        action="{{ url_for('main.create_post') }}"
+        method="post"
+        enctype="multipart/form-data"
+        class="post-composer"
+      >
+        <textarea
+          name="content"
+          rows="4"
+          placeholder="Write something uplifting or honest..."
+        ></textarea>
+        <div class="composer-preview" data-media-preview hidden></div>
+        <div class="composer-tools">
+          <label class="file-pill">
+            Add file
+            <input type="file" name="media" accept="image/*,audio/*,video/*,.pdf,.doc,.docx" data-media-input />
+          </label>
+          <select name="audience" aria-label="Post audience">
+            <option value="public">Public</option>
+            <option value="friends">Friends</option>
+            <option value="family">Family</option>
+            <option value="private">Private</option>
+          </select>
+          <select name="family_id" aria-label="Post destination">
+            <option value="">No family</option>
+            {% for family in families %}
+            <option value="{{ family.id }}">{{ family.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="button" type="submit">Post</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+    {% for post in posts %}
+    <article class="card post-card">
+      <header>
+        <div class="post-author">
+          <img
+            class="avatar"
+            src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+            alt="Avatar"
+          />
+          <div>
+            <strong
+              ><a
+                href="{{ url_for('main.profile', username=post.author.username) }}"
+                >{{ post.author.profile.display_name }}</a
+              >{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
+            >
+            <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+          </div>
+          {% if post.user_id != current_user.id %}
+          <form action="{{ url_for('main.toggle_follow', user_id=post.user_id) }}" method="post">
+            <button class="follow-chip" type="submit">+ Follow</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="post-family">
+          {{ post.audience|capitalize }}{% if post.is_hidden %} · Hidden{% endif %}
+          {% if post.family %} · Family:
+          <a
+            href="{{ url_for('family.family_detail', family_id=post.family.id) }}"
+            >{{ post.family.name }}</a
+          >
+          {% endif %}
+        </div>
+      </header>
+      <p class="post-content">{{ post.content }}</p>
+      {% if post.media_url %} {% if post.media_type == 'image' %}
+      <div class="media-frame">
+        <img
+          class="post-media"
+          src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+          alt="Post media"
+        />
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+      </div>
+      {% elif post.media_type == 'video' %}
+      <div class="media-frame">
+      <video class="post-media autoplay-video" controls autoplay muted playsinline loop preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}">
+          <source
+            src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+            type="video/mp4"
+          />
+          Your browser cannot play this video.
+        </video>
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+      </div>
+      {% elif post.media_type == 'audio' %}
+      <audio
+        controls
+        src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+      ></audio>
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download audio</a>
+      {% elif post.media_type == 'file' %}
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" target="_blank" rel="noopener" download>
+        Download attachment
+      </a>
+      {% endif %} {% endif %}
+      <div class="post-actions">
+        <form
+          action="{{ url_for('main.react_post', post_id=post.id) }}"
+          method="post"
+          class="reaction-form"
+        >
+          {% for key,label in reactions.items() %}
+          <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}">
+            {{ post.reactions.filter_by(type=key).count() }} {{ label }}
+          </button>
+          {% endfor %}
+        </form>
+        <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">
+          Comments {{ post.comments.count() }}
+        </a>
+        <a class="button secondary" href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
+        {% if post.user_id == current_user.id %}
+        <form action="{{ url_for('main.manage_post', post_id=post.id, action='hide') }}" method="post">
+          <button class="button secondary" type="submit">{{ 'Unhide' if post.is_hidden else 'Hide' }}</button>
+        </form>
+        <form action="{{ url_for('main.manage_post', post_id=post.id, action='delete') }}" method="post">
+          <button class="button danger" type="submit">Delete</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p>No posts yet. Share your first story.</p>
+    {% endfor %}
+  </section>
+  {% if not video_only %}
+  <aside class="panel panel-sidebar">
+    <div class="card" id="trending-videos">
+      <h3>Community highlights</h3>
+      <p>Join families, send supportive reactions, and connect in real time.</p>
+    </div>
+    <div class="card">
+      <h3>Kindness challenge</h3>
+      <p>React to one post, leave one thoughtful comment, and check in on one person today.</p>
+    </div>
+    <div class="card">
+      <h3>Available families</h3>
+      <ul>
+        {% for family in available_families %}
+        <li>
+          <a href="{{ url_for('family.family_detail', family_id=family.id) }}"
+            >{{ family.name }}</a
+          >
+          <span>{{ family.members.count() }} members</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Trending now</h3>
+      <ul>
+        {% for post in trending_posts %}
+        {% if post.reactions.count() or post.comments.count() %}
+        <li>
+          <a href="{{ url_for('main.post_detail', post_id=post.id) }}">
+            {{ post.author.username }} · {{ post.reactions.count() }} reactions · {{ post.comments.count() }} comments
+          </a>
+        </li>
+        {% endif %}
+        {% else %}
+        <li>No trending posts yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

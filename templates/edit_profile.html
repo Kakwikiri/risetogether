@@ -1,0 +1,38 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <h2>Edit Profile</h2>
+  <form action="" method="post" enctype="multipart/form-data">
+    <label>Display name</label>
+    <input
+      type="text"
+      name="display_name"
+      value="{{ profile.display_name }}"
+      required
+    />
+    <label>Bio</label>
+    <textarea name="bio" rows="4">{{ profile.bio }}</textarea>
+    <label>Privacy for posts</label>
+    <select name="privacy_posts">
+      <option value="public" {% if profile.privacy_posts == "public" %}selected{% endif %}>Public</option>
+      <option value="friends" {% if profile.privacy_posts == "friends" %}selected{% endif %}>Friends only</option>
+      <option value="family" {% if profile.privacy_posts == "family" %}selected{% endif %}>Family only</option>
+      <option value="private" {% if profile.privacy_posts == "private" %}selected{% endif %}>Private</option>
+    </select>
+    <label>Avatar image</label>
+    <input type="file" name="avatar" accept="image/*" />
+    <hr />
+    <h3>Change password</h3>
+    <label>Current password</label>
+    <input type="password" name="current_password" autocomplete="current-password" />
+    <label>New password</label>
+    <input type="password" name="new_password" autocomplete="new-password" />
+    <label>Confirm new password</label>
+    <input type="password" name="confirm_password" autocomplete="new-password" />
+    <hr />
+    <h3>Reset word</h3>
+    <label>Private reset word</label>
+    <input type="password" name="reset_phrase" placeholder="Example: kyotya monica" autocomplete="off" />
+    <button class="button" type="submit">Save Changes</button>
+  </form>
+</section>
+{% endblock %}

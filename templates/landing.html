@@ -1,0 +1,22 @@
+{% extends 'base.html' %} {% block content %}
+<section class="hero">
+  <div>
+    <h1>RiseTogether</h1>
+    <p>
+      A supportive community for stories, motivation, and safe conversations.
+    </p>
+    <div class="cta-buttons">
+      <a class="button" href="{{ url_for('auth.signup') }}">Join Free</a>
+      <a class="button secondary" href="{{ url_for('auth.login') }}">Login</a>
+    </div>
+  </div>
+  <div class="hero-notes">
+    <ul>
+      <li>Emotional support</li>
+      <li>Community families</li>
+      <li>Real-time chats</li>
+      <li>Safe storytelling</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

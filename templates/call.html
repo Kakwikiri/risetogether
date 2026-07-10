@@ -1,0 +1,33 @@
+{% extends 'base.html' %} {% block content %}
+<section class="call-screen" id="call-screen">
+  <video id="remote-video" class="remote-video" autoplay playsinline></video>
+  <div class="voice-fallback" id="voice-fallback">
+    <img
+      class="call-avatar"
+      src="{{ url_for('static', filename='images/default-avatar.png') if not other.profile.avatar else url_for('api.serve_upload', filename=other.profile.avatar) }}"
+      alt="{{ other.username }}"
+    />
+    <h1>{{ other.profile.display_name }}</h1>
+    <p id="call-status">Ready to call</p>
+  </div>
+  <video id="local-video" class="local-video" autoplay muted playsinline></video>
+  <div class="call-controls">
+    <button id="start-call" class="call-control" type="button">Call</button>
+    <button id="mute-audio" class="call-control" type="button">Mute</button>
+    <button id="toggle-video" class="call-control" type="button">Video</button>
+    <button id="speakerphone" class="call-control" type="button">Speaker</button>
+    <button id="end-call" class="call-control end-call" type="button">End</button>
+  </div>
+</section>
+<script>
+  const callConfig = {
+      targetUserId: {{ other.id }},
+      currentUserId: {{ current_user.id }},
+      currentUserName: '{{ current_user.username }}',
+      targetName: '{{ other.profile.display_name }}',
+      autoAnswer: {{ 'true' if request.args.get('answer') else 'false' }},
+      autoStart: {{ 'true' if request.args.get('start') else 'false' }},
+      mode: '{{ request.args.get('mode', 'video') }}',
+  };
+</script>
+{% endblock %}

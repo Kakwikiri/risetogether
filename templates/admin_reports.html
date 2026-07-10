@@ -1,0 +1,54 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card panel">
+  <h2>Admin - Reports</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Reporter</th>
+        <th>Target</th>
+        <th>Post</th>
+        <th>Reason</th>
+        <th>Status</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in reports %}
+      <tr>
+        <td>{{ report.id }}</td>
+        <td>{{ report.reporter.username }}</td>
+        <td>
+          {{ report.reported_user.username if report.reported_user else 'N/A' }}
+        </td>
+        <td>
+          {% if report.post %}#{{ report.post.id }}{% else %}N/A{% endif %}
+        </td>
+        <td>{{ report.reason }}</td>
+        <td>{{ report.status }}</td>
+        <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="admin-actions">
+          <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='reviewed') }}" method="post">
+            <button class="button secondary" type="submit">Reviewed</button>
+          </form>
+          {% if report.post %}
+          <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='delete_post') }}" method="post">
+            <button class="button danger" type="submit">Delete post</button>
+          </form>
+          {% endif %}
+          {% if report.reported_user %}
+          <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='ban_user') }}" method="post">
+            <button class="button secondary" type="submit">Ban account</button>
+          </form>
+          <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='delete_user') }}" method="post">
+            <button class="button danger" type="submit">Delete account</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

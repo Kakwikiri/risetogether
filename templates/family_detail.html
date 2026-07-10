@@ -1,0 +1,124 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card family-detail-card">
+  <header>
+    <h2>{{ family.name }}</h2>
+    <p>{{ family.description }}</p>
+    <p class="muted-meta">{{ members|length }} members · {{ family.privacy|capitalize }}</p>
+  </header>
+  <div class="family-actions">
+    {% if not member %}
+    <form
+      action="{{ url_for('family.join_family', family_id=family.id) }}"
+      method="post"
+    >
+      <button class="button" type="submit">Join family</button>
+    </form>
+    {% endif %} {% if member %}
+    <a
+      class="button"
+      href="{{ url_for('chat.family_chat', family_id=family.id) }}"
+      >Open family chat</a
+    >
+    {% if member.role == 'admin' %}
+    <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
+    {% endif %}
+    {% endif %}
+  </div>
+  <section>
+    <h3>Members</h3>
+    <ul>
+      {% for membership in members %}
+      <li class="member-row">
+        <span>{{ membership.user.username }} — {{ membership.role }}</span>
+        {% if member and member.role == 'admin' and membership.user_id != family.owner_id %}
+        <span class="member-actions">
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post">
+            <button class="text-button" type="submit">Make admin</button>
+          </form>
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='demote') }}" method="post">
+            <button class="text-button" type="submit">Remove admin</button>
+          </form>
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='remove') }}" method="post">
+            <button class="text-button danger-text" type="submit">Remove</button>
+          </form>
+        </span>
+        {% endif %}
+      </li>
+      {% else %}
+      <li>No members yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section>
+    <h3>Family posts</h3>
+    {% if member %}
+    <form
+      action="{{ url_for('main.create_post') }}"
+      method="post"
+      enctype="multipart/form-data"
+      class="post-composer compact-composer"
+    >
+      <input type="hidden" name="family_id" value="{{ family.id }}" />
+      <input type="hidden" name="audience" value="family" />
+      <textarea
+        name="content"
+        rows="3"
+        placeholder="Share encouragement with {{ family.name }}..."
+      ></textarea>
+      <div class="composer-preview" data-media-preview hidden></div>
+      <div class="composer-tools">
+        <label class="file-pill">
+          Add file
+          <input type="file" name="media" accept="image/*,audio/*,video/*,.pdf,.doc,.docx" data-media-input />
+        </label>
+        <button class="button" type="submit">Post to family</button>
+      </div>
+    </form>
+    {% endif %}
+    {% for post in posts %}
+    <article class="card post-card">
+      <strong>{{ post.author.profile.display_name }}</strong>
+      <p>{{ post.content }}</p>
+      {% if post.media_url %}
+        {% if post.media_type == 'image' %}
+        <div class="media-frame">
+          <img class="post-media" src="{{ url_for('api.serve_upload', filename=post.media_url) }}" alt="Family post image" />
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+        </div>
+        {% elif post.media_type == 'video' %}
+        <div class="media-frame">
+          <video class="post-media" controls preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+        </div>
+        {% elif post.media_type == 'audio' %}
+        <audio controls src="{{ url_for('api.serve_upload', filename=post.media_url) }}"></audio>
+        <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download audio</a>
+        {% else %}
+        <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download attachment</a>
+        {% endif %}
+      {% endif %}
+      <a
+        class="button secondary"
+        href="{{ url_for('main.post_detail', post_id=post.id) }}"
+        >View</a
+      >
+    </article>
+    {% else %}
+    <p>No posts in this family yet.</p>
+    {% endfor %}
+  </section>
+  {% if member and member.role == 'admin' %}
+  <section>
+    <h3>Invite someone</h3>
+    <form
+      action="{{ url_for('family.invite_family_member', family_id=family.id) }}"
+      method="post"
+    >
+      <label>Username</label>
+      <input type="text" name="username" required />
+      <button class="button" type="submit">Send invite</button>
+    </form>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

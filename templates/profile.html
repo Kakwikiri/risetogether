@@ -1,0 +1,132 @@
+{% extends 'base.html' %} {% block content %}
+<section class="profile-page">
+  <header class="profile-hero">
+    <img
+      class="avatar-large profile-hero-avatar"
+      src="{{ url_for('static', filename='images/default-avatar.png') if not profile.avatar else url_for('api.serve_upload', filename=profile.avatar) }}"
+      alt="avatar"
+    />
+    <h1>{{ profile.display_name }}{% if user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
+    <p class="profile-username">@{{ user.username }}</p>
+    <p class="profile-bio">{{ profile.bio or 'No bio yet. Share your story.' }}</p>
+    <div class="profile-stats">
+      <span>{{ follower_count }} followers</span>
+      <span>{{ following_count }} following</span>
+      <span>{{ posts|length }} posts</span>
+    </div>
+    <div class="profile-hero-actions">
+      {% if current_user.is_authenticated and current_user.id == user.id %}
+      <a class="button" href="{{ url_for('main.edit_profile') }}">Edit Profile</a>
+      {% elif current_user.is_authenticated %}
+        {% if friend_status == 'accepted' %}
+        <a class="button" href="{{ url_for('chat.direct_chat', user_id=user.id) }}">Message</a>
+        <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='audio', start='1') }}">Audio call</a>
+        <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='video', start='1') }}">Video call</a>
+        {% elif friend_status == 'pending' %}
+        <span class="status-pill">Friend request pending</span>
+        {% else %}
+        <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
+          <button class="button" type="submit">Add friend</button>
+        </form>
+        {% endif %}
+        <form action="{{ url_for('main.toggle_follow', user_id=user.id) }}" method="post">
+          <button class="button secondary" type="submit">{{ 'Following' if is_following else '+ Follow' }}</button>
+        </form>
+      {% endif %}
+    </div>
+  </header>
+
+  <nav class="profile-tabbar" aria-label="Profile navigation">
+    <a class="active" href="{{ url_for('main.home') }}">Feed</a>
+    <a href="{{ url_for('main.people') }}">People</a>
+    <a href="{{ url_for('family.families') }}">Families</a>
+    <a href="{{ url_for('chat.inbox') }}">Messages</a>
+    <a href="{{ url_for('main.notifications') }}">Notifications</a>
+  </nav>
+
+  <section class="profile-section">
+    <h2>Families</h2>
+    <div class="family-button-list">
+      {% for membership in memberships %}
+      <a class="family-button" href="{{ url_for('family.family_detail', family_id=membership.family.id) }}">
+        <strong>{{ membership.family.name }}</strong>
+        <span>{{ membership.role }} · {{ membership.family.members.count() }} members</span>
+      </a>
+      {% else %}
+      <p>No families yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="profile-section">
+    <h2>Following</h2>
+    <div class="family-button-list">
+      {% for followed in following %}
+      <a class="family-button" href="{{ url_for('main.profile', username=followed.username) }}">
+        <strong>{{ followed.profile.display_name }}</strong>
+        <span>@{{ followed.username }}</span>
+      </a>
+      {% else %}
+      <p>Not following anyone yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="profile-section">
+    <h2>Posts</h2>
+    <div class="profile-feed-cards">
+      {% for post in posts %}
+      <article class="profile-post-card">
+        <div class="profile-post-top">
+          <img
+            class="avatar"
+            src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+            alt="Avatar"
+          />
+          <div>
+            <strong>{{ post.author.profile.display_name }}{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong>
+            <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+          </div>
+        </div>
+        <p class="profile-post-body">{{ post.content or post.media_type|capitalize }}</p>
+        {% if post.media_url and post.media_type == 'image' %}
+        <div class="media-frame">
+          <img class="post-media" src="{{ url_for('api.serve_upload', filename=post.media_url) }}" alt="Post image" />
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+        </div>
+        {% elif post.media_url and post.media_type == 'video' %}
+        <div class="media-frame">
+          <video class="post-media autoplay-video" controls autoplay muted playsinline loop preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+        </div>
+        {% endif %}
+        <div class="profile-post-actions">
+          <form action="{{ url_for('main.react_post', post_id=post.id) }}" method="post">
+            <button type="submit" name="reaction_type" value="support">❤️ Support {{ post.reactions.filter_by(type='support').count() }}</button>
+            <button type="submit" name="reaction_type" value="understand">🤝 I Understand {{ post.reactions.filter_by(type='understand').count() }}</button>
+            <button type="submit" name="reaction_type" value="keep-going">🔥 Keep Going {{ post.reactions.filter_by(type='keep-going').count() }}</button>
+            <button type="submit" name="reaction_type" value="inspire">💪 You Inspire Me {{ post.reactions.filter_by(type='inspire').count() }}</button>
+          </form>
+          <a href="{{ url_for('main.post_detail', post_id=post.id) }}">💬 Comments {{ post.comments.count() }}</a>
+          <a href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
+        </div>
+      </article>
+      {% else %}
+      <p>No posts yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if current_user.is_authenticated and current_user.id != user.id %}
+  <section class="profile-section profile-actions">
+    <form action="{{ url_for('moderation.block_user', user_id=user.id) }}" method="post">
+      <button class="button secondary" type="submit">Remove / Block User</button>
+    </form>
+    <form action="{{ url_for('moderation.report_user', user_id=user.id) }}" method="post">
+      <textarea name="reason" placeholder="Reason for reporting"></textarea>
+      <button class="button" type="submit">Report User</button>
+    </form>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

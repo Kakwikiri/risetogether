@@ -1,0 +1,27 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card panel">
+  <div class="split-header">
+    <h2>Families</h2>
+    <a class="button" href="{{ url_for('family.create_family') }}">Create Family</a>
+  </div>
+  <form class="people-search" method="get" action="{{ url_for('family.families') }}">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search families..." />
+    <button class="button secondary" type="submit">Search</button>
+  </form>
+  <div class="family-list">
+    {% for family in families %}
+    <article class="card family-card">
+      <h3>
+        <a href="{{ url_for('family.family_detail', family_id=family.id) }}"
+          >{{ family.name }}</a
+        >
+      </h3>
+      <p>{{ family.description or 'No description yet.' }}</p>
+      <span>{{ family.members.count() }} members · {{ family.privacy|capitalize }}</span>
+    </article>
+    {% else %}
+    <p>No families created yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

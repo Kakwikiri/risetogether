@@ -1,0 +1,17 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <h2>Create a new family</h2>
+  <form action="" method="post">
+    <label>Family name</label>
+    <input type="text" name="name" required />
+    <label>Description</label>
+    <textarea name="description" rows="4"></textarea>
+    <label>Privacy</label>
+    <select name="privacy">
+      <option value="public">Public - anyone can find and join</option>
+      <option value="private">Private - invite or admin approval</option>
+    </select>
+    <button class="button" type="submit">Create Family</button>
+  </form>
+</section>
+{% endblock %}

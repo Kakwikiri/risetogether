@@ -1,0 +1,59 @@
+{% extends 'base.html' %} {% block content %}
+<section class="share-page">
+  <div class="share-card">
+    <div class="share-header">
+      <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">Back</a>
+      <div>
+        <p class="eyebrow">Share post</p>
+        <h2>Choose who should receive this post</h2>
+      </div>
+    </div>
+
+    <article class="share-preview">
+      <header>
+        <img
+          class="avatar"
+          src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+          alt=""
+        />
+        <div>
+          <strong>{{ post.author.username }}</strong>
+          <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+        </div>
+      </header>
+      {% if post.content %}
+      <p>{{ post.content }}</p>
+      {% endif %}
+      {% if post.media_url and post.media_type == 'image' %}
+      <img class="share-preview-media" src="{{ url_for('api.serve_upload', filename=post.media_url) }}" alt="Post image" />
+      {% elif post.media_url and post.media_type == 'video' %}
+      <video class="share-preview-media" controls muted playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
+      {% endif %}
+    </article>
+
+    <form method="post" class="share-form">
+      {% if recipients %}
+      <div class="share-recipient-grid">
+        {% for user in recipients %}
+        <label class="share-recipient">
+          <input type="checkbox" name="recipient_ids" value="{{ user.id }}" />
+          <img
+            class="avatar"
+            src="{{ url_for('static', filename='images/default-avatar.png') if not user.profile.avatar else url_for('api.serve_upload', filename=user.profile.avatar) }}"
+            alt=""
+          />
+          <span>
+            <strong>{{ user.username }}</strong>
+            <small>{{ user.profile.display_name or 'RiseTogether member' }}</small>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      <button class="button" type="submit">Share with selected people</button>
+      {% else %}
+      <p class="empty-state">No available people to share with yet.</p>
+      {% endif %}
+    </form>
+  </div>
+</section>
+{% endblock %}
