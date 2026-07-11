@@ -8,7 +8,7 @@ from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
 from helpers import get_ice_servers, get_media_type, save_media, validate_upload
-from models import Family, FamilyMember, LiveSession, Message, Notification, User
+from models import Family, FamilyMember, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -28,6 +28,12 @@ def parse_user_id(value):
 
 def active_message_filter(query):
     return query.filter((Message.expires_at == None) | (Message.expires_at > datetime.utcnow()))
+
+
+def visible_message_filter(query):
+    return active_message_filter(query).filter(
+        ~Message.deletions.any(MessageDeletion.user_id == current_user.id)
+    )
 
 
 def can_access_message(message):
@@ -228,9 +234,9 @@ def emit_notification(user_id, notification):
 @chat_bp.route("/messages")
 @login_required
 def inbox():
-    direct_messages = Message.query.filter(
+    direct_messages = visible_message_filter(Message.query.filter(
         (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id)
-    ).order_by(Message.created_at.desc()).all()
+    )).order_by(Message.created_at.desc()).all()
     conversations = []
     seen_user_ids = set()
     for message in direct_messages:
@@ -257,7 +263,7 @@ def direct_chat(user_id):
     if other.id == current_user.id:
         return redirect(url_for("main.home"))
     messages = (
-        active_message_filter(
+        visible_message_filter(
             Message.query.filter(
             (
                 (Message.sender_id == current_user.id)
@@ -305,7 +311,7 @@ def family_chat(family_id):
             flash("Join the family before opening the group chat.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     messages = (
-        active_message_filter(Message.query.filter_by(family_id=family.id))
+        visible_message_filter(Message.query.filter_by(family_id=family.id))
         .order_by(Message.created_at.asc())
         .all()
     )
@@ -344,6 +350,7 @@ def upload_message_file():
     reply_to_id = parse_user_id(request.form.get("reply_to_id"))
     view_once = request.form.get("view_once") == "1"
     expires_in = request.form.get("expires_in")
+    media_kind = request.form.get("media_kind", "").strip()
     recipient_id = request.form.get("recipient_id")
     family_id = request.form.get("family_id")
     is_valid, upload_message = validate_upload(media_file)
@@ -352,7 +359,7 @@ def upload_message_file():
     filename = save_media(media_file)
     if not filename:
         return jsonify({"error": "Upload failed."}), 400
-    media_type = get_media_type(filename)
+    media_type = media_kind if media_kind in {"audio", "video"} else get_media_type(filename)
     message = Message(
         sender_id=current_user.id,
         content=content,
@@ -426,17 +433,26 @@ def delete_message(message_id):
     message = Message.query.get_or_404(message_id)
     if not can_access_message(message):
         return jsonify({"error": "Not allowed."}), 403
-    if message.sender_id != current_user.id and not current_user.is_admin:
-        return jsonify({"error": "Only the sender can delete this message."}), 403
+    scope = request.form.get("scope", "me")
     room = (
         f"family-{message.family_id}"
         if message.family_id
         else f"private-{min(message.sender_id, message.recipient_id)}-{max(message.sender_id, message.recipient_id)}"
     )
-    db.session.delete(message)
-    db.session.commit()
-    socketio.emit("message_deleted", {"message_id": message_id}, room=room)
-    return jsonify({"ok": True})
+    if scope == "everyone":
+        if message.sender_id != current_user.id and not current_user.is_admin:
+            return jsonify({"error": "Only the sender can delete this message for everyone."}), 403
+        db.session.delete(message)
+        db.session.commit()
+        socketio.emit("message_deleted", {"message_id": message_id}, room=room)
+        return jsonify({"ok": True, "scope": "everyone"})
+    existing = MessageDeletion.query.filter_by(
+        message_id=message.id, user_id=current_user.id
+    ).first()
+    if not existing:
+        db.session.add(MessageDeletion(message_id=message.id, user_id=current_user.id))
+        db.session.commit()
+    return jsonify({"ok": True, "scope": "me"})
 
 
 @chat_bp.route("/chat/message/<int:message_id>/viewed", methods=["POST"])

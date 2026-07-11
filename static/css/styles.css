@@ -1827,6 +1827,7 @@ textarea:focus {
 .chat-tools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
 }
 
@@ -1858,6 +1859,19 @@ textarea:focus {
   cursor: pointer;
   text-decoration: none;
   font-weight: 900;
+}
+
+.icon-button.recording {
+  color: white;
+  background: var(--danger);
+  border-color: var(--danger);
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  50% {
+    transform: scale(1.08);
+  }
 }
 
 .icon-button input {
@@ -2029,6 +2043,8 @@ textarea:focus {
   background: rgba(15, 23, 20, 0.94);
   border-radius: 999px;
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+  max-width: calc(100vw - 1rem);
+  overflow-x: auto;
 }
 
 .message-action-menu button {

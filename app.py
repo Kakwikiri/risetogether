@@ -63,10 +63,11 @@ socketio.init_app(
 
 def ensure_schema_compatibility():
     db.create_all()
-    from models import MediaAsset
+    from models import MediaAsset, MessageDeletion
     from helpers import get_media_type, mimetype_for_filename
 
     MediaAsset.__table__.create(db.engine, checkfirst=True)
+    MessageDeletion.__table__.create(db.engine, checkfirst=True)
     updates = [
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",

@@ -67,6 +67,9 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   if (data.message_id) {
     message.dataset.messageId = data.message_id;
   }
+  if (data.sender_id) {
+    message.dataset.senderId = data.sender_id;
+  }
   message.dataset.messageText = data.content || "";
 
   const user = document.createElement("span");
@@ -273,11 +276,15 @@ if (typeof chatConfig !== "undefined") {
     const chatFile = document.getElementById("chat-file");
     const filePreview = document.getElementById("chat-file-preview");
     const locationButton = document.getElementById("location-button");
+    const voiceNoteButton = document.getElementById("voice-note-button");
+    const videoNoteButton = document.getElementById("video-note-button");
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
     let replyToId = null;
     let longPressTimer = null;
+    let activeRecorder = null;
+    let activeRecorderButton = null;
     const actionMenu = document.createElement("div");
     actionMenu.className = "message-action-menu";
     actionMenu.hidden = true;
@@ -299,10 +306,11 @@ if (typeof chatConfig !== "undefined") {
       }
     };
 
-    const uploadChatFile = async (file, content = "") => {
+    const uploadChatFile = async (file, content = "", options = {}) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("content", content);
+      if (options.mediaKind) formData.append("media_kind", options.mediaKind);
       if (replyToId) formData.append("reply_to_id", replyToId);
       if (viewOnceInput && viewOnceInput.checked) formData.append("view_once", "1");
       if (expireInput && expireInput.checked) formData.append("expires_in", "60");
@@ -316,7 +324,14 @@ if (typeof chatConfig !== "undefined") {
         body: formData,
       });
       if (!response.ok) {
-        window.alert("File could not be sent.");
+        let message = "File could not be sent.";
+        try {
+          const errorData = await response.json();
+          message = errorData.error || message;
+        } catch (error) {
+          // Keep the generic message when the response is not JSON.
+        }
+        window.alert(message);
         return;
       }
       const data = await response.json();
@@ -349,8 +364,11 @@ if (typeof chatConfig !== "undefined") {
         ["reply", "Reply"],
         ["forward", "Forward"],
         ["pin", "Pin 24h"],
-        ["delete", "Delete"],
+        ["delete_me", "Delete for me"],
       ];
+      if (Number(message.dataset.senderId) === chatConfig.currentUserId) {
+        actions.push(["delete_everyone", "Delete for everyone"]);
+      }
       actions.forEach(([value, label]) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -373,8 +391,19 @@ if (typeof chatConfig !== "undefined") {
           replyPreview.hidden = false;
         }
         chatInput.focus();
-      } else if (action === "delete") {
-        fetch(`/chat/message/${messageId}/delete`, { method: "POST" });
+      } else if (action === "delete_me" || action === "delete_everyone") {
+        const formData = new FormData();
+        formData.append("scope", action === "delete_everyone" ? "everyone" : "me");
+        fetch(`/chat/message/${messageId}/delete`, {
+          method: "POST",
+          body: formData,
+        }).then((response) => {
+          if (response.ok) {
+            message.remove();
+          } else {
+            window.alert("Message could not be deleted.");
+          }
+        });
       } else if (action === "pin") {
         fetch(`/chat/message/${messageId}/pin`, { method: "POST" }).then((response) => {
           if (response.ok) {
@@ -509,6 +538,82 @@ if (typeof chatConfig !== "undefined") {
           { enableHighAccuracy: true, timeout: 10000 },
         );
       });
+    }
+
+    const getRecorderMimeType = (kind) => {
+      const choices = kind === "video"
+        ? ["video/webm;codecs=vp8,opus", "video/webm"]
+        : ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+      return choices.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+    };
+
+    const stopActiveRecorder = () => {
+      if (activeRecorder && activeRecorder.state !== "inactive") {
+        activeRecorder.stop();
+      }
+    };
+
+    const toggleNoteRecording = async (kind, button) => {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        window.alert("Recording is not supported by this browser.");
+        return;
+      }
+      if (activeRecorder) {
+        stopActiveRecorder();
+        return;
+      }
+      const chunks = [];
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: kind === "video",
+        });
+      } catch (error) {
+        window.alert(kind === "video" ? "Camera or microphone is blocked." : "Microphone is blocked.");
+        return;
+      }
+      const mimeType = getRecorderMimeType(kind);
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      activeRecorder = recorder;
+      activeRecorderButton = button;
+      button.classList.add("recording");
+      button.textContent = "■";
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const type = recorder.mimeType || (kind === "video" ? "video/webm" : "audio/webm");
+        const extension = type.includes("ogg") ? "ogg" : "webm";
+        const blob = new Blob(chunks, { type });
+        const file = new File([blob], `${kind}-note-${Date.now()}.${extension}`, { type });
+        const label = kind === "video" ? "Video note" : "Voice note";
+        if (blob.size > 0) {
+          await uploadChatFile(file, label, { mediaKind: kind === "video" ? "video" : "audio" });
+          clearComposerState();
+        }
+        if (activeRecorderButton) {
+          activeRecorderButton.classList.remove("recording");
+          activeRecorderButton.textContent = kind === "video" ? "▣" : "◉";
+        }
+        activeRecorder = null;
+        activeRecorderButton = null;
+      };
+      recorder.start();
+      window.setTimeout(() => {
+        if (activeRecorder === recorder && recorder.state !== "inactive") {
+          recorder.stop();
+        }
+      }, kind === "video" ? 60000 : 180000);
+    };
+
+    if (voiceNoteButton) {
+      voiceNoteButton.addEventListener("click", () => toggleNoteRecording("audio", voiceNoteButton));
+    }
+
+    if (videoNoteButton) {
+      videoNoteButton.addEventListener("click", () => toggleNoteRecording("video", videoNoteButton));
     }
 
     socket.on("new_private_message", (data) => {

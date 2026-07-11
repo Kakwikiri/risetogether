@@ -301,6 +301,23 @@ class Message(db.Model):
     family = db.relationship("Family", backref="messages", foreign_keys=[family_id])
 
 
+class MessageDeletion(db.Model):
+    __tablename__ = "message_deletions"
+    __table_args__ = (
+        db.UniqueConstraint("message_id", "user_id", name="uq_message_delete_user"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(
+        db.Integer, db.ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    message = db.relationship("Message", backref=db.backref("deletions", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("message_deletions", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class Notification(db.Model):
     __tablename__ = "notifications"
     id = db.Column(db.Integer, primary_key=True)
