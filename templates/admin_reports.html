@@ -23,7 +23,9 @@
           {{ report.reported_user.username if report.reported_user else 'N/A' }}
         </td>
         <td>
-          {% if report.post %}#{{ report.post.id }}{% else %}N/A{% endif %}
+          {% if report.post %}
+          <a href="{{ url_for('main.post_detail', post_id=report.post.id) }}">#{{ report.post.id }}</a>
+          {% else %}N/A{% endif %}
         </td>
         <td>{{ report.reason }}</td>
         <td>{{ report.status }}</td>

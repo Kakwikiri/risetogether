@@ -130,7 +130,14 @@ def convert_video_for_browser(path, filename):
 
 
 def get_ice_servers():
-    servers = [{"urls": "stun:stun.l.google.com:19302"}]
+    servers = [
+        {
+            "urls": [
+                "stun:stun.l.google.com:19302",
+                "stun:stun1.l.google.com:19302",
+            ]
+        }
+    ]
     turn_url = os.getenv("WEBRTC_TURN_URL", "").strip()
     if turn_url:
         turn_server = {"urls": turn_url}

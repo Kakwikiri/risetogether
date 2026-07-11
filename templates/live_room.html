@@ -9,23 +9,59 @@
     <a class="button secondary" href="{{ url_for('main.live_sessions') }}">Live list</a>
   </header>
 
-  <div class="live-stage">
-    <div class="live-broadcast-badge">
-      <span class="live-dot"></span>
-      <strong>{{ 'LIVE' if session.status == 'live' else 'ENDED' }}</strong>
-      <span id="live-viewer-count">0 watching</span>
+  <div class="live-layout">
+    <div class="live-stage">
+      <div class="live-broadcast-badge">
+        <span class="live-dot"></span>
+        <strong>{{ 'LIVE' if session.status == 'live' else 'ENDED' }}</strong>
+        <span id="live-duration">00:00</span>
+        <span id="live-viewer-count">0 watching</span>
+      </div>
+      <video
+        id="live-video"
+        class="live-video"
+        autoplay
+        {% if is_host %}muted{% endif %}
+        playsinline
+        controls
+      ></video>
+      <div class="live-empty-state" id="live-status">
+        {{ 'Starting camera...' if is_host else 'Waiting for the live stream...' }}
+      </div>
     </div>
-    <video
-      id="live-video"
-      class="live-video"
-      autoplay
-      {% if is_host %}muted{% endif %}
-      playsinline
-      controls
-    ></video>
-    <div class="live-empty-state" id="live-status">
-      {{ 'Starting camera...' if is_host else 'Waiting for the live stream...' }}
-    </div>
+
+    <aside class="live-chat-panel">
+      <div class="live-chat-header">
+        <strong>Live comments</strong>
+        <span>{{ session.user.profile.display_name }}</span>
+      </div>
+      <div class="live-comments" id="live-comments" aria-live="polite"></div>
+      <form class="live-comment-form" id="live-comment-form">
+        <input
+          id="live-comment-input"
+          name="content"
+          maxlength="500"
+          autocomplete="off"
+          placeholder="Write a comment..."
+          required
+        />
+        <button class="button" type="submit">Send</button>
+      </form>
+      {% if current_user.is_authenticated and not is_host %}
+      <details class="live-report">
+        <summary>Report live</summary>
+        <form action="{{ url_for('moderation.report_user', user_id=session.user_id) }}" method="post">
+          <textarea name="reason" rows="3" required placeholder="Explain what is wrong with this live stream..."></textarea>
+          <button class="button danger" type="submit">Report</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if current_user.is_admin and not is_host and session.status == 'live' %}
+      <form class="live-admin-stop" action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
+        <button class="button danger" type="submit">Stop live</button>
+      </form>
+      {% endif %}
+    </aside>
   </div>
 
   <div class="live-controls">
@@ -40,6 +76,13 @@
     <span class="status-pill">{{ session.user.profile.display_name }}</span>
     {% endif %}
   </div>
+
+  {% if is_host %}
+  <div class="live-host-note" id="live-host-note">
+    You are live
+    <span id="live-host-duration">00:00</span>
+  </div>
+  {% endif %}
 </section>
 <script>
   const liveConfig = {

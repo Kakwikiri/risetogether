@@ -632,6 +632,16 @@ socket.on("call_ended", () => {
   if (overlay) overlay.hidden = true;
 });
 
+socket.on("call_rejected", () => {
+  if (typeof callConfig !== "undefined") return;
+  if (window.currentIncomingCallStop) {
+    window.currentIncomingCallStop();
+    window.currentIncomingCallStop = null;
+  }
+  const overlay = document.querySelector(".incoming-call-overlay");
+  if (overlay) overlay.hidden = true;
+});
+
 if (typeof callConfig !== "undefined") {
   document.addEventListener("DOMContentLoaded", async () => {
     const startButton = document.getElementById("start-call");
@@ -653,6 +663,7 @@ if (typeof callConfig !== "undefined") {
     let callStartedAt = null;
     let callTimer = null;
     let inviteTimer = null;
+    let connectionRecoveryTimer = null;
     const pendingRemoteCandidates = [];
 
     const configuration = {
@@ -756,6 +767,10 @@ if (typeof callConfig !== "undefined") {
         window.clearInterval(callTimer);
         callTimer = null;
       }
+      if (connectionRecoveryTimer) {
+        window.clearTimeout(connectionRecoveryTimer);
+        connectionRecoveryTimer = null;
+      }
     };
 
     const setVoiceMode = (enabled) => {
@@ -858,10 +873,24 @@ if (typeof callConfig !== "undefined") {
           connectionState: peerConnection.connectionState,
         });
         if (["connected", "completed"].includes(peerConnection.connectionState)) {
+          if (connectionRecoveryTimer) {
+            window.clearTimeout(connectionRecoveryTimer);
+            connectionRecoveryTimer = null;
+          }
           setCallState("connected");
           startCallTimer();
-        } else if (["failed", "disconnected"].includes(peerConnection.connectionState)) {
-          setCallState("failed", "Connection interrupted");
+        } else if (peerConnection.connectionState === "disconnected") {
+          setStatus("Network interrupted. Reconnecting...");
+          if (!connectionRecoveryTimer) {
+            connectionRecoveryTimer = window.setTimeout(() => {
+              if (peerConnection && peerConnection.connectionState === "disconnected") {
+                setCallState("failed", "Connection interrupted");
+              }
+              connectionRecoveryTimer = null;
+            }, 12000);
+          }
+        } else if (peerConnection.connectionState === "failed") {
+          setCallState("failed", "Connection failed");
         }
       };
       const stream = await getMedia();
@@ -951,7 +980,9 @@ if (typeof callConfig !== "undefined") {
       }
       if (socket.connected) socket.emit("leave_call", callPayload());
       cleanupCall();
-      window.location.href = document.referrer || "/messages";
+      window.setTimeout(() => {
+        window.location.href = document.referrer || "/messages";
+      }, notifyPeer ? 300 : 0);
     };
 
     startButton.addEventListener("click", startCall);
@@ -1141,10 +1172,19 @@ if (typeof liveConfig !== "undefined") {
     const muteButton = document.getElementById("live-mute");
     const cameraButton = document.getElementById("live-camera");
     const hostState = document.getElementById("live-host-state");
+    const liveDuration = document.getElementById("live-duration");
+    const liveHostDuration = document.getElementById("live-host-duration");
+    const liveComments = document.getElementById("live-comments");
+    const liveCommentForm = document.getElementById("live-comment-form");
+    const liveCommentInput = document.getElementById("live-comment-input");
     const hostConnections = new Map();
+    const hostPendingCandidates = new Map();
+    const pendingViewerCandidates = [];
     let localStream = null;
     let liveRemoteStream = null;
     let viewerConnection = null;
+    let liveStartedAt = Date.now();
+    let liveTimer = null;
 
     const configuration = {
       iceServers: liveConfig.iceServers || [{ urls: "stun:stun.l.google.com:19302" }],
@@ -1165,6 +1205,38 @@ if (typeof liveConfig !== "undefined") {
         socketId: socket.id,
         ...extra,
       });
+    };
+
+    const formatLiveDuration = (seconds) => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
+      const rest = (seconds % 60).toString().padStart(2, "0");
+      return hours ? `${hours}:${minutes}:${rest}` : `${minutes}:${rest}`;
+    };
+
+    const startLiveTimer = () => {
+      if (liveTimer) return;
+      const render = () => {
+        const elapsed = Math.floor((Date.now() - liveStartedAt) / 1000);
+        const text = formatLiveDuration(elapsed);
+        if (liveDuration) liveDuration.textContent = text;
+        if (liveHostDuration) liveHostDuration.textContent = text;
+      };
+      render();
+      liveTimer = window.setInterval(render, 1000);
+    };
+
+    const appendLiveComment = (data) => {
+      if (!liveComments || data.session_id !== liveConfig.sessionId) return;
+      const item = document.createElement("div");
+      item.className = "live-comment";
+      const meta = document.createElement("span");
+      meta.textContent = `${data.sender_name || "Someone"} · ${data.created_at || ""}`;
+      const body = document.createElement("p");
+      body.textContent = data.content || "";
+      item.append(meta, body);
+      liveComments.appendChild(item);
+      liveComments.scrollTop = liveComments.scrollHeight;
     };
 
     const joinLive = () => {
@@ -1202,6 +1274,7 @@ if (typeof liveConfig !== "undefined") {
       });
       if (hostState) hostState.textContent = "You are live";
       setLiveStatus("");
+      startLiveTimer();
       joinLive();
     };
 
@@ -1212,6 +1285,11 @@ if (typeof liveConfig !== "undefined") {
       localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
       connection.onicecandidate = (event) => {
         if (event.candidate) {
+          liveLog("host_send_ice_candidate", {
+            viewerSid,
+            candidateMid: event.candidate.sdpMid,
+            candidateType: event.candidate.type,
+          });
           socket.emit("live_ice_candidate", {
             session_id: liveConfig.sessionId,
             candidate: event.candidate,
@@ -1220,12 +1298,18 @@ if (typeof liveConfig !== "undefined") {
         }
       };
       connection.onconnectionstatechange = () => {
-        if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
+        liveLog("host_connection_state_changed", {
+          viewerSid,
+          connectionState: connection.connectionState,
+        });
+        if (["failed", "closed"].includes(connection.connectionState)) {
           hostConnections.delete(viewerSid);
+          hostPendingCandidates.delete(viewerSid);
         }
       };
       const offer = await connection.createOffer();
       await connection.setLocalDescription(offer);
+      liveLog("host_send_offer", { viewerSid, sdpType: offer.type });
       socket.emit("live_offer", {
         session_id: liveConfig.sessionId,
         viewer_sid: viewerSid,
@@ -1233,7 +1317,55 @@ if (typeof liveConfig !== "undefined") {
       });
     };
 
+    const addOrQueueHostCandidate = async (viewerSid, candidate) => {
+      const connection = hostConnections.get(viewerSid);
+      if (!connection || !connection.remoteDescription) {
+        const queue = hostPendingCandidates.get(viewerSid) || [];
+        queue.push(candidate);
+        hostPendingCandidates.set(viewerSid, queue);
+        liveLog("host_queue_ice_candidate", { viewerSid, queuedCandidates: queue.length });
+        return;
+      }
+      await connection.addIceCandidate(new RTCIceCandidate(candidate));
+      liveLog("host_added_ice_candidate", { viewerSid, candidateMid: candidate.sdpMid });
+    };
+
+    const flushHostCandidates = async (viewerSid) => {
+      const connection = hostConnections.get(viewerSid);
+      const queue = hostPendingCandidates.get(viewerSid) || [];
+      while (queue.length && connection && connection.remoteDescription) {
+        const candidate = queue.shift();
+        await connection.addIceCandidate(new RTCIceCandidate(candidate));
+        liveLog("host_flushed_ice_candidate", { viewerSid, candidateMid: candidate.sdpMid, queuedCandidates: queue.length });
+      }
+      if (!queue.length) hostPendingCandidates.delete(viewerSid);
+    };
+
+    const addOrQueueViewerCandidate = async (candidate) => {
+      if (!viewerConnection || !viewerConnection.remoteDescription) {
+        pendingViewerCandidates.push(candidate);
+        liveLog("viewer_queue_ice_candidate", { queuedCandidates: pendingViewerCandidates.length });
+        return;
+      }
+      await viewerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      liveLog("viewer_added_ice_candidate", { candidateMid: candidate.sdpMid });
+    };
+
+    const flushViewerCandidates = async () => {
+      while (pendingViewerCandidates.length && viewerConnection && viewerConnection.remoteDescription) {
+        const candidate = pendingViewerCandidates.shift();
+        await viewerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        liveLog("viewer_flushed_ice_candidate", {
+          candidateMid: candidate.sdpMid,
+          queuedCandidates: pendingViewerCandidates.length,
+        });
+      }
+    };
+
     const startViewerConnection = async (offer) => {
+      if (viewerConnection) {
+        viewerConnection.close();
+      }
       viewerConnection = new RTCPeerConnection(configuration);
       viewerConnection.ontrack = async (event) => {
         const [eventStream] = event.streams || [];
@@ -1260,6 +1392,11 @@ if (typeof liveConfig !== "undefined") {
       };
       viewerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+          liveLog("viewer_send_ice_candidate", {
+            hostSid: dataHostSid,
+            candidateMid: event.candidate.sdpMid,
+            candidateType: event.candidate.type,
+          });
           socket.emit("live_ice_candidate", {
             session_id: liveConfig.sessionId,
             candidate: event.candidate,
@@ -1267,9 +1404,24 @@ if (typeof liveConfig !== "undefined") {
           });
         }
       };
+      viewerConnection.onconnectionstatechange = () => {
+        liveLog("viewer_connection_state_changed", {
+          connectionState: viewerConnection.connectionState,
+        });
+        if (["connected", "completed"].includes(viewerConnection.connectionState)) {
+          startLiveTimer();
+          setLiveStatus("");
+        } else if (viewerConnection.connectionState === "disconnected") {
+          setLiveStatus("Network interrupted. Reconnecting...");
+        } else if (viewerConnection.connectionState === "failed") {
+          setLiveStatus("Could not connect to the live stream.");
+        }
+      };
       await viewerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      await flushViewerCandidates();
       const answer = await viewerConnection.createAnswer();
       await viewerConnection.setLocalDescription(answer);
+      liveLog("viewer_send_answer", { sdpType: answer.type, hostSid: dataHostSid });
       socket.emit("live_answer", {
         session_id: liveConfig.sessionId,
         answer,
@@ -1329,17 +1481,22 @@ if (typeof liveConfig !== "undefined") {
       const connection = hostConnections.get(data.viewer_sid);
       if (connection) {
         await connection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        liveLog("host_received_answer", { viewerSid: data.viewer_sid });
+        await flushHostCandidates(data.viewer_sid);
       }
     });
 
     socket.on("live_ice_candidate", async (data) => {
       if (data.session_id !== liveConfig.sessionId || !data.candidate) return;
       if (liveConfig.isHost) {
-        const connection = hostConnections.get(data.sender_sid);
-        if (connection) await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
-      } else if (viewerConnection) {
-        await viewerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        await addOrQueueHostCandidate(data.sender_sid, data.candidate);
+      } else {
+        await addOrQueueViewerCandidate(data.candidate);
       }
+    });
+
+    socket.on("live_comment", (data) => {
+      appendLiveComment(data);
     });
 
     socket.on("live_waiting_for_host", (data) => {
@@ -1367,6 +1524,10 @@ if (typeof liveConfig !== "undefined") {
       if (data.session_id === liveConfig.sessionId) {
         setLiveStatus("The live stream has ended.");
         if (liveVideo) liveVideo.srcObject = null;
+        if (liveTimer) {
+          window.clearInterval(liveTimer);
+          liveTimer = null;
+        }
       }
     });
 
@@ -1375,5 +1536,18 @@ if (typeof liveConfig !== "undefined") {
         setLiveStatus("This live stream is unavailable.");
       }
     });
+
+    if (liveCommentForm && liveCommentInput) {
+      liveCommentForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const content = liveCommentInput.value.trim();
+        if (!content) return;
+        socket.emit("live_comment", {
+          session_id: liveConfig.sessionId,
+          content,
+        });
+        liveCommentInput.value = "";
+      });
+    }
   });
 }

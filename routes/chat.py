@@ -1082,3 +1082,29 @@ def live_ice_candidate(data):
             {"session_id": session.id, "candidate": candidate, "sender_sid": request.sid},
             room=target_sid,
         )
+
+
+@socketio.on("live_comment")
+def live_comment(data):
+    session_id = parse_user_id(data.get("session_id"))
+    content = (data.get("content") or "").strip()
+    session = LiveSession.query.get(session_id) if session_id else None
+    if not session or session.status != "live" or not content:
+        return
+    content = content[:500]
+    room = f"live-{session.id}"
+    payload = {
+        "session_id": session.id,
+        "sender_id": current_user.id,
+        "sender_name": current_user.profile.display_name,
+        "content": content,
+        "created_at": datetime.utcnow().strftime("%H:%M"),
+    }
+    log_live_signal(
+        "server_live_comment",
+        session_id=session.id,
+        broadcaster_id=session.user_id,
+        viewer_id=current_user.id if current_user.id != session.user_id else None,
+        room_id=room,
+    )
+    emit("live_comment", payload, room=room)

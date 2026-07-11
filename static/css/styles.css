@@ -751,6 +751,38 @@ a {
   gap: 0.65rem;
 }
 
+.report-widget {
+  position: relative;
+}
+
+.report-widget summary {
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  color: var(--danger);
+  background: var(--surface);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 750;
+  list-style: none;
+}
+
+.report-widget summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-widget form {
+  display: grid;
+  gap: 0.45rem;
+  min-width: min(260px, calc(100vw - 2rem));
+  margin-top: 0.45rem;
+  padding: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -2454,6 +2486,13 @@ textarea:focus {
   border-radius: 8px;
 }
 
+.live-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 0.8rem;
+  align-items: stretch;
+}
+
 .live-video {
   width: 100%;
   height: min(72vh, 720px);
@@ -2487,6 +2526,84 @@ textarea:focus {
 
 .live-controls form {
   margin: 0;
+}
+
+.live-chat-panel {
+  display: grid;
+  grid-template-rows: auto minmax(180px, 1fr) auto;
+  gap: 0.65rem;
+  min-height: min(72vh, 720px);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.live-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.live-chat-header span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.live-comments {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.live-comment {
+  padding: 0.55rem 0.65rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.live-comment span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.live-comment p {
+  margin: 0.2rem 0 0;
+}
+
+.live-comment-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.live-report,
+.live-admin-stop {
+  margin: 0;
+}
+
+.live-report form {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.live-host-note {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  color: white;
+  background: #111827;
+  border-radius: 8px;
+  font-weight: 850;
 }
 
 @media (max-width: 560px) {
@@ -2544,5 +2661,13 @@ textarea:focus {
   .live-video {
     min-height: 58vh;
     height: 58vh;
+  }
+
+  .live-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .live-chat-panel {
+    min-height: 260px;
   }
 }
