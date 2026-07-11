@@ -9,6 +9,7 @@
     />
     <h1>{{ other.profile.display_name }}</h1>
     <p id="call-status">Ready to call</p>
+    <p id="call-error" class="call-error" hidden></p>
   </div>
   <video id="local-video" class="local-video" autoplay muted playsinline></video>
   <div class="call-controls">
@@ -28,6 +29,9 @@
       autoAnswer: {{ 'true' if request.args.get('answer') else 'false' }},
       autoStart: {{ 'true' if request.args.get('start') else 'false' }},
       mode: '{{ request.args.get('mode', 'video') }}',
+      callId: '{{ call_id }}',
+      roomId: '{{ call_room }}',
+      iceServers: {{ ice_servers|tojson }},
   };
 </script>
 {% endblock %}

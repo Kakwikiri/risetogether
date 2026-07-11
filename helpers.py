@@ -129,6 +129,20 @@ def convert_video_for_browser(path, filename):
     return output_name
 
 
+def get_ice_servers():
+    servers = [{"urls": "stun:stun.l.google.com:19302"}]
+    turn_url = os.getenv("WEBRTC_TURN_URL", "").strip()
+    if turn_url:
+        turn_server = {"urls": turn_url}
+        username = os.getenv("WEBRTC_TURN_USERNAME", "").strip()
+        credential = os.getenv("WEBRTC_TURN_CREDENTIAL", "").strip()
+        if username and credential:
+            turn_server["username"] = username
+            turn_server["credential"] = credential
+        servers.append(turn_server)
+    return servers
+
+
 def save_media(file):
     if not file or not allowed_file(file.filename):
         return None

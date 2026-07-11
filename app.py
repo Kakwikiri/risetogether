@@ -1,8 +1,10 @@
 import os
+from html import escape
 from pathlib import Path
 
+import click
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, Response, request
 from flask_login import current_user
 from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -28,7 +30,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 280,
 }
-app.config["UPLOAD_FOLDER"] = str(BASE_DIR / "uploads")
+app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -37,7 +39,14 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "auth.login"
 login_manager.login_message_category = "info"
-socketio.init_app(app, async_mode="threading")
+socketio.init_app(
+    app,
+    async_mode="threading",
+    ping_interval=25,
+    ping_timeout=60,
+    logger=os.getenv("SOCKETIO_LOGGER", "").lower() == "true",
+    engineio_logger=os.getenv("ENGINEIO_LOGGER", "").lower() == "true",
+)
 
 
 def ensure_schema_compatibility():
@@ -110,6 +119,232 @@ def inject_navigation_counts():
         "unread_messages": unread_messages,
         "is_hevc_upload": is_hevc_upload,
     }
+
+
+def find_user_by_identifier(identifier):
+    identifier = (identifier or "").strip()
+    if not identifier:
+        return None
+    return User.query.filter(
+        (User.email == identifier.lower()) | (User.username.ilike(identifier))
+    ).first()
+
+
+def validate_cli_password(password):
+    if len(password or "") < 8:
+        raise click.ClickException("Password must be at least 8 characters.")
+
+
+def admin_setup_token_is_valid(token):
+    expected = os.getenv("ADMIN_SETUP_TOKEN", "").strip()
+    return bool(expected) and token and token == expected
+
+
+def admin_setup_form(token="", message="", status=200):
+    safe_message = escape(message) if message else ""
+    safe_token = escape(token or "")
+    html = f"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RiseTogether Admin Setup</title>
+  </head>
+  <body>
+    <h1>RiseTogether Admin Setup</h1>
+    {'<p><strong>' + safe_message + '</strong></p>' if safe_message else ''}
+    <form method="post">
+      <input type="hidden" name="token" value="{safe_token}" />
+      <label>Action
+        <select name="action">
+          <option value="create">Create admin</option>
+          <option value="promote">Promote existing user</option>
+          <option value="reset">Reset admin password</option>
+        </select>
+      </label>
+      <p><label>Username <input name="username" autocomplete="username" /></label></p>
+      <p><label>Email <input name="email" type="email" autocomplete="email" /></label></p>
+      <p><label>Country <input name="country" value="Other" /></label></p>
+      <p><label>Password <input name="password" type="password" autocomplete="new-password" /></label></p>
+      <p><label>Confirm password <input name="confirm_password" type="password" autocomplete="new-password" /></label></p>
+      <button type="submit">Apply</button>
+    </form>
+  </body>
+</html>
+"""
+    return Response(html, status=status, mimetype="text/html")
+
+
+@app.route("/setup/admin", methods=["GET", "POST"])
+def admin_setup_web():
+    token = request.values.get("token", "").strip()
+    if not os.getenv("ADMIN_SETUP_TOKEN", "").strip():
+        return Response("Admin setup is disabled.", status=404, mimetype="text/plain")
+    if not admin_setup_token_is_valid(token):
+        return admin_setup_form(token="", message="Invalid or missing setup token.", status=403)
+    if request.method == "GET":
+        return admin_setup_form(token=token)
+
+    from models import Profile
+
+    action = request.form.get("action", "").strip()
+    username = request.form.get("username", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    country = request.form.get("country", "Other").strip() or "Other"
+    password = request.form.get("password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    try:
+        if action == "create":
+            if not username or not email:
+                raise ValueError("Username and email are required.")
+            if password != confirm_password:
+                raise ValueError("Passwords do not match.")
+            if len(password) < 8:
+                raise ValueError("Password must be at least 8 characters.")
+            duplicate = User.query.filter(
+                (User.username == username) | (User.email == email)
+            ).first()
+            if duplicate:
+                raise ValueError("A user with that username or email already exists.")
+            user = User(username=username, email=email, country=country)
+            user.set_password(password)
+            user.is_admin = True
+            user.is_banned = False
+            user.ban_until = None
+            user.is_verified = True
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(Profile(user_id=user.id, display_name=username))
+            db.session.commit()
+            return admin_setup_form(token=token, message=f"Admin created for {username}.")
+
+        identifier = email or username
+        user = find_user_by_identifier(identifier)
+        if not user:
+            raise ValueError("No user found with that username or email.")
+        if action == "promote":
+            user.is_admin = True
+            user.is_banned = False
+            user.ban_until = None
+            db.session.commit()
+            return admin_setup_form(token=token, message=f"Promoted {user.username} to admin.")
+        if action == "reset":
+            if not user.is_admin:
+                raise ValueError("That user is not currently an admin.")
+            if password != confirm_password:
+                raise ValueError("Passwords do not match.")
+            if len(password) < 8:
+                raise ValueError("Password must be at least 8 characters.")
+            user.set_password(password)
+            user.is_banned = False
+            user.ban_until = None
+            db.session.commit()
+            return admin_setup_form(token=token, message=f"Password reset for {user.username}.")
+        raise ValueError("Choose a valid action.")
+    except Exception as exc:
+        db.session.rollback()
+        return admin_setup_form(token=token, message=str(exc), status=400)
+
+
+@app.cli.command("create-admin")
+def create_admin_command():
+    """Create a production admin in the currently configured database."""
+    from models import Profile
+
+    username = click.prompt("Username").strip()
+    email = click.prompt("Email").strip().lower()
+    country = click.prompt("Country", default="Other").strip() or "Other"
+    password = click.prompt(
+        "Password",
+        hide_input=True,
+        confirmation_prompt=True,
+    )
+    validate_cli_password(password)
+
+    if not username:
+        raise click.ClickException("Username is required.")
+    if not email:
+        raise click.ClickException("Email is required.")
+
+    try:
+        duplicate = User.query.filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+        if duplicate:
+            raise click.ClickException("A user with that username or email already exists.")
+
+        user = User(username=username, email=email, country=country)
+        user.set_password(password)
+        user.is_admin = True
+        user.is_banned = False
+        user.ban_until = None
+        user.is_verified = True
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(Profile(user_id=user.id, display_name=username))
+        db.session.commit()
+    except click.ClickException:
+        db.session.rollback()
+        raise
+    except Exception as exc:
+        db.session.rollback()
+        raise click.ClickException(f"Admin could not be created: {exc}") from exc
+
+    click.echo(f"Admin created: {username} <{email}>")
+
+
+@app.cli.command("promote-admin")
+def promote_admin_command():
+    """Promote an existing user to admin in the current database."""
+    identifier = click.prompt("Existing username or email").strip()
+    user = find_user_by_identifier(identifier)
+    if not user:
+        raise click.ClickException("No user found with that username or email.")
+    if user.is_admin:
+        click.echo(f"{user.username} is already an admin.")
+        return
+
+    try:
+        user.is_admin = True
+        user.is_banned = False
+        user.ban_until = None
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        raise click.ClickException(f"User could not be promoted: {exc}") from exc
+
+    click.echo(f"Promoted to admin: {user.username} <{user.email}>")
+
+
+@app.cli.command("reset-admin-password")
+def reset_admin_password_command():
+    """Reset an existing admin password using the app password hash method."""
+    identifier = click.prompt("Admin username or email").strip()
+    user = find_user_by_identifier(identifier)
+    if not user:
+        raise click.ClickException("No user found with that username or email.")
+    if not user.is_admin:
+        raise click.ClickException("That user is not currently an admin.")
+
+    password = click.prompt(
+        "New password",
+        hide_input=True,
+        confirmation_prompt=True,
+    )
+    validate_cli_password(password)
+
+    try:
+        user.set_password(password)
+        user.is_banned = False
+        user.ban_until = None
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        raise click.ClickException(f"Admin password could not be reset: {exc}") from exc
+
+    click.echo(f"Password reset for admin: {user.username} <{user.email}>")
 
 
 if __name__ == "__main__":

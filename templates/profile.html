@@ -2,12 +2,18 @@
 <section class="profile-page">
   <header class="profile-hero">
     <img
-      class="avatar-large profile-hero-avatar"
+      class="avatar-large profile-hero-avatar{% if live_session %} live-avatar-ring{% endif %}"
       src="{{ url_for('static', filename='images/default-avatar.png') if not profile.avatar else url_for('api.serve_upload', filename=profile.avatar) }}"
       alt="avatar"
     />
     <h1>{{ profile.display_name }}{% if user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
     <p class="profile-username">@{{ user.username }}</p>
+    {% if live_session %}
+    <a class="profile-live-badge" href="{{ url_for('main.live_room', session_id=live_session.id) }}">
+      <strong>LIVE</strong>
+      <span>Join live stream</span>
+    </a>
+    {% endif %}
     <p class="profile-bio">{{ profile.bio or 'No bio yet. Share your story.' }}</p>
     <div class="profile-stats">
       <span>{{ follower_count }} followers</span>

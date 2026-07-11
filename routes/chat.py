@@ -1,16 +1,22 @@
 from datetime import datetime, timedelta
+from threading import Lock
+from urllib.parse import parse_qs
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from flask_socketio import emit, join_room
+from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
-from helpers import allowed_file, get_media_type, save_media
+from helpers import allowed_file, get_ice_servers, get_media_type, save_media
 from models import Family, FamilyMember, LiveSession, Message, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
 live_broadcasters = {}
+live_viewers = {}
+active_calls = {}
+active_calls_lock = Lock()
+CALL_TIMEOUT_SECONDS = 45
 
 
 def parse_user_id(value):
@@ -39,6 +45,129 @@ def can_access_message(message):
 
 def room_for_private_chat(user_id, other_id):
     return f"private-{min(user_id, other_id)}-{max(user_id, other_id)}"
+
+
+def user_is_online(user_id):
+    return bool(connected_users.get(user_id))
+
+
+def user_room(user_id):
+    return f"user-{user_id}"
+
+
+def call_id_for_users(user_id, other_id):
+    return f"call-{min(user_id, other_id)}-{max(user_id, other_id)}"
+
+
+def call_room_for_id(call_id):
+    return f"call-room-{call_id}"
+
+
+def log_call_signal(event, call_id, user_id=None, room_id=None, target_id=None, **extra):
+    call = get_call_state(call_id) if call_id else None
+    details = {
+        "event": event,
+        "call_id": call_id,
+        "caller_id": extra.pop("caller_id", None) or (call or {}).get("caller_id"),
+        "receiver_id": extra.pop("receiver_id", None) or (call or {}).get("receiver_id"),
+        "user_id": user_id or (current_user.id if current_user.is_authenticated else None),
+        "target_id": target_id,
+        "socket_id": request.sid,
+        "room_id": room_id,
+        **extra,
+    }
+    current_app.logger.info("call_signaling %s", details)
+
+
+def set_call_state(call_id, state, caller_id=None, receiver_id=None, room_id=None, mode=None):
+    with active_calls_lock:
+        call = active_calls.setdefault(call_id, {})
+        if caller_id is not None:
+            call["caller_id"] = caller_id
+        if receiver_id is not None:
+            call["receiver_id"] = receiver_id
+        if room_id is not None:
+            call["room_id"] = room_id
+        if mode is not None:
+            call["mode"] = mode
+        call["state"] = state
+        call["updated_at"] = datetime.utcnow()
+        return dict(call)
+
+
+def get_call_state(call_id):
+    with active_calls_lock:
+        call = active_calls.get(call_id)
+        return dict(call) if call else None
+
+
+def clear_call_state(call_id):
+    with active_calls_lock:
+        active_calls.pop(call_id, None)
+
+
+def timeout_call_if_unanswered(app_obj, call_id):
+    socketio.sleep(CALL_TIMEOUT_SECONDS)
+    with app_obj.app_context():
+        call = get_call_state(call_id)
+        if not call or call.get("state") != "ringing":
+            return
+        caller_id = call.get("caller_id")
+        receiver_id = call.get("receiver_id")
+        room_id = call.get("room_id") or call_room_for_id(call_id)
+        mode = call.get("mode", "video")
+        if caller_id and receiver_id:
+            create_call_history(caller_id, receiver_id, mode, "missed")
+        socketio.emit(
+            "call_timeout",
+            {"call_id": call_id, "room_id": room_id, "state": "missed"},
+            room=room_id,
+        )
+        current_app.logger.info(
+            "call_signaling %s",
+            {
+                "event": "server_call_timeout",
+                "call_id": call_id,
+                "caller_id": caller_id,
+                "receiver_id": receiver_id,
+                "room_id": room_id,
+            },
+        )
+        clear_call_state(call_id)
+
+
+def socket_transport():
+    query = parse_qs(request.environ.get("QUERY_STRING", ""))
+    return (query.get("transport") or ["unknown"])[0]
+
+
+def log_socket_event(event, **extra):
+    current_app.logger.info(
+        "socket_event %s",
+        {
+            "event": event,
+            "user_id": current_user.id if current_user.is_authenticated else None,
+            "socket_id": request.sid,
+            "namespace": getattr(request, "namespace", "/"),
+            "transport": socket_transport(),
+            **extra,
+        },
+    )
+
+
+def log_live_signal(event, session_id=None, broadcaster_id=None, viewer_id=None, room_id=None, **extra):
+    current_app.logger.info(
+        "live_signaling %s",
+        {
+            "event": event,
+            "stream_id": session_id,
+            "broadcaster_id": broadcaster_id,
+            "viewer_id": viewer_id,
+            "room_id": room_id,
+            "socket_id": request.sid,
+            **extra,
+        },
+    )
 
 
 def serialize_message(message):
@@ -92,7 +221,7 @@ def emit_notification(user_id, notification):
             "action_url": notification.action_url,
             "created_at": notification.created_at.strftime("%Y-%m-%d %H:%M"),
         },
-        room=f"user-{user_id}",
+        room=user_room(user_id),
     )
 
 
@@ -158,7 +287,7 @@ def direct_chat(user_id):
         other=other,
         messages=messages,
         family=None,
-        is_other_online=other.id in connected_users,
+        is_other_online=user_is_online(other.id),
     )
 
 
@@ -194,7 +323,14 @@ def family_chat(family_id):
 @login_required
 def calls(user_id):
     target = User.query.get_or_404(user_id)
-    return render_template("call.html", other=target)
+    call_id = call_id_for_users(current_user.id, target.id)
+    return render_template(
+        "call.html",
+        other=target,
+        ice_servers=get_ice_servers(),
+        call_id=call_id,
+        call_room=call_room_for_id(call_id),
+    )
 
 
 @chat_bp.route("/chat/upload", methods=["POST"])
@@ -379,17 +515,46 @@ def pin_message(message_id):
 @socketio.on("connect")
 def on_connect():
     if not current_user.is_authenticated:
+        current_app.logger.warning(
+            "socket_event %s",
+            {
+                "event": "connect_rejected",
+                "socket_id": request.sid,
+                "namespace": getattr(request, "namespace", "/"),
+                "transport": socket_transport(),
+                "reason": "unauthenticated",
+            },
+        )
         return False
-    connected_users[current_user.id] = request.sid
-    join_room(f"user-{current_user.id}")
-    emit(
-        "user_status", {"user_id": current_user.id, "status": "online"}, broadcast=True
+    was_offline = not user_is_online(current_user.id)
+    connected_users.setdefault(current_user.id, set()).add(request.sid)
+    join_room(user_room(current_user.id))
+    log_socket_event(
+        "connect",
+        user_room=user_room(current_user.id),
+        active_sockets=len(connected_users.get(current_user.id, set())),
     )
+    emit(
+        "socket_connected",
+        {
+            "user_id": current_user.id,
+            "socket_id": request.sid,
+            "namespace": getattr(request, "namespace", "/"),
+            "transport": socket_transport(),
+            "async_mode": socketio.async_mode,
+        },
+        room=request.sid,
+    )
+    if was_offline:
+        emit(
+            "user_status", {"user_id": current_user.id, "status": "online"}, broadcast=True
+        )
 
 
 @socketio.on("disconnect")
-def on_disconnect():
-    if current_user.is_authenticated and current_user.id in connected_users:
+def on_disconnect(reason=None):
+    if current_user.is_authenticated:
+        log_socket_event("disconnect", reason=reason)
         stale_live_sessions = [
             session_id
             for session_id, sid in live_broadcasters.items()
@@ -397,17 +562,42 @@ def on_disconnect():
         ]
         for session_id in stale_live_sessions:
             live_broadcasters.pop(session_id, None)
+            session = LiveSession.query.get(session_id)
+            if session and session.status == "live":
+                session.status = "ended"
+                session.ended_at = datetime.utcnow()
+                db.session.commit()
+            log_live_signal(
+                "server_live_host_disconnected",
+                session_id=session_id,
+                broadcaster_id=current_user.id,
+                room_id=f"live-{session_id}",
+            )
             socketio.emit(
                 "live_host_left",
                 {"session_id": session_id},
                 room=f"live-{session_id}",
             )
-        connected_users.pop(current_user.id, None)
-        emit(
-            "user_status",
-            {"user_id": current_user.id, "status": "offline"},
-            broadcast=True,
-        )
+        for session_id, viewer_sids in list(live_viewers.items()):
+            if request.sid in viewer_sids:
+                viewer_sids.discard(request.sid)
+                socketio.emit(
+                    "live_viewer_count",
+                    {"session_id": session_id, "count": len(viewer_sids)},
+                    room=f"live-{session_id}",
+                )
+            if not viewer_sids:
+                live_viewers.pop(session_id, None)
+        user_sids = connected_users.get(current_user.id)
+        if user_sids:
+            user_sids.discard(request.sid)
+            if not user_sids:
+                connected_users.pop(current_user.id, None)
+                emit(
+                    "user_status",
+                    {"user_id": current_user.id, "status": "offline"},
+                    broadcast=True,
+                )
 
 
 @socketio.on("join_room")
@@ -415,6 +605,7 @@ def on_join_room(data):
     room = data.get("room")
     if room:
         join_room(room)
+        log_socket_event("join_room", room=room)
         emit("room_joined", {"room": room}, room=request.sid)
 
 
@@ -510,12 +701,35 @@ def webrtc_offer(data):
     offer = data.get("offer")
     if not target_id or not offer:
         return
-    if target_id in connected_users:
-        emit(
-            "webrtc_offer",
-            {"sender_id": current_user.id, "offer": offer},
-            room=connected_users[target_id],
-        )
+    call_id = data.get("call_id") or call_id_for_users(current_user.id, target_id)
+    room_id = data.get("room_id") or call_room_for_id(call_id)
+    call = get_call_state(call_id) or {}
+    set_call_state(
+        call_id,
+        "connecting",
+        caller_id=call.get("caller_id") or current_user.id,
+        receiver_id=call.get("receiver_id") or target_id,
+        room_id=room_id,
+    )
+    log_call_signal(
+        "server_received_webrtc_offer",
+        call_id,
+        room_id=room_id,
+        target_id=target_id,
+        sdp_type=offer.get("type") if isinstance(offer, dict) else None,
+    )
+    emit(
+        "webrtc_offer",
+        {
+            "sender_id": current_user.id,
+            "offer": offer,
+            "call_id": call_id,
+            "room_id": room_id,
+        },
+        room=room_id,
+        include_self=False,
+    )
+    log_call_signal("server_forwarded_webrtc_offer", call_id, room_id=room_id, target_id=target_id)
 
 
 @socketio.on("webrtc_answer")
@@ -524,12 +738,35 @@ def webrtc_answer(data):
     answer = data.get("answer")
     if not target_id or not answer:
         return
-    if target_id in connected_users:
-        emit(
-            "webrtc_answer",
-            {"sender_id": current_user.id, "answer": answer},
-            room=connected_users[target_id],
-        )
+    call_id = data.get("call_id") or call_id_for_users(current_user.id, target_id)
+    room_id = data.get("room_id") or call_room_for_id(call_id)
+    call = get_call_state(call_id) or {}
+    set_call_state(
+        call_id,
+        "connecting",
+        caller_id=call.get("caller_id") or target_id,
+        receiver_id=call.get("receiver_id") or current_user.id,
+        room_id=room_id,
+    )
+    log_call_signal(
+        "server_received_webrtc_answer",
+        call_id,
+        room_id=room_id,
+        target_id=target_id,
+        sdp_type=answer.get("type") if isinstance(answer, dict) else None,
+    )
+    emit(
+        "webrtc_answer",
+        {
+            "sender_id": current_user.id,
+            "answer": answer,
+            "call_id": call_id,
+            "room_id": room_id,
+        },
+        room=room_id,
+        include_self=False,
+    )
+    log_call_signal("server_forwarded_webrtc_answer", call_id, room_id=room_id, target_id=target_id)
 
 
 @socketio.on("ice_candidate")
@@ -538,12 +775,28 @@ def ice_candidate(data):
     candidate = data.get("candidate")
     if not target_id or not candidate:
         return
-    if target_id in connected_users:
-        emit(
-            "ice_candidate",
-            {"sender_id": current_user.id, "candidate": candidate},
-            room=connected_users[target_id],
-        )
+    call_id = data.get("call_id") or call_id_for_users(current_user.id, target_id)
+    room_id = data.get("room_id") or call_room_for_id(call_id)
+    log_call_signal(
+        "server_received_ice_candidate",
+        call_id,
+        room_id=room_id,
+        target_id=target_id,
+        candidate_type=candidate.get("type") if isinstance(candidate, dict) else None,
+        candidate_mid=candidate.get("sdpMid") if isinstance(candidate, dict) else None,
+    )
+    emit(
+        "ice_candidate",
+        {
+            "sender_id": current_user.id,
+            "candidate": candidate,
+            "call_id": call_id,
+            "room_id": room_id,
+        },
+        room=room_id,
+        include_self=False,
+    )
+    log_call_signal("server_forwarded_ice_candidate", call_id, room_id=room_id, target_id=target_id)
 
 
 @socketio.on("call_invite")
@@ -552,10 +805,23 @@ def call_invite(data):
     mode = data.get("mode", "video")
     if not target_id:
         return
+    call_id = data.get("call_id") or call_id_for_users(current_user.id, target_id)
+    room_id = data.get("room_id") or call_room_for_id(call_id)
     target = User.query.get(target_id)
     if not target:
         return
-    if target_id not in connected_users:
+    join_room(room_id)
+    set_call_state(
+        call_id,
+        "ringing",
+        caller_id=current_user.id,
+        receiver_id=target_id,
+        room_id=room_id,
+        mode=mode,
+    )
+    emit("call_room_joined", {"call_id": call_id, "room_id": room_id}, room=request.sid)
+    log_call_signal("caller_joined_call_room", call_id, room_id=room_id, target_id=target_id)
+    if not user_is_online(target_id):
         create_call_history(current_user.id, target_id, mode, "missed")
         db.session.add(
             Notification(
@@ -567,6 +833,8 @@ def call_invite(data):
         )
         db.session.commit()
         emit("call_unavailable", {"target_id": target_id}, room=request.sid)
+        log_call_signal("server_call_unavailable", call_id, room_id=room_id, target_id=target_id)
+        clear_call_state(call_id)
         return
     create_call_history(current_user.id, target_id, mode, "started")
     emit(
@@ -574,45 +842,125 @@ def call_invite(data):
         {
             "sender_id": current_user.id,
             "sender_name": current_user.profile.display_name,
+            "recipient_id": target_id,
             "mode": mode,
+            "call_id": call_id,
+            "room_id": room_id,
         },
-        room=connected_users[target_id],
+        room=user_room(target_id),
     )
+    emit(
+        "call_invite_sent",
+        {
+            "target_id": target_id,
+            "call_id": call_id,
+            "room_id": room_id,
+            "state": "ringing",
+        },
+        room=request.sid,
+    )
+    socketio.start_background_task(
+        timeout_call_if_unanswered,
+        current_app._get_current_object(),
+        call_id,
+    )
+    log_call_signal("server_sent_incoming_call", call_id, room_id=room_id, target_id=target_id)
+
+
+@socketio.on("call_accepted")
+def call_accepted(data):
+    target_id = parse_user_id(data.get("target_id"))
+    if not target_id:
+        return
+    call_id = data.get("call_id") or call_id_for_users(current_user.id, target_id)
+    room_id = data.get("room_id") or call_room_for_id(call_id)
+    join_room(room_id)
+    call = get_call_state(call_id) or {}
+    set_call_state(
+        call_id,
+        "accepted",
+        caller_id=call.get("caller_id") or target_id,
+        receiver_id=call.get("receiver_id") or current_user.id,
+        room_id=room_id,
+        mode=call.get("mode") or data.get("mode", "video"),
+    )
+    emit("call_room_joined", {"call_id": call_id, "room_id": room_id}, room=request.sid)
+    log_call_signal("receiver_joined_call_room", call_id, room_id=room_id, target_id=target_id)
+    log_call_signal("server_received_call_acceptance", call_id, room_id=room_id, target_id=target_id)
+    if user_is_online(target_id):
+        emit(
+            "peer_ready",
+            {"sender_id": current_user.id, "call_id": call_id, "room_id": room_id},
+            room=room_id,
+            include_self=False,
+        )
+        log_call_signal("server_sent_call_acceptance_to_caller", call_id, room_id=room_id, target_id=target_id)
 
 
 @socketio.on("ready_for_call")
 def ready_for_call(data):
-    target_id = parse_user_id(data.get("target_id"))
-    if target_id in connected_users:
-        emit(
-            "peer_ready",
-            {"sender_id": current_user.id},
-            room=connected_users[target_id],
-        )
+    call_accepted(data)
 
 
 @socketio.on("call_ended")
 def call_ended(data):
     target_id = parse_user_id(data.get("target_id"))
+    call_id = data.get("call_id") or (call_id_for_users(current_user.id, target_id) if target_id else None)
+    room_id = data.get("room_id") or (call_room_for_id(call_id) if call_id else None)
     if target_id and User.query.get(target_id):
         create_call_history(current_user.id, target_id, data.get("mode", "video"), "ended")
-    if target_id in connected_users:
-        emit(
-            "call_ended",
-            {"sender_id": current_user.id},
-            room=connected_users[target_id],
-        )
+    if call_id and room_id:
+        set_call_state(call_id, "ended", room_id=room_id)
+        log_call_signal("server_call_ended", call_id, room_id=room_id, target_id=target_id)
+        payload = {
+            "sender_id": current_user.id,
+            "call_id": call_id,
+            "room_id": room_id,
+            "state": "ended",
+        }
+        emit("call_ended", payload, room=room_id, include_self=False)
+        if user_is_online(target_id):
+            emit("call_ended", payload, room=user_room(target_id))
+        leave_room(room_id)
+        clear_call_state(call_id)
+    elif user_is_online(target_id):
+        emit("call_ended", {"sender_id": current_user.id}, room=user_room(target_id))
 
 
 @socketio.on("call_declined")
 def call_declined(data):
     target_id = parse_user_id(data.get("target_id"))
-    if target_id in connected_users:
+    call_id = data.get("call_id") or (call_id_for_users(current_user.id, target_id) if target_id else None)
+    room_id = data.get("room_id") or (call_room_for_id(call_id) if call_id else None)
+    if call_id and room_id:
+        set_call_state(call_id, "rejected", room_id=room_id)
+        log_call_signal("server_call_declined", call_id, room_id=room_id, target_id=target_id)
+        payload = {
+            "sender_id": current_user.id,
+            "call_id": call_id,
+            "room_id": room_id,
+            "state": "rejected",
+        }
+        emit("call_rejected", payload, room=room_id, include_self=False)
+        if user_is_online(target_id):
+            emit("call_rejected", payload, room=user_room(target_id))
+        clear_call_state(call_id)
+    elif user_is_online(target_id):
         emit(
             "call_ended",
             {"sender_id": current_user.id, "declined": True},
-            room=connected_users[target_id],
+            room=user_room(target_id),
         )
+
+
+@socketio.on("leave_call")
+def leave_call(data):
+    call_id = data.get("call_id")
+    room_id = data.get("room_id") or (call_room_for_id(call_id) if call_id else None)
+    target_id = parse_user_id(data.get("target_id"))
+    if room_id:
+        leave_room(room_id)
+        log_call_signal("server_leave_call_room", call_id, room_id=room_id, target_id=target_id)
 
 
 @socketio.on("join_live")
@@ -622,14 +970,40 @@ def join_live(data):
     session = LiveSession.query.get(session_id) if session_id else None
     if not session or session.status != "live":
         emit("live_unavailable", {"session_id": session_id}, room=request.sid)
+        log_live_signal("server_live_unavailable", session_id=session_id)
         return
     room = f"live-{session.id}"
     join_room(room)
     if role == "host" and session.user_id == current_user.id:
         live_broadcasters[session.id] = request.sid
+        log_live_signal(
+            "server_live_host_joined",
+            session_id=session.id,
+            broadcaster_id=current_user.id,
+            room_id=room,
+        )
         emit("live_status", {"status": "broadcasting"}, room=request.sid)
+        emit(
+            "live_viewer_count",
+            {"session_id": session.id, "count": len(live_viewers.get(session.id, set()))},
+            room=f"live-{session.id}",
+        )
         emit("live_host_ready", {"session_id": session.id}, room=room, include_self=False)
         return
+    live_viewers.setdefault(session.id, set()).add(request.sid)
+    log_live_signal(
+        "server_live_viewer_joined",
+        session_id=session.id,
+        broadcaster_id=session.user_id,
+        viewer_id=current_user.id,
+        room_id=room,
+        viewer_count=len(live_viewers.get(session.id, set())),
+    )
+    emit(
+        "live_viewer_count",
+        {"session_id": session.id, "count": len(live_viewers.get(session.id, set()))},
+        room=room,
+    )
     host_sid = live_broadcasters.get(session.id)
     if host_sid:
         emit(
@@ -648,6 +1022,13 @@ def live_offer(data):
     session_id = parse_user_id(data.get("session_id"))
     session = LiveSession.query.get(session_id) if session_id else None
     if viewer_sid and offer and session and session.user_id == current_user.id:
+        log_live_signal(
+            "server_live_offer",
+            session_id=session.id,
+            broadcaster_id=current_user.id,
+            room_id=f"live-{session.id}",
+            target_sid=viewer_sid,
+        )
         emit(
             "live_offer",
             {
@@ -667,6 +1048,13 @@ def live_answer(data):
     session = LiveSession.query.get(session_id) if session_id else None
     host_sid = live_broadcasters.get(session_id)
     if answer and session and host_sid:
+        log_live_signal(
+            "server_live_answer",
+            session_id=session.id,
+            broadcaster_id=session.user_id,
+            viewer_id=current_user.id,
+            room_id=f"live-{session.id}",
+        )
         emit(
             "live_answer",
             {"session_id": session.id, "answer": answer, "viewer_sid": request.sid},
@@ -681,6 +1069,14 @@ def live_ice_candidate(data):
     target_sid = data.get("target_sid")
     session = LiveSession.query.get(session_id) if session_id else None
     if candidate and target_sid and session:
+        log_live_signal(
+            "server_live_ice_candidate",
+            session_id=session.id,
+            broadcaster_id=session.user_id,
+            viewer_id=current_user.id if session.user_id != current_user.id else None,
+            room_id=f"live-{session.id}",
+            target_sid=target_sid,
+        )
         emit(
             "live_ice_candidate",
             {"session_id": session.id, "candidate": candidate, "sender_sid": request.sid},

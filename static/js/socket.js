@@ -1,4 +1,61 @@
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
+});
+
+let socketEngineLoggingAttached = false;
+
+const socketContext = (extra = {}) => ({
+  socketId: socket.id,
+  namespace: socket.nsp,
+  transport: socket.io && socket.io.engine && socket.io.engine.transport
+    ? socket.io.engine.transport.name
+    : "unknown",
+  ...extra,
+});
+
+const socketLog = (event, extra = {}) => {
+  console.log("[SOCKET]", socketContext({ event, ...extra }));
+};
+
+const showRealtimeToast = (message) => {
+  const toast = document.querySelector("[data-toast]");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.hidden = false;
+  window.clearTimeout(toast.socketTimer);
+  toast.socketTimer = window.setTimeout(() => {
+    toast.hidden = true;
+  }, 5200);
+};
+
+const setRealtimePageStatus = (message) => {
+  if (typeof callConfig !== "undefined") {
+    const callStatus = document.getElementById("call-status");
+    if (callStatus) callStatus.textContent = message;
+  }
+  if (typeof liveConfig !== "undefined") {
+    const liveStatus = document.getElementById("live-status");
+    if (liveStatus) {
+      liveStatus.textContent = message;
+      liveStatus.hidden = false;
+    }
+  }
+};
+
+const attachEngineLogging = () => {
+  if (socketEngineLoggingAttached || !socket.io || !socket.io.engine) return;
+  socketEngineLoggingAttached = true;
+  socket.io.engine.on("upgrade", (transport) => {
+    socketLog("transport_upgraded", { transport: transport.name });
+  });
+  socket.io.engine.on("close", (reason) => {
+    socketLog("engine_close", { reason });
+  });
+};
 
 const appendChatMessage = (chatLog, data, isOwn) => {
   if (!chatLog) return;
@@ -101,7 +158,52 @@ const appendChatMessage = (chatLog, data, isOwn) => {
 };
 
 socket.on("connect", () => {
-  console.log("Connected to socket server");
+  attachEngineLogging();
+  socketLog("connect");
+});
+
+socket.on("socket_connected", (data) => {
+  socketLog("server_confirmed_connect", data);
+});
+
+socket.on("connect_error", (error) => {
+  socketLog("connect_error", { message: error && error.message });
+  showRealtimeToast("Connection problem. Trying to reconnect...");
+  setRealtimePageStatus("Connection problem. Reconnecting...");
+});
+
+socket.on("disconnect", (reason) => {
+  socketLog("disconnect", { reason });
+  if (reason === "io server disconnect") {
+    showRealtimeToast("Connection lost. Refresh the page if it does not reconnect.");
+    setRealtimePageStatus("Connection lost. Please refresh if it does not reconnect.");
+    return;
+  }
+  showRealtimeToast("Connection lost. Reconnecting...");
+  setRealtimePageStatus("Connection lost. Reconnecting...");
+});
+
+socket.io.on("reconnect_attempt", (attempt) => {
+  socketLog("reconnect_attempt", { attempt });
+  setRealtimePageStatus("Reconnecting...");
+});
+
+socket.io.on("reconnect", (attempt) => {
+  attachEngineLogging();
+  socketLog("reconnect", { attempt });
+  showRealtimeToast("Reconnected.");
+  if (typeof callConfig !== "undefined") setRealtimePageStatus("Reconnected. Continuing call...");
+  if (typeof liveConfig !== "undefined") setRealtimePageStatus("Reconnected. Continuing live session...");
+});
+
+socket.io.on("reconnect_error", (error) => {
+  socketLog("reconnect_error", { message: error && error.message });
+});
+
+socket.io.on("reconnect_failed", () => {
+  socketLog("reconnect_failed");
+  showRealtimeToast("Connection failed. Check your network and refresh.");
+  setRealtimePageStatus("Connection failed. Check your network and refresh.");
 });
 
 socket.on("user_status", (data) => {
@@ -441,6 +543,15 @@ if (typeof chatConfig !== "undefined") {
 
 socket.on("incoming_call", (data) => {
   if (typeof callConfig !== "undefined") return;
+  console.log("[call signaling]", {
+    event: "client_received_incoming_call",
+    callId: data.call_id,
+    userId: data.recipient_id,
+    targetUserId: data.sender_id,
+    socketId: socket.id,
+    roomId: data.room_id,
+    mode: data.mode,
+  });
   const playTone = () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -490,11 +601,23 @@ socket.on("incoming_call", (data) => {
   overlay.hidden = false;
   overlay.querySelector("[data-answer-call]").addEventListener("click", () => {
     if (stopTone) stopTone();
+    console.log("[call signaling]", {
+      event: "client_answer_incoming_call",
+      callId: data.call_id,
+      userId: data.recipient_id,
+      socketId: socket.id,
+      roomId: data.room_id,
+    });
     window.location.href = `/calls/${data.sender_id}?answer=1&mode=${data.mode || "video"}`;
   });
   overlay.querySelector("[data-decline-call]").addEventListener("click", () => {
     if (stopTone) stopTone();
-    socket.emit("call_declined", { target_id: data.sender_id, mode: data.mode || "video" });
+    socket.emit("call_declined", {
+      target_id: data.sender_id,
+      mode: data.mode || "video",
+      call_id: data.call_id,
+      room_id: data.room_id,
+    });
     overlay.hidden = true;
   });
 });
@@ -520,28 +643,104 @@ if (typeof callConfig !== "undefined") {
     const remoteVideo = document.getElementById("remote-video");
     const voiceFallback = document.getElementById("voice-fallback");
     const callStatus = document.getElementById("call-status");
+    const callError = document.getElementById("call-error");
     let peerConnection = null;
     let localStream = null;
+    let remoteStream = null;
     let started = false;
     let finished = false;
+    let callState = "idle";
+    let callStartedAt = null;
+    let callTimer = null;
+    let inviteTimer = null;
+    const pendingRemoteCandidates = [];
 
     const configuration = {
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: callConfig.iceServers || [{ urls: "stun:stun.l.google.com:19302" }],
     };
+
+    const signalLog = (event, extra = {}) => {
+      console.log("[call signaling]", {
+        event,
+        callId: callConfig.callId,
+        userId: callConfig.currentUserId,
+        targetUserId: callConfig.targetUserId,
+        socketId: socket.id,
+        roomId: callConfig.roomId,
+        ...extra,
+      });
+    };
+
+    const callPayload = (extra = {}) => ({
+      target_id: callConfig.targetUserId,
+      call_id: callConfig.callId,
+      room_id: callConfig.roomId,
+      ...extra,
+    });
 
     const setStatus = (text) => {
       if (callStatus) callStatus.textContent = text;
     };
 
+    const setCallState = (nextState, message) => {
+      callState = nextState;
+      document.body.dataset.callState = nextState;
+      signalLog("client_call_state_changed", { state: nextState, message });
+      if (message) setStatus(message);
+    };
+
+    const showCallError = (message, error = null) => {
+      signalLog("client_call_error", {
+        message,
+        error: error && (error.message || error.name),
+      });
+      if (callError) {
+        callError.textContent = message;
+        callError.hidden = false;
+      }
+      setStatus(message);
+    };
+
+    const clearCallError = () => {
+      if (callError) {
+        callError.textContent = "";
+        callError.hidden = true;
+      }
+    };
+
+    const formatDuration = (seconds) => {
+      const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+      const rest = (seconds % 60).toString().padStart(2, "0");
+      return `${minutes}:${rest}`;
+    };
+
+    const startCallTimer = () => {
+      if (callTimer) return;
+      callStartedAt = Date.now();
+      callTimer = window.setInterval(() => {
+        const elapsed = Math.floor((Date.now() - callStartedAt) / 1000);
+        setStatus(`Connected ${formatDuration(elapsed)}`);
+      }, 1000);
+      setStatus("Connected 00:00");
+    };
+
     const emitWhenConnected = (eventName, payload) => {
       if (socket.connected) {
+        signalLog(`client_emit_${eventName}`, { payload });
         socket.emit(eventName, payload);
         return;
       }
-      socket.once("connect", () => socket.emit(eventName, payload));
+      socket.once("connect", () => {
+        signalLog(`client_emit_${eventName}`, { payload });
+        socket.emit(eventName, payload);
+      });
     };
 
     const cleanupCall = () => {
+      if (inviteTimer) {
+        window.clearTimeout(inviteTimer);
+        inviteTimer = null;
+      }
       if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
@@ -552,6 +751,11 @@ if (typeof callConfig !== "undefined") {
       }
       if (remoteVideo) remoteVideo.srcObject = null;
       if (localVideo) localVideo.srcObject = null;
+      remoteStream = null;
+      if (callTimer) {
+        window.clearInterval(callTimer);
+        callTimer = null;
+      }
     };
 
     const setVoiceMode = (enabled) => {
@@ -563,6 +767,7 @@ if (typeof callConfig !== "undefined") {
     const getMedia = async () => {
       if (localStream) return localStream;
       const wantsVideo = callConfig.mode !== "audio";
+      setCallState("preparing_media", wantsVideo ? "Preparing camera..." : "Preparing microphone...");
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -575,54 +780,144 @@ if (typeof callConfig !== "undefined") {
             video: false,
           });
         } catch (audioError) {
-          setStatus("Microphone/camera blocked by browser");
-          window.alert("Please allow microphone/camera permissions in your browser settings.");
+          showCallError("Microphone/camera blocked by browser", audioError);
           throw audioError;
         }
       }
       localVideo.srcObject = localStream;
+      try {
+        await localVideo.play();
+      } catch (error) {
+        showCallError("Tap the screen to start your camera preview.", error);
+      }
       setVoiceMode(!localStream.getVideoTracks().length);
+      signalLog("client_local_media_ready", {
+        audioTracks: localStream.getAudioTracks().length,
+        videoTracks: localStream.getVideoTracks().length,
+      });
       return localStream;
     };
 
     const ensurePeerConnection = async () => {
       if (peerConnection) return peerConnection;
+      signalLog("client_create_peer_connection");
       peerConnection = new RTCPeerConnection(configuration);
-      peerConnection.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
-        const hasRemoteVideo = event.streams[0].getVideoTracks().length > 0;
+      peerConnection.ontrack = async (event) => {
+        const [eventStream] = event.streams || [];
+        if (eventStream) {
+          remoteStream = eventStream;
+        } else {
+          if (!remoteStream) remoteStream = new MediaStream();
+          remoteStream.addTrack(event.track);
+        }
+        signalLog("client_remote_track_received", {
+          trackKind: event.track && event.track.kind,
+          streamId: remoteStream && remoteStream.id,
+        });
+        if (event.track) {
+          event.track.addEventListener("mute", () => signalLog("client_remote_track_muted", { trackKind: event.track.kind }));
+          event.track.addEventListener("unmute", () => signalLog("client_remote_track_unmuted", { trackKind: event.track.kind }));
+          event.track.addEventListener("ended", () => signalLog("client_remote_track_ended", { trackKind: event.track.kind }));
+        }
+        remoteVideo.srcObject = remoteStream;
+        try {
+          await remoteVideo.play();
+        } catch (error) {
+          showCallError("Tap the screen to start remote audio and video.", error);
+        }
+        const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
         setVoiceMode(!hasRemoteVideo);
-        setStatus("Connected");
+        startCallTimer();
+      };
+      peerConnection.onsignalingstatechange = () => {
+        signalLog("client_signaling_state_changed", {
+          signalingState: peerConnection.signalingState,
+        });
+      };
+      peerConnection.onicegatheringstatechange = () => {
+        signalLog("client_ice_gathering_state_changed", {
+          iceGatheringState: peerConnection.iceGatheringState,
+        });
+      };
+      peerConnection.oniceconnectionstatechange = () => {
+        signalLog("client_ice_connection_state_changed", {
+          iceConnectionState: peerConnection.iceConnectionState,
+        });
       };
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          socket.emit("ice_candidate", {
-            target_id: callConfig.targetUserId,
-            candidate: event.candidate,
+          signalLog("client_send_ice_candidate", {
+            candidateType: event.candidate.type,
+            candidateMid: event.candidate.sdpMid,
           });
+          socket.emit("ice_candidate", callPayload({ candidate: event.candidate }));
         }
       };
       peerConnection.onconnectionstatechange = () => {
+        signalLog("client_connection_state_changed", {
+          connectionState: peerConnection.connectionState,
+        });
         if (["connected", "completed"].includes(peerConnection.connectionState)) {
-          setStatus("Connected");
+          setCallState("connected");
+          startCallTimer();
         } else if (["failed", "disconnected"].includes(peerConnection.connectionState)) {
-          setStatus("Connection interrupted");
+          setCallState("failed", "Connection interrupted");
         }
       };
       const stream = await getMedia();
-      stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
+      stream.getTracks().forEach((track) => {
+        signalLog("client_add_local_track", {
+          trackKind: track.kind,
+          trackId: track.id,
+          enabled: track.enabled,
+        });
+        peerConnection.addTrack(track, stream);
+        track.addEventListener("mute", () => signalLog("client_local_track_muted", { trackKind: track.kind }));
+        track.addEventListener("unmute", () => signalLog("client_local_track_unmuted", { trackKind: track.kind }));
+        track.addEventListener("ended", () => signalLog("client_local_track_ended", { trackKind: track.kind }));
+      });
       return peerConnection;
+    };
+
+    const addOrQueueRemoteCandidate = async (candidate) => {
+      if (!candidate) return;
+      if (!peerConnection || !peerConnection.remoteDescription) {
+        pendingRemoteCandidates.push(candidate);
+        signalLog("client_queue_remote_ice_candidate", {
+          queuedCandidates: pendingRemoteCandidates.length,
+        });
+        return;
+      }
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      signalLog("client_added_remote_ice_candidate", {
+        candidateMid: candidate.sdpMid,
+        queuedCandidates: pendingRemoteCandidates.length,
+      });
+    };
+
+    const flushRemoteCandidates = async () => {
+      while (pendingRemoteCandidates.length && peerConnection && peerConnection.remoteDescription) {
+        const candidate = pendingRemoteCandidates.shift();
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        signalLog("client_flushed_remote_ice_candidate", {
+          candidateMid: candidate.sdpMid,
+          queuedCandidates: pendingRemoteCandidates.length,
+        });
+      }
     };
 
     const createOffer = async () => {
       const connection = await ensurePeerConnection();
+      setCallState("connecting", "Connecting...");
+      signalLog("client_create_webrtc_offer");
       const offer = await connection.createOffer();
       await connection.setLocalDescription(offer);
-      socket.emit("webrtc_offer", {
-        target_id: callConfig.targetUserId,
-        offer,
+      signalLog("client_send_webrtc_offer", {
+        sdpType: offer.type,
+        signalingState: connection.signalingState,
+        iceGatheringState: connection.iceGatheringState,
       });
-      setStatus("Ringing...");
+      socket.emit("webrtc_offer", callPayload({ offer }));
     };
 
     const startCall = async () => {
@@ -630,30 +925,31 @@ if (typeof callConfig !== "undefined") {
       started = true;
       startButton.disabled = true;
       startButton.textContent = "Calling";
-      try {
-        await ensurePeerConnection();
-      } catch (error) {
-        started = false;
-        startButton.disabled = false;
-        startButton.textContent = "Call";
-        return;
-      }
+      clearCallError();
       if (callConfig.autoAnswer) {
-        setStatus("Connecting...");
-        emitWhenConnected("ready_for_call", { target_id: callConfig.targetUserId });
+        setCallState("accepted", "Accepting call...");
+        emitWhenConnected("call_accepted", callPayload({ mode: callConfig.mode }));
       } else {
-        setStatus("Ringing...");
-        emitWhenConnected("call_invite", {
-          target_id: callConfig.targetUserId,
-          mode: callConfig.mode,
-        });
+        setCallState("calling", "Calling...");
+        emitWhenConnected("call_invite", callPayload({ mode: callConfig.mode }));
+        inviteTimer = window.setTimeout(() => {
+          if (!["accepted", "connecting", "connected", "ended", "failed"].includes(callState)) {
+            setCallState("missed", "No answer");
+            cleanupCall();
+          }
+        }, 50000);
       }
     };
 
-    const endCall = () => {
+    const endCall = (notifyPeer = true) => {
       if (finished) return;
       finished = true;
-      socket.emit("call_ended", { target_id: callConfig.targetUserId, mode: callConfig.mode });
+      setCallState("ended", "Call ended");
+      if (notifyPeer && socket.connected) {
+        signalLog("client_emit_call_ended");
+        socket.emit("call_ended", callPayload({ mode: callConfig.mode }));
+      }
+      if (socket.connected) socket.emit("leave_call", callPayload());
       cleanupCall();
       window.location.href = document.referrer || "/messages";
     };
@@ -683,31 +979,103 @@ if (typeof callConfig !== "undefined") {
       }
     });
 
-    speakerButton.addEventListener("click", () => {
-      remoteVideo.muted = !remoteVideo.muted;
-      speakerButton.textContent = remoteVideo.muted ? "Speaker off" : "Speaker";
-      speakerButton.classList.toggle("active", remoteVideo.muted);
-    });
-
-    endButton.addEventListener("click", endCall);
-
-    socket.on("peer_ready", async (data) => {
-      if (data.sender_id === callConfig.targetUserId) {
-        await createOffer();
+    speakerButton.addEventListener("click", async () => {
+      if (typeof remoteVideo.setSinkId !== "function") {
+        showCallError("Speaker routing is controlled by your browser or operating system on this device.");
+        return;
+      }
+      try {
+        await remoteVideo.setSinkId("");
+        showCallError("Speaker output uses your browser's selected audio device.");
+      } catch (error) {
+        showCallError("Speaker output could not be changed in this browser.", error);
       }
     });
 
+    endButton.addEventListener("click", () => endCall(true));
+
+    window.addEventListener("pagehide", () => {
+      if (started && !finished && socket.connected) {
+        socket.emit("call_ended", callPayload({ mode: callConfig.mode }));
+        socket.emit("leave_call", callPayload());
+      }
+    });
+
+    socket.on("room_joined", (data) => {
+      if (data.room === callConfig.roomId) {
+        signalLog("client_room_joined", data);
+      }
+    });
+
+    socket.on("call_room_joined", (data) => {
+      if (data.call_id === callConfig.callId && data.room_id === callConfig.roomId) {
+        signalLog("client_call_room_joined", data);
+        if (callConfig.autoAnswer && callState === "accepted") {
+          setCallState("preparing_media", "Preparing camera...");
+          ensurePeerConnection()
+            .then(() => setCallState("connecting", "Connecting..."))
+            .catch((error) => {
+              setCallState("failed", "Camera or microphone failed");
+              showCallError("Camera or microphone failed.", error);
+            });
+        }
+      }
+    });
+
+    socket.on("peer_ready", async (data) => {
+      signalLog("client_received_call_acceptance", data);
+      if (data.sender_id === callConfig.targetUserId && data.call_id === callConfig.callId) {
+        if (inviteTimer) {
+          window.clearTimeout(inviteTimer);
+          inviteTimer = null;
+        }
+        setCallState("accepted", "Call accepted");
+        try {
+          await createOffer();
+        } catch (error) {
+          setCallState("failed", "Could not start call");
+          showCallError("Could not start the call.", error);
+        }
+      }
+    });
+
+    socket.on("call_invite_sent", (data) => {
+      if (data.call_id !== callConfig.callId) return;
+      setCallState("ringing", "Ringing...");
+    });
+
     socket.on("call_unavailable", () => {
-      setStatus("User is offline");
+      setCallState("unavailable", "User is offline");
       window.setTimeout(() => {
         window.location.href = `/chat/${callConfig.targetUserId}`;
       }, 1400);
     });
 
-    socket.on("call_ended", () => {
+    socket.on("call_rejected", (data) => {
+      if (data.call_id && data.call_id !== callConfig.callId) return;
+      finished = true;
+      setCallState("rejected", "Call declined");
+      cleanupCall();
+      window.setTimeout(() => {
+        window.location.href = document.referrer || "/messages";
+      }, 1200);
+    });
+
+    socket.on("call_timeout", (data) => {
+      if (data.call_id && data.call_id !== callConfig.callId) return;
+      finished = true;
+      setCallState("missed", "No answer");
+      cleanupCall();
+      window.setTimeout(() => {
+        window.location.href = document.referrer || "/messages";
+      }, 1200);
+    });
+
+    socket.on("call_ended", (data = {}) => {
+      if (data.call_id && data.call_id !== callConfig.callId) return;
       if (finished) return;
       finished = true;
-      setStatus("Call ended");
+      setCallState(data.declined ? "rejected" : "ended", data.declined ? "Call declined" : "Call ended");
       cleanupCall();
       window.setTimeout(() => {
         window.location.href = document.referrer || "/messages";
@@ -715,24 +1083,52 @@ if (typeof callConfig !== "undefined") {
     });
 
     socket.on("webrtc_offer", async (data) => {
-      const connection = await ensurePeerConnection();
-      await connection.setRemoteDescription(new RTCSessionDescription(data.offer));
-      const answer = await connection.createAnswer();
-      await connection.setLocalDescription(answer);
-      socket.emit("webrtc_answer", { target_id: data.sender_id, answer });
+      signalLog("client_received_webrtc_offer", data);
+      if (data.call_id && data.call_id !== callConfig.callId) return;
+      try {
+        const connection = await ensurePeerConnection();
+        setCallState("connecting", "Connecting...");
+        await connection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        signalLog("client_set_remote_offer", { sdpType: data.offer && data.offer.type });
+        await flushRemoteCandidates();
+        const answer = await connection.createAnswer();
+        await connection.setLocalDescription(answer);
+        signalLog("client_send_webrtc_answer", {
+          sdpType: answer.type,
+          signalingState: connection.signalingState,
+          iceGatheringState: connection.iceGatheringState,
+        });
+        socket.emit("webrtc_answer", callPayload({ target_id: data.sender_id, answer }));
+      } catch (error) {
+        setCallState("failed", "Could not answer call");
+        showCallError("Could not answer the call.", error);
+      }
     });
 
     socket.on("webrtc_answer", async (data) => {
+      signalLog("client_received_webrtc_answer", data);
+      if (data.call_id && data.call_id !== callConfig.callId) return;
       if (peerConnection) {
-        await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(data.answer),
-        );
+        try {
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.answer),
+          );
+          signalLog("client_set_remote_answer", { sdpType: data.answer && data.answer.type });
+          await flushRemoteCandidates();
+        } catch (error) {
+          setCallState("failed", "Could not connect call");
+          showCallError("Could not connect the call.", error);
+        }
       }
     });
 
     socket.on("ice_candidate", async (data) => {
-      if (peerConnection && data.candidate) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      signalLog("client_received_ice_candidate", data);
+      if (data.call_id && data.call_id !== callConfig.callId) return;
+      try {
+        await addOrQueueRemoteCandidate(data.candidate);
+      } catch (error) {
+        showCallError("Network candidate could not be added.", error);
       }
     });
   });
@@ -744,12 +1140,14 @@ if (typeof liveConfig !== "undefined") {
     const liveStatus = document.getElementById("live-status");
     const muteButton = document.getElementById("live-mute");
     const cameraButton = document.getElementById("live-camera");
+    const hostState = document.getElementById("live-host-state");
     const hostConnections = new Map();
     let localStream = null;
+    let liveRemoteStream = null;
     let viewerConnection = null;
 
     const configuration = {
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: liveConfig.iceServers || [{ urls: "stun:stun.l.google.com:19302" }],
     };
 
     const setLiveStatus = (message) => {
@@ -757,6 +1155,16 @@ if (typeof liveConfig !== "undefined") {
         liveStatus.textContent = message;
         liveStatus.hidden = !message;
       }
+    };
+
+    const liveLog = (event, extra = {}) => {
+      console.log("[LIVE]", {
+        event,
+        sessionId: liveConfig.sessionId,
+        isHost: liveConfig.isHost,
+        socketId: socket.id,
+        ...extra,
+      });
     };
 
     const joinLive = () => {
@@ -782,7 +1190,17 @@ if (typeof liveConfig !== "undefined") {
         liveVideo.srcObject = localStream;
         liveVideo.muted = true;
         liveVideo.controls = false;
+        try {
+          await liveVideo.play();
+        } catch (error) {
+          setLiveStatus("Tap the video to show your camera preview.");
+        }
       }
+      liveLog("host_camera_ready", {
+        audioTracks: localStream.getAudioTracks().length,
+        videoTracks: localStream.getVideoTracks().length,
+      });
+      if (hostState) hostState.textContent = "You are live";
       setLiveStatus("");
       joinLive();
     };
@@ -817,10 +1235,26 @@ if (typeof liveConfig !== "undefined") {
 
     const startViewerConnection = async (offer) => {
       viewerConnection = new RTCPeerConnection(configuration);
-      viewerConnection.ontrack = (event) => {
+      viewerConnection.ontrack = async (event) => {
+        const [eventStream] = event.streams || [];
+        if (eventStream) {
+          liveRemoteStream = eventStream;
+        } else {
+          if (!liveRemoteStream) liveRemoteStream = new MediaStream();
+          liveRemoteStream.addTrack(event.track);
+        }
+        liveLog("viewer_remote_track_received", {
+          trackKind: event.track && event.track.kind,
+          streamId: liveRemoteStream && liveRemoteStream.id,
+        });
         if (liveVideo) {
-          liveVideo.srcObject = event.streams[0];
+          liveVideo.srcObject = liveRemoteStream;
           liveVideo.controls = true;
+          try {
+            await liveVideo.play();
+          } catch (error) {
+            setLiveStatus("Tap the video to start the live stream.");
+          }
         }
         setLiveStatus("");
       };
@@ -862,6 +1296,7 @@ if (typeof liveConfig !== "undefined") {
           track.enabled = !track.enabled;
           muteButton.textContent = track.enabled ? "Mute" : "Unmute";
           muteButton.classList.toggle("active", !track.enabled);
+          if (hostState) hostState.textContent = track.enabled ? "You are live" : "Live with mic muted";
         });
       });
     }
@@ -873,6 +1308,7 @@ if (typeof liveConfig !== "undefined") {
           track.enabled = !track.enabled;
           cameraButton.textContent = track.enabled ? "Camera" : "Show camera";
           cameraButton.classList.toggle("active", !track.enabled);
+          if (hostState) hostState.textContent = track.enabled ? "You are live" : "Live with camera off";
         });
       });
     }
@@ -909,6 +1345,14 @@ if (typeof liveConfig !== "undefined") {
     socket.on("live_waiting_for_host", (data) => {
       if (data.session_id === liveConfig.sessionId) {
         setLiveStatus("Waiting for the broadcaster to connect...");
+      }
+    });
+
+    socket.on("live_viewer_count", (data) => {
+      if (data.session_id !== liveConfig.sessionId) return;
+      const count = document.getElementById("live-viewer-count");
+      if (count) {
+        count.textContent = `${data.count || 0} watching`;
       }
     });
 

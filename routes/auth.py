@@ -55,6 +55,13 @@ def setting_value(key, default=""):
     return setting.value if setting and setting.value else default
 
 
+def should_make_admin(email):
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+    return User.query.filter_by(is_admin=True).count() == 0 or (
+        admin_email and email == admin_email
+    )
+
+
 def send_password_reset_email(user, reset_url):
     host = os.getenv("SMTP_HOST") or setting_value("smtp_host")
     sender = os.getenv("SMTP_FROM") or setting_value("smtp_from")
@@ -104,8 +111,7 @@ def signup():
             return render_signup()
         user = User(username=username, email=email, country=country)
         user.set_password(password)
-        admin_email = os.getenv("ADMIN_EMAIL")
-        if admin_email and email == admin_email:
+        if should_make_admin(email):
             user.is_admin = True
         db.session.add(user)
         db.session.commit()
@@ -205,8 +211,15 @@ def reset_password(token):
 @auth_bp.route("/login/google")
 def google_login():
     client_id = os.getenv("GOOGLE_CLIENT_ID") or setting_value("google_client_id")
-    if not client_id:
-        flash("Google login needs a Google Client ID and Client Secret.", "warning")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or setting_value("google_client_secret")
+    if not client_id or not client_secret:
+        missing = []
+        if not client_id:
+            missing.append("GOOGLE_CLIENT_ID")
+        if not client_secret:
+            missing.append("GOOGLE_CLIENT_SECRET")
+        current_app.logger.warning("Google login missing configuration: %s", ", ".join(missing))
+        flash(f"Google login is missing: {', '.join(missing)}.", "warning")
         return redirect(url_for("auth.login"))
     state = secrets.token_urlsafe(16)
     session["google_oauth_state"] = state
@@ -283,8 +296,7 @@ def google_callback():
             username = f"{base_username}{counter}"
         user = User(username=username, email=email, country="Other")
         user.set_password(secrets.token_urlsafe(24))
-        admin_email = os.getenv("ADMIN_EMAIL")
-        if admin_email and email == admin_email.lower():
+        if should_make_admin(email):
             user.is_admin = True
         db.session.add(user)
         db.session.commit()

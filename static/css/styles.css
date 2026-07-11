@@ -85,6 +85,112 @@ body {
   }
 }
 
+.profile-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  padding: 0.4rem 0.75rem;
+  color: white;
+  background: #dc2626;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+}
+
+.live-avatar-ring {
+  border: 4px solid #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.22), 0 0 28px rgba(239, 68, 68, 0.35);
+}
+
+.profile-live-badge span {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 800;
+}
+
+.live-strip {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.85rem;
+}
+
+.live-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.55rem;
+  min-width: 150px;
+  padding: 0.55rem 0.7rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+.live-chip img {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border: 2px solid #dc2626;
+  border-radius: 999px;
+}
+
+.live-chip span {
+  display: grid;
+  line-height: 1.15;
+}
+
+.live-chip strong,
+.live-inline-badge {
+  color: #dc2626;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.live-inline-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.15rem;
+  text-decoration: none;
+}
+
+.live-broadcast-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.65rem;
+  color: white;
+  background: rgba(5, 8, 7, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+}
+
+.live-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  background: #ef4444;
+  border-radius: 999px;
+  box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.22);
+}
+
+.live-broadcast-badge strong {
+  color: #fca5a5;
+}
+
+.live-broadcast-badge span:last-child {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.86rem;
+}
+
 @media (max-width: 560px) {
   .content {
     width: 100%;
@@ -1994,6 +2100,13 @@ textarea:focus {
 .voice-fallback p {
   margin: 0;
   color: rgba(255, 255, 255, 0.68);
+  font-weight: 700;
+}
+
+.call-error {
+  margin-top: 0.5rem;
+  max-width: 24rem;
+  color: #fecaca;
   font-weight: 700;
 }
 

@@ -199,6 +199,41 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  const liveStartForm = document.querySelector("[data-live-start-form]");
+  if (liveStartForm) {
+    const liveStartStatus = liveStartForm.querySelector("[data-live-start-status]");
+    let liveStartConfirmed = false;
+    const setLiveStartStatus = (message) => {
+      if (!liveStartStatus) return;
+      liveStartStatus.textContent = message;
+      liveStartStatus.hidden = !message;
+    };
+    liveStartForm.addEventListener("submit", async (event) => {
+      if (liveStartConfirmed) return;
+      event.preventDefault();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setLiveStartStatus("Camera access is not supported by this browser.");
+        return;
+      }
+      setLiveStartStatus("Preparing camera...");
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { facingMode: "user" },
+        });
+      } catch (error) {
+        setLiveStartStatus("Camera or microphone is blocked.");
+        return;
+      } finally {
+        if (stream) stream.getTracks().forEach((track) => track.stop());
+      }
+      setLiveStartStatus("Camera ready. Starting live...");
+      liveStartConfirmed = true;
+      liveStartForm.submit();
+    });
+  }
+
   const showVideoFallback = (video) => {
     const frame = video.closest(".media-frame");
     if (!frame || frame.querySelector(".video-fallback")) return;

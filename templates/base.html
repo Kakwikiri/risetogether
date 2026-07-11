@@ -23,16 +23,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260711-stage5"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260711-stage5"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260711-stage5"
     ></script>
   </head>
   <body>
@@ -122,7 +122,7 @@
     <script>
       if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
-              navigator.serviceWorker.register('{{ url_for('static', filename='service-worker.js') }}')
+              navigator.serviceWorker.register('{{ url_for('static', filename='service-worker.js') }}?v=20260711-stage5')
               .catch(err => console.warn('SW registration failed:', err));
           });
       }

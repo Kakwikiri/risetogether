@@ -1,6 +1,5 @@
-const CACHE_NAME = "risetogether-cache-v9";
+const CACHE_NAME = "risetogether-cache-v11";
 const ASSETS = [
-  "/",
   "/static/manifest.json",
   "/static/css/styles.css",
   "/static/js/app.js",
@@ -9,6 +8,17 @@ const ASSETS = [
   "/static/images/icon-192.png",
   "/static/images/icon-512.png",
   "/static/images/risetogether-logo.png",
+];
+
+const NETWORK_ONLY_PREFIXES = [
+  "/socket.io/",
+  "/calls/",
+  "/live/",
+  "/api/",
+  "/messages",
+  "/chat/",
+  "/notifications",
+  "/admin/",
 ];
 
 self.addEventListener("install", (event) => {
@@ -32,6 +42,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  if (NETWORK_ONLY_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(
@@ -44,11 +60,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (!url.pathname.startsWith("/static/")) return;
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return (
         cached ||
         fetch(event.request).then((response) => {
+          if (!response || response.status !== 200 || response.type !== "basic") {
+            return response;
+          }
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;

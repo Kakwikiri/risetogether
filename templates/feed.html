@@ -22,6 +22,19 @@
       <a class="icon-button" href="#trending-videos" aria-label="Trending videos">★</a>
     </div>
     {% endif %}
+    {% if active_live_sessions %}
+    <section class="live-strip" aria-label="People live now">
+      {% for live in active_live_sessions %}
+      <a class="live-chip" href="{{ url_for('main.live_room', session_id=live.id) }}">
+        <img
+          src="{{ url_for('static', filename='images/default-avatar.png') if not live.user.profile.avatar else url_for('api.serve_upload', filename=live.user.profile.avatar) }}"
+          alt=""
+        />
+        <span><strong>LIVE</strong>{{ live.user.profile.display_name }}</span>
+      </a>
+      {% endfor %}
+    </section>
+    {% endif %}
     {% if not video_only %}
     <section class="composer-card">
       <h3>Share your story</h3>
@@ -76,6 +89,9 @@
               >{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
             >
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+            {% if post.user_id in live_user_ids %}
+            <a class="live-inline-badge" href="{{ url_for('main.live_room', session_id=(active_live_sessions|selectattr('user_id', 'equalto', post.user_id)|first).id) }}">LIVE now</a>
+            {% endif %}
           </div>
           {% if post.user_id != current_user.id %}
           <form action="{{ url_for('main.toggle_follow', user_id=post.user_id) }}" method="post">

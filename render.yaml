@@ -3,7 +3,7 @@ services:
     name: risetogether
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 1 --threads 100 app:app
+    startCommand: gunicorn --worker-class gthread -w 1 --threads 100 --timeout 120 app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true

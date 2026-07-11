@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from markupsafe import Markup, escape
 
 from extensions import db, socketio
-from helpers import REACTION_LABELS, allowed_file, get_media_type, save_media
+from helpers import REACTION_LABELS, allowed_file, get_ice_servers, get_media_type, save_media
 from models import (
     Block,
     Comment,
@@ -143,6 +143,13 @@ def home():
                 or query.lower() in post.author.username.lower()
                 or query.lower() in post.author.profile.display_name.lower()
             ]
+        active_live_sessions = (
+            LiveSession.query.filter_by(status="live")
+            .order_by(LiveSession.created_at.desc())
+            .limit(8)
+            .all()
+        )
+        live_user_ids = {session.user_id for session in active_live_sessions}
         return render_template(
             "feed.html",
             posts=posts,
@@ -152,6 +159,8 @@ def home():
             trending_posts=trending_posts,
             video_only=video_only,
             query=query,
+            active_live_sessions=active_live_sessions,
+            live_user_ids=live_user_ids,
         )
     return render_template("landing.html")
 
@@ -253,6 +262,7 @@ def profile(username):
         .limit(12)
         .all()
     ]
+    live_session = LiveSession.query.filter_by(user_id=user.id, status="live").first()
     return render_template(
         "profile.html",
         user=user,
@@ -265,6 +275,7 @@ def profile(username):
         follower_count=Follow.query.filter_by(followed_id=user.id).count(),
         following_count=Follow.query.filter_by(follower_id=user.id).count(),
         following=following,
+        live_session=live_session,
     )
 
 
@@ -682,8 +693,36 @@ def live_sessions():
             return redirect(url_for("main.live_sessions"))
         session = LiveSession(user_id=current_user.id, title=title, description=description)
         db.session.add(session)
+        db.session.flush()
+        live_url = url_for("main.live_room", session_id=session.id)
+        for follow in Follow.query.filter_by(followed_id=current_user.id).all():
+            if follow.follower_id == current_user.id:
+                continue
+            existing = Notification.query.filter_by(
+                user_id=follow.follower_id,
+                category="live",
+                action_url=live_url,
+            ).first()
+            if existing:
+                continue
+            add_notification(
+                follow.follower_id,
+                "live",
+                f"{current_user.username} is live now.",
+                live_url,
+            )
         db.session.commit()
-        flash("Live session started. Share your room link with viewers.", "success")
+        socketio.emit(
+            "live_started",
+            {
+                "session_id": session.id,
+                "broadcaster_id": current_user.id,
+                "broadcaster_name": current_user.profile.display_name,
+                "action_url": live_url,
+            },
+            room=f"user-{current_user.id}",
+        )
+        flash("Live session started. Followers can now find it in Rise Together.", "success")
         return redirect(url_for("main.live_room", session_id=session.id))
     sessions = LiveSession.query.order_by(LiveSession.created_at.desc()).all()
     return render_template("live_sessions.html", sessions=sessions)
@@ -697,6 +736,7 @@ def live_room(session_id):
         "live_room.html",
         session=session,
         is_host=session.user_id == current_user.id,
+        ice_servers=get_ice_servers(),
     )
 
 
@@ -711,6 +751,10 @@ def end_live_session(session_id):
     session.status = "ended"
     session.ended_at = datetime.utcnow()
     db.session.commit()
+    from routes.chat import live_broadcasters, live_viewers
+
+    live_broadcasters.pop(session.id, None)
+    live_viewers.pop(session.id, None)
     socketio.emit(
         "live_host_left",
         {"session_id": session.id},

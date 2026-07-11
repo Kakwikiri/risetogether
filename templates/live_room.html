@@ -10,6 +10,11 @@
   </header>
 
   <div class="live-stage">
+    <div class="live-broadcast-badge">
+      <span class="live-dot"></span>
+      <strong>{{ 'LIVE' if session.status == 'live' else 'ENDED' }}</strong>
+      <span id="live-viewer-count">0 watching</span>
+    </div>
     <video
       id="live-video"
       class="live-video"
@@ -27,6 +32,7 @@
     {% if is_host %}
     <button class="call-control" id="live-mute" type="button">Mute</button>
     <button class="call-control" id="live-camera" type="button">Camera</button>
+    <span class="status-pill" id="live-host-state">Camera is live</span>
     <form action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
       <button class="call-control end-call" type="submit">End live</button>
     </form>
@@ -40,6 +46,7 @@
       sessionId: {{ session.id }},
       isHost: {{ 'true' if is_host else 'false' }},
       status: '{{ session.status }}',
+      iceServers: {{ ice_servers|tojson }},
   };
 </script>
 {% endblock %}
