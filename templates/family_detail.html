@@ -1,35 +1,72 @@
 {% extends 'base.html' %} {% block content %}
 <section class="card family-detail-card">
-  <header>
-    <h2>{{ family.name }}</h2>
-    <p>{{ family.description }}</p>
-    <p class="muted-meta">{{ members|length }} members · {{ family.privacy|capitalize }}</p>
+  <header class="family-hero">
+    <div>
+      <span class="eyebrow">
+        {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
+      </span>
+      <h2>{{ family.name }}</h2>
+      <p>{{ family.description }}</p>
+      <p class="muted-meta">
+        {{ members|length }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
+        {% if family.member_limit %} · Limit {{ family.member_limit }}{% endif %}
+      </p>
+    </div>
+    <div class="family-actions">
+      {% if not member %}
+      <form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post">
+        <button class="button" type="submit">Join family</button>
+      </form>
+      {% endif %}
+      {% if member %}
+      <a class="button" href="{{ url_for('chat.family_chat', family_id=family.id) }}">Open family chat</a>
+      {% if member.role == 'admin' %}
+      <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
+      {% endif %}
+      {% endif %}
+    </div>
   </header>
-  <div class="family-actions">
-    {% if not member %}
-    <form
-      action="{{ url_for('family.join_family', family_id=family.id) }}"
-      method="post"
-    >
-      <button class="button" type="submit">Join family</button>
-    </form>
-    {% endif %} {% if member %}
-    <a
-      class="button"
-      href="{{ url_for('chat.family_chat', family_id=family.id) }}"
-      >Open family chat</a
-    >
-    {% if member.role == 'admin' %}
-    <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
+
+  <nav class="profile-tabbar family-tabbar" aria-label="Family sections">
+    <a href="#family-home">Home</a>
+    <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
+    <a href="#family-posts">Posts</a>
+    <a href="#family-goal">Goal</a>
+    <a href="#family-challenges">Challenges</a>
+    <a href="#family-members">Members</a>
+  </nav>
+
+  <section id="family-home" class="family-section">
+    <h3>Family Home</h3>
+    <div class="family-goal-summary">
+      <strong>{{ family.goal_title or 'Shared goal not set yet' }}</strong>
+      <p>{{ family.goal_description or 'Admins can add a shared purpose for this Family.' }}</p>
+      <div class="muted-meta">
+        {% if family.start_date %}Starts {{ family.start_date.strftime('%b %d, %Y') }}{% endif %}
+        {% if family.target_date %} · Target {{ family.target_date.strftime('%b %d, %Y') }}{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section id="family-goal" class="family-section">
+    <h3>Goal</h3>
+    <p>{{ family.goal_description or family.description or 'This Family is preparing its shared goal.' }}</p>
+    {% if family.target_date %}
+    <span class="status-pill">Target date {{ family.target_date.strftime('%b %d, %Y') }}</span>
     {% endif %}
-    {% endif %}
-  </div>
-  <section>
+  </section>
+
+  <section id="family-challenges" class="family-section">
+    <h3>Challenges</h3>
+    <p class="muted-meta">Challenges and tasks will be added in Stage 2.</p>
+  </section>
+
+  <section id="family-members" class="family-section">
     <h3>Members</h3>
     <ul>
       {% for membership in members %}
       <li class="member-row">
-        <span>{{ membership.user.username }} — {{ membership.role }}</span>
+        <span>{{ membership.user.username }} - {{ membership.role }}</span>
         {% if member and member.role == 'admin' and membership.user_id != family.owner_id %}
         <span class="member-actions">
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post">
@@ -49,7 +86,8 @@
       {% endfor %}
     </ul>
   </section>
-  <section>
+
+  <section id="family-posts" class="family-section">
     <h3>Family posts</h3>
     {% if member %}
     <form
@@ -97,23 +135,17 @@
         <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download attachment</a>
         {% endif %}
       {% endif %}
-      <a
-        class="button secondary"
-        href="{{ url_for('main.post_detail', post_id=post.id) }}"
-        >View</a
-      >
+      <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">View</a>
     </article>
     {% else %}
     <p>No posts in this family yet.</p>
     {% endfor %}
   </section>
+
   {% if member and member.role == 'admin' %}
-  <section>
+  <section class="family-section">
     <h3>Invite someone</h3>
-    <form
-      action="{{ url_for('family.invite_family_member', family_id=family.id) }}"
-      method="post"
-    >
+    <form action="{{ url_for('family.invite_family_member', family_id=family.id) }}" method="post">
       <label>Username</label>
       <input type="text" name="username" required />
       <button class="button" type="submit">Send invite</button>

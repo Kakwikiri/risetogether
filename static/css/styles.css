@@ -207,6 +207,12 @@ body {
     max-width: 100%;
   }
 
+  .form-grid.two-column,
+  .family-hero {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
   .profile-post-actions,
   .profile-post-actions form {
     justify-content: flex-start;
@@ -910,9 +916,20 @@ a {
   font-weight: 750;
 }
 
+.form-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.form-grid.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
+input[type="date"],
+input[type="number"],
 select,
 textarea {
   width: 100%;
@@ -926,6 +943,8 @@ textarea {
 :root[data-theme="dark"] input[type="text"],
 :root[data-theme="dark"] input[type="email"],
 :root[data-theme="dark"] input[type="password"],
+:root[data-theme="dark"] input[type="date"],
+:root[data-theme="dark"] input[type="number"],
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea,
 :root[data-theme="dark"] .topbar,
@@ -1298,6 +1317,35 @@ textarea:focus {
   background: #fbfefd;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.family-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.family-tabbar {
+  margin: 1rem 0;
+}
+
+.family-section {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.family-goal-summary {
+  padding: 0.9rem;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.family-goal-summary p {
+  margin: 0.3rem 0;
 }
 
 .notification-card {

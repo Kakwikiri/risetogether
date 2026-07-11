@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
@@ -6,6 +8,22 @@ from extensions import db
 from models import Family, FamilyMember, Notification, Post, User
 
 family_bp = Blueprint("family", __name__)
+
+FAMILY_CATEGORIES = {
+    "learning": "Learning",
+    "quiz_and_trivia": "Quiz and trivia",
+    "motivation": "Motivation",
+    "fitness": "Fitness",
+    "business": "Business",
+    "coding": "Coding",
+    "books": "Books",
+    "language_learning": "Language learning",
+    "accountability": "Accountability",
+    "friendship_and_support": "Friendship and support",
+    "custom": "Custom",
+}
+
+FAMILY_PRIVACY_OPTIONS = {"public", "private", "invite_only"}
 
 
 def family_admin_required(family):
@@ -16,6 +34,74 @@ def family_admin_required(family):
     ).first()
 
 
+def parse_family_date(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def family_form_context(**extra):
+    context = {
+        "categories": FAMILY_CATEGORIES,
+        "privacy_options": FAMILY_PRIVACY_OPTIONS,
+    }
+    context.update(extra)
+    return context
+
+
+def validate_family_payload(form):
+    name = form.get("name", "").strip()
+    description = form.get("description", "").strip()
+    category = form.get("category", "friendship_and_support").strip()
+    custom_category = form.get("custom_category", "").strip()
+    goal_title = form.get("goal_title", "").strip()
+    goal_description = form.get("goal_description", "").strip()
+    privacy = form.get("privacy", "public").strip()
+    member_limit_raw = form.get("member_limit", "").strip()
+    start_date = parse_family_date(form.get("start_date"))
+    target_date = parse_family_date(form.get("target_date"))
+
+    if category not in FAMILY_CATEGORIES:
+        return None, "Choose a valid Family type."
+    if category == "custom" and len(custom_category) < 3:
+        return None, "Add a custom Family type with at least 3 characters."
+    if category != "custom":
+        custom_category = ""
+    if privacy not in FAMILY_PRIVACY_OPTIONS:
+        privacy = "public"
+    if not name:
+        return None, "Family name is required."
+    if not goal_title:
+        return None, "Add a shared goal for this Family."
+    member_limit = None
+    if member_limit_raw:
+        try:
+            member_limit = int(member_limit_raw)
+        except ValueError:
+            return None, "Member limit must be a number."
+        if member_limit < 2:
+            return None, "Member limit must allow at least 2 members."
+    return (
+        {
+            "name": name,
+            "description": description,
+            "category": category,
+            "custom_category": custom_category,
+            "goal_title": goal_title,
+            "goal_description": goal_description,
+            "start_date": start_date,
+            "target_date": target_date,
+            "privacy": privacy,
+            "member_limit": member_limit,
+        },
+        None,
+    )
+
+
 @family_bp.route("/families")
 @login_required
 def families():
@@ -24,7 +110,11 @@ def families():
     if query:
         search = f"%{query}%"
         family_query = family_query.filter(
-            or_(Family.name.ilike(search), Family.description.ilike(search))
+            or_(
+                Family.name.ilike(search),
+                Family.description.ilike(search),
+                Family.goal_title.ilike(search),
+            )
         )
     families = family_query.order_by(Family.created_at.desc()).all()
     return render_template("families.html", families=families, query=query)
@@ -34,19 +124,14 @@ def families():
 @login_required
 def create_family():
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        description = request.form.get("description", "").strip()
-        privacy = request.form.get("privacy", "public")
-        if privacy not in {"public", "private"}:
-            privacy = "public"
-        if not name:
-            flash("Family name is required.", "warning")
-            return render_template("create_family.html")
+        payload, error = validate_family_payload(request.form)
+        if error:
+            flash(error, "warning")
+            return render_template("create_family.html", **family_form_context(form=request.form))
         family = Family(
-            name=name,
-            description=description,
+            **payload,
             owner_id=current_user.id,
-            privacy=privacy,
+            is_active=True,
         )
         db.session.add(family)
         db.session.commit()
@@ -57,7 +142,7 @@ def create_family():
         db.session.commit()
         flash("Family created successfully.", "success")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    return render_template("create_family.html")
+    return render_template("create_family.html", **family_form_context())
 
 
 @family_bp.route("/family/<int:family_id>")
@@ -74,7 +159,12 @@ def family_detail(family_id):
         .all()
     )
     return render_template(
-        "family_detail.html", family=family, member=member, members=members, posts=posts
+        "family_detail.html",
+        family=family,
+        member=member,
+        members=members,
+        posts=posts,
+        categories=FAMILY_CATEGORIES,
     )
 
 
@@ -86,21 +176,17 @@ def edit_family(family_id):
         flash("Only family admins can edit family details.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        description = request.form.get("description", "").strip()
-        privacy = request.form.get("privacy", "public")
-        if privacy not in {"public", "private"}:
-            privacy = "public"
-        if not name:
-            flash("Family name is required.", "warning")
+        payload, error = validate_family_payload(request.form)
+        if error:
+            flash(error, "warning")
             return redirect(url_for("family.edit_family", family_id=family.id))
-        family.name = name
-        family.description = description
-        family.privacy = privacy
+        for key, value in payload.items():
+            setattr(family, key, value)
+        family.is_active = request.form.get("is_active", "1") == "1"
         db.session.commit()
         flash("Family updated.", "success")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    return render_template("edit_family.html", family=family)
+    return render_template("edit_family.html", family=family, **family_form_context())
 
 
 @family_bp.route("/family/<int:family_id>/join", methods=["POST"])
@@ -112,6 +198,12 @@ def join_family(family_id):
     ).first()
     if existing:
         flash("You are already a part of this family.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if not family.is_active:
+        flash("This Family is currently paused.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if family.member_limit and family.members.count() >= family.member_limit:
+        flash("This Family has reached its member limit.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     member = FamilyMember(family_id=family.id, user_id=current_user.id, role="member")
     db.session.add(member)

@@ -1,16 +1,63 @@
 {% extends 'base.html' %} {% block content %}
-<section class="card form-card">
+<section class="card form-card family-form-card">
   <h2>Edit Family</h2>
   <form action="" method="post">
     <label>Family name</label>
     <input type="text" name="name" value="{{ family.name }}" required />
-    <label>Description</label>
-    <textarea name="description" rows="4">{{ family.description }}</textarea>
-    <label>Privacy</label>
-    <select name="privacy">
-      <option value="public" {% if family.privacy == 'public' %}selected{% endif %}>Public</option>
-      <option value="private" {% if family.privacy == 'private' %}selected{% endif %}>Private</option>
+
+    <label>Family type</label>
+    <select name="category">
+      {% for key,label in categories.items() %}
+      <option value="{{ key }}" {% if family.category == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
     </select>
+
+    <label>Custom Family type</label>
+    <input type="text" name="custom_category" value="{{ family.custom_category or '' }}" placeholder="Only needed when type is Custom" />
+
+    <label>Shared goal</label>
+    <input type="text" name="goal_title" value="{{ family.goal_title or '' }}" required />
+
+    <label>What should members achieve?</label>
+    <textarea name="goal_description" rows="4">{{ family.goal_description or '' }}</textarea>
+
+    <label>Description</label>
+    <textarea name="description" rows="3">{{ family.description or '' }}</textarea>
+
+    <div class="form-grid two-column">
+      <label>
+        Start date
+        <input type="date" name="start_date" value="{{ family.start_date.strftime('%Y-%m-%d') if family.start_date else '' }}" />
+      </label>
+      <label>
+        Target date
+        <input type="date" name="target_date" value="{{ family.target_date.strftime('%Y-%m-%d') if family.target_date else '' }}" />
+      </label>
+    </div>
+
+    <div class="form-grid two-column">
+      <label>
+        Privacy
+        <select name="privacy">
+          <option value="public" {% if family.privacy == 'public' %}selected{% endif %}>Public</option>
+          <option value="private" {% if family.privacy == 'private' %}selected{% endif %}>Private</option>
+          <option value="invite_only" {% if family.privacy == 'invite_only' %}selected{% endif %}>Invitation-only</option>
+        </select>
+      </label>
+      <label>
+        Member limit
+        <input type="number" name="member_limit" min="2" value="{{ family.member_limit or '' }}" placeholder="Optional" />
+      </label>
+    </div>
+
+    <label>
+      Status
+      <select name="is_active">
+        <option value="1" {% if family.is_active %}selected{% endif %}>Active</option>
+        <option value="0" {% if not family.is_active %}selected{% endif %}>Paused</option>
+      </select>
+    </label>
+
     <button class="button" type="submit">Save family</button>
   </form>
 </section>

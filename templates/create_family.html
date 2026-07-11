@@ -1,16 +1,66 @@
 {% extends 'base.html' %} {% block content %}
-<section class="card form-card">
-  <h2>Create a new family</h2>
+<section class="card form-card family-form-card">
+  <h2>Create a goal-based Family</h2>
   <form action="" method="post">
-    <label>Family name</label>
-    <input type="text" name="name" required />
-    <label>Description</label>
-    <textarea name="description" rows="4"></textarea>
-    <label>Privacy</label>
-    <select name="privacy">
-      <option value="public">Public - anyone can find and join</option>
-      <option value="private">Private - invite or admin approval</option>
+    <label>What is your Family called?</label>
+    <input type="text" name="name" value="{{ form.get('name', '') if form else '' }}" required />
+
+    <label>What type of Family is it?</label>
+    <select name="category" data-family-category>
+      {% for key,label in categories.items() %}
+      <option value="{{ key }}" {% if form and form.get('category') == key %}selected{% elif not form and key == 'friendship_and_support' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
     </select>
+
+    <label>Custom Family type</label>
+    <input
+      type="text"
+      name="custom_category"
+      value="{{ form.get('custom_category', '') if form else '' }}"
+      placeholder="Only needed when type is Custom"
+    />
+
+    <label>What is the shared goal?</label>
+    <input
+      type="text"
+      name="goal_title"
+      value="{{ form.get('goal_title', '') if form else '' }}"
+      placeholder="Example: Finish beginner Python together"
+      required
+    />
+
+    <label>What should members achieve?</label>
+    <textarea name="goal_description" rows="4" placeholder="Describe the purpose, expectations, or milestone.">{{ form.get('goal_description', '') if form else '' }}</textarea>
+
+    <label>Description</label>
+    <textarea name="description" rows="3" placeholder="Short public note about this Family.">{{ form.get('description', '') if form else '' }}</textarea>
+
+    <div class="form-grid two-column">
+      <label>
+        Start date
+        <input type="date" name="start_date" value="{{ form.get('start_date', '') if form else '' }}" />
+      </label>
+      <label>
+        Is there a target date?
+        <input type="date" name="target_date" value="{{ form.get('target_date', '') if form else '' }}" />
+      </label>
+    </div>
+
+    <div class="form-grid two-column">
+      <label>
+        Is it public, private or invitation-only?
+        <select name="privacy">
+          <option value="public" {% if form and form.get('privacy') == 'public' %}selected{% endif %}>Public - anyone can find and join</option>
+          <option value="private" {% if form and form.get('privacy') == 'private' %}selected{% endif %}>Private - visible, but guided by admins</option>
+          <option value="invite_only" {% if form and form.get('privacy') == 'invite_only' %}selected{% endif %}>Invitation-only</option>
+        </select>
+      </label>
+      <label>
+        Member limit
+        <input type="number" name="member_limit" min="2" value="{{ form.get('member_limit', '') if form else '' }}" placeholder="Optional" />
+      </label>
+    </div>
+
     <button class="button" type="submit">Create Family</button>
   </form>
 </section>

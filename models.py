@@ -238,7 +238,15 @@ class Family(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text, default="")
+    category = db.Column(db.String(40), default="friendship_and_support", nullable=False)
+    custom_category = db.Column(db.String(80), default="")
+    goal_title = db.Column(db.String(160), default="")
+    goal_description = db.Column(db.Text, default="")
+    start_date = db.Column(db.DateTime, nullable=True)
+    target_date = db.Column(db.DateTime, nullable=True)
     privacy = db.Column(db.String(20), default="public", nullable=False)
+    member_limit = db.Column(db.Integer, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True

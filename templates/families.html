@@ -17,7 +17,14 @@
         >
       </h3>
       <p>{{ family.description or 'No description yet.' }}</p>
-      <span>{{ family.members.count() }} members · {{ family.privacy|capitalize }}</span>
+      {% if family.goal_title %}
+      <p class="muted-meta">{{ family.goal_title }}</p>
+      {% endif %}
+      <span>
+        {{ family.category|replace('_', ' ')|title }} ·
+        {{ family.members.count() }} members ·
+        {{ family.privacy|replace('_', ' ')|capitalize }}
+      </span>
     </article>
     {% else %}
     <p>No families created yet.</p>
