@@ -322,6 +322,9 @@ def family_chat(family_id):
 @chat_bp.route("/calls/<int:user_id>")
 @login_required
 def calls(user_id):
+    if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
+        flash("Audio and video calls are coming soon.", "info")
+        return redirect(url_for("chat.direct_chat", user_id=user_id))
     target = User.query.get_or_404(user_id)
     call_id = call_id_for_users(current_user.id, target.id)
     return render_template(

@@ -783,6 +783,28 @@ a {
   box-shadow: var(--shadow);
 }
 
+.coming-soon-panel {
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.coming-soon-panel p {
+  max-width: 56ch;
+  color: var(--muted);
+}
+
+.coming-soon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.muted-inline {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .button {
   display: inline-flex;
   align-items: center;

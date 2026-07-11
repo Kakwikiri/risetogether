@@ -8,7 +8,7 @@
     />
     <h1>{{ profile.display_name }}{% if user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
     <p class="profile-username">@{{ user.username }}</p>
-    {% if live_session %}
+    {% if realtime_media_enabled and live_session %}
     <a class="profile-live-badge" href="{{ url_for('main.live_room', session_id=live_session.id) }}">
       <strong>LIVE</strong>
       <span>Join live stream</span>
@@ -26,8 +26,12 @@
       {% elif current_user.is_authenticated %}
         {% if friend_status == 'accepted' %}
         <a class="button" href="{{ url_for('chat.direct_chat', user_id=user.id) }}">Message</a>
+        {% if realtime_media_enabled %}
         <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='audio', start='1') }}">Audio call</a>
         <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='video', start='1') }}">Video call</a>
+        {% else %}
+        <span class="status-pill">Calls coming soon</span>
+        {% endif %}
         {% elif friend_status == 'pending' %}
         <span class="status-pill">Friend request pending</span>
         {% else %}

@@ -22,7 +22,7 @@
       <a class="icon-button" href="#trending-videos" aria-label="Trending videos">★</a>
     </div>
     {% endif %}
-    {% if active_live_sessions %}
+    {% if realtime_media_enabled and active_live_sessions %}
     <section class="live-strip" aria-label="People live now">
       {% for live in active_live_sessions %}
       <a class="live-chip" href="{{ url_for('main.live_room', session_id=live.id) }}">
@@ -89,7 +89,7 @@
               >{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
             >
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
-            {% if post.user_id in live_user_ids %}
+            {% if realtime_media_enabled and post.user_id in live_user_ids %}
             <a class="live-inline-badge" href="{{ url_for('main.live_room', session_id=(active_live_sessions|selectattr('user_id', 'equalto', post.user_id)|first).id) }}">LIVE now</a>
             {% endif %}
           </div>

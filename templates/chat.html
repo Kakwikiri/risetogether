@@ -14,8 +14,12 @@
     </div>
     <div class="chat-header-actions">
       {% if not family %}
+      {% if realtime_media_enabled %}
       <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='audio', start='1') }}" aria-label="Audio call" title="Audio call">☎</a>
       <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='video', start='1') }}" aria-label="Video call" title="Video call">▣</a>
+      {% else %}
+      <span class="status-pill">Calls soon</span>
+      {% endif %}
       {% endif %}
     </div>
   </header>

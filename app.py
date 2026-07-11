@@ -32,6 +32,10 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["REALTIME_MEDIA_ENABLED"] = (
+    os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -118,6 +122,7 @@ def inject_navigation_counts():
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
         "is_hevc_upload": is_hevc_upload,
+        "realtime_media_enabled": app.config["REALTIME_MEDIA_ENABLED"],
     }
 
 

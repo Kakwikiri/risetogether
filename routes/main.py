@@ -1,6 +1,6 @@
 import re
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 from markupsafe import Markup, escape
@@ -686,6 +686,9 @@ def people():
 @login_required
 def live_sessions():
     if request.method == "POST":
+        if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
+            flash("Live streaming is coming soon.", "info")
+            return redirect(url_for("main.live_sessions"))
         title = request.form.get("title", "").strip()
         description = request.form.get("description", "").strip()
         if not title:
@@ -731,6 +734,9 @@ def live_sessions():
 @main_bp.route("/live/<int:session_id>")
 @login_required
 def live_room(session_id):
+    if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
+        flash("Live streaming is coming soon.", "info")
+        return redirect(url_for("main.live_sessions"))
     session = LiveSession.query.get_or_404(session_id)
     return render_template(
         "live_room.html",
