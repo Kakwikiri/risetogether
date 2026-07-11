@@ -11,6 +11,7 @@ from helpers import (
     get_ice_servers,
     get_media_type,
     save_media,
+    send_device_push,
     validate_upload,
 )
 from models import (
@@ -58,6 +59,7 @@ def add_notification(user_id, category, message, action_url=""):
     db.session.add(notification)
     db.session.flush()
     emit_notification(notification)
+    send_device_push(notification)
     return notification
 
 

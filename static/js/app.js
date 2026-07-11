@@ -40,6 +40,91 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 5200);
   };
 
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let index = 0; index < rawData.length; index += 1) {
+      outputArray[index] = rawData.charCodeAt(index);
+    }
+    return outputArray;
+  };
+
+  const pushEnable = document.querySelector("[data-push-enable]");
+  const pushDisable = document.querySelector("[data-push-disable]");
+  const pushStatus = document.querySelector("[data-push-status]");
+  const setPushStatus = (message) => {
+    if (pushStatus) pushStatus.textContent = message;
+    if (message) showToast(message);
+  };
+
+  const getServiceWorkerRegistration = async () => {
+    if (!("serviceWorker" in navigator)) {
+      throw new Error("Service workers are not supported on this browser.");
+    }
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) return existing;
+    return navigator.serviceWorker.register("/static/service-worker.js?v=20260712-stage5-push");
+  };
+
+  if (pushEnable) {
+    pushEnable.addEventListener("click", async () => {
+      try {
+        if (!("PushManager" in window) || !("Notification" in window)) {
+          setPushStatus("Device notifications are not supported on this browser.");
+          return;
+        }
+        const keyResponse = await fetch("/api/push/public-key");
+        const keyData = await keyResponse.json();
+        if (!keyData.public_key) {
+          setPushStatus("Device notifications are not configured on the server yet.");
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          setPushStatus("Notification permission was not granted.");
+          return;
+        }
+        const registration = await getServiceWorkerRegistration();
+        const subscription =
+          (await registration.pushManager.getSubscription()) ||
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(keyData.public_key),
+          }));
+        const response = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(subscription),
+        });
+        if (!response.ok) throw new Error("Subscription could not be saved.");
+        setPushStatus("Device notifications enabled.");
+      } catch (error) {
+        setPushStatus(error.message || "Device notifications could not be enabled.");
+      }
+    });
+  }
+
+  if (pushDisable) {
+    pushDisable.addEventListener("click", async () => {
+      try {
+        const registration = await getServiceWorkerRegistration();
+        const subscription = await registration.pushManager.getSubscription();
+        const endpoint = subscription ? subscription.endpoint : "";
+        if (subscription) await subscription.unsubscribe();
+        await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint }),
+        });
+        setPushStatus("Device notifications disabled.");
+      } catch (error) {
+        setPushStatus(error.message || "Device notifications could not be disabled.");
+      }
+    });
+  }
+
   const navToggle = document.querySelector(".nav-toggle");
   const navLinks = document.querySelector(".nav-links");
   if (navToggle && navLinks) {

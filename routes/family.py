@@ -5,7 +5,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from extensions import db
-from helpers import save_media
+from helpers import save_media, send_device_push
 from models import (
     ChallengeCompletion,
     Family,
@@ -59,6 +59,19 @@ QUIZ_CAPABLE_CATEGORIES = {
 }
 
 QUIZ_STATUSES = {"open", "draft", "closed"}
+
+
+def add_family_notification(user_id, category, message, action_url):
+    notification = Notification(
+        user_id=user_id,
+        category=category,
+        message=message,
+        action_url=action_url,
+    )
+    db.session.add(notification)
+    db.session.flush()
+    send_device_push(notification)
+    return notification
 
 
 def family_admin_required(family):
@@ -535,12 +548,12 @@ def join_family(family_id):
     member = FamilyMember(family_id=family.id, user_id=current_user.id, role="member")
     db.session.add(member)
     if family.owner_id and family.owner_id != current_user.id:
-        notification = Notification(
-            user_id=family.owner_id,
-            category="family",
-            message=f"{current_user.username} joined your family {family.name}.",
+        add_family_notification(
+            family.owner_id,
+            "family",
+            f"{current_user.username} joined your family {family.name}.",
+            url_for("family.family_detail", family_id=family.id),
         )
-        db.session.add(notification)
     db.session.commit()
     flash("You have joined the family.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
@@ -585,6 +598,16 @@ def create_challenge(family_id):
         status=status,
     )
     db.session.add(challenge)
+    db.session.flush()
+    if challenge.status == "active":
+        for membership in family.members:
+            if membership.user_id != current_user.id:
+                add_family_notification(
+                    membership.user_id,
+                    "challenge_created",
+                    f"New challenge in {family.name}: {challenge.title}",
+                    url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+                )
     db.session.commit()
     flash("Challenge created.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
@@ -710,6 +733,15 @@ def create_quiz(family_id):
         db.session.rollback()
         flash("Add at least one quiz question.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    if quiz.status == "open":
+        for membership in family.members:
+            if membership.user_id != current_user.id:
+                add_family_notification(
+                    membership.user_id,
+                    "quiz_starting",
+                    f"New quiz in {family.name}: {quiz.title}",
+                    url_for("family.take_quiz", family_id=family.id, quiz_id=quiz.id),
+                )
     db.session.commit()
     flash("Quiz created.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
@@ -816,13 +848,12 @@ def invite_family_member(family_id):
     if FamilyMember.query.filter_by(family_id=family.id, user_id=user.id).first():
         flash("This user is already a family member.", "info")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    notification = Notification(
-        user_id=user.id,
-        category="family_invite",
-        message=f"You have been invited to join the family {family.name}. Open Families to join.",
-        action_url=url_for("family.family_detail", family_id=family.id),
+    add_family_notification(
+        user.id,
+        "family_invite",
+        f"You have been invited to join the family {family.name}. Open Families to join.",
+        url_for("family.family_detail", family_id=family.id),
     )
-    db.session.add(notification)
     db.session.commit()
     flash("Invite sent. The user can join from notifications.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))

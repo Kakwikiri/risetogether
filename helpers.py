@@ -1,9 +1,17 @@
+import json
 import os
 import shutil
 import subprocess
+from datetime import datetime
 
 from flask import current_app
 from werkzeug.utils import secure_filename
+
+try:
+    from pywebpush import WebPushException, webpush
+except ImportError:
+    WebPushException = None
+    webpush = None
 
 ALLOWED_EXTENSIONS = {
     "doc",
@@ -245,6 +253,73 @@ def get_ice_servers():
             turn_server["credential"] = credential
         servers.append(turn_server)
     return servers
+
+
+def device_push_body(notification):
+    private_categories = {"message", "family_chat"}
+    media_categories = {"voice_note", "video_note"}
+    if notification.category in private_categories:
+        return "You received a new message."
+    if notification.category in media_categories:
+        return f"You received a new {notification.category.replace('_', ' ')}."
+    return notification.message
+
+
+def send_device_push(notification, title="RiseTogether"):
+    if not webpush:
+        current_app.logger.info("push_skipped pywebpush_not_installed notification_id=%s", notification.id)
+        return
+    public_key = current_app.config.get("VAPID_PUBLIC_KEY", "")
+    private_key = current_app.config.get("VAPID_PRIVATE_KEY", "")
+    subject = current_app.config.get("VAPID_SUBJECT", "")
+    if not public_key or not private_key or not subject:
+        current_app.logger.info("push_skipped vapid_not_configured notification_id=%s", notification.id)
+        return
+    if not getattr(notification.recipient.profile, "notifications_enabled", True):
+        return
+
+    from extensions import db
+    from models import PushSubscription
+
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": device_push_body(notification),
+            "url": notification.action_url or "/notifications",
+            "tag": f"notification-{notification.id}",
+            "notification_id": notification.id,
+            "category": notification.category,
+        }
+    )
+    subscriptions = PushSubscription.query.filter_by(
+        user_id=notification.user_id, active=True
+    ).all()
+    for subscription in subscriptions:
+        info = {
+            "endpoint": subscription.endpoint,
+            "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+        }
+        try:
+            webpush(
+                subscription_info=info,
+                data=payload,
+                vapid_private_key=private_key,
+                vapid_claims={"sub": subject},
+            )
+            subscription.last_used_at = datetime.utcnow()
+        except Exception as error:
+            response = getattr(error, "response", None)
+            status_code = getattr(response, "status_code", None)
+            if WebPushException and isinstance(error, WebPushException) and status_code in {404, 410}:
+                subscription.active = False
+            current_app.logger.warning(
+                "push_delivery_failed notification_id=%s subscription_id=%s status=%s error=%s",
+                notification.id,
+                subscription.id,
+                status_code,
+                error,
+            )
+    db.session.flush()
 
 
 def save_media(file):

@@ -1,10 +1,12 @@
 import os
+from datetime import datetime
 
-from flask import Blueprint, Response, current_app, jsonify, send_from_directory
+from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory
 from flask_login import current_user, login_required
 from werkzeug.utils import safe_join
 
-from models import Family, MediaAsset, Message
+from extensions import db
+from models import Family, MediaAsset, Message, PushSubscription
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -47,6 +49,50 @@ def current_user_info():
             "notifications_enabled": profile.notifications_enabled,
         }
     )
+
+
+@api_bp.route("/push/public-key")
+@login_required
+def push_public_key():
+    return jsonify({"public_key": current_app.config.get("VAPID_PUBLIC_KEY", "")})
+
+
+@api_bp.route("/push/subscribe", methods=["POST"])
+@login_required
+def push_subscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    keys = data.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth = (keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth:
+        return jsonify({"error": "Invalid push subscription."}), 400
+    subscription = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if not subscription:
+        subscription = PushSubscription(endpoint=endpoint)
+    subscription.user_id = current_user.id
+    subscription.p256dh = p256dh
+    subscription.auth = auth
+    subscription.active = True
+    subscription.last_used_at = datetime.utcnow()
+    current_user.profile.notifications_enabled = True
+    db.session.add(subscription)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.route("/push/unsubscribe", methods=["POST"])
+@login_required
+def push_unsubscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    query = PushSubscription.query.filter_by(user_id=current_user.id, active=True)
+    if endpoint:
+        query = query.filter_by(endpoint=endpoint)
+    query.update({"active": False})
+    current_user.profile.notifications_enabled = False
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @api_bp.route("/families/<int:family_id>/members")

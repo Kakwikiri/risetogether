@@ -44,6 +44,9 @@ app.config["REALTIME_MEDIA_ENABLED"] = (
     os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
     in {"1", "true", "yes", "on"}
 )
+app.config["VAPID_PUBLIC_KEY"] = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+app.config["VAPID_SUBJECT"] = os.getenv("VAPID_SUBJECT", "mailto:admin@risetogether.local").strip()
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -68,6 +71,7 @@ def ensure_schema_compatibility():
         FamilyChallenge,
         MediaAsset,
         MessageDeletion,
+        PushSubscription,
         Quiz,
         QuizAnswer,
         QuizAttempt,
@@ -78,6 +82,7 @@ def ensure_schema_compatibility():
 
     MediaAsset.__table__.create(db.engine, checkfirst=True)
     MessageDeletion.__table__.create(db.engine, checkfirst=True)
+    PushSubscription.__table__.create(db.engine, checkfirst=True)
     FamilyChallenge.__table__.create(db.engine, checkfirst=True)
     ChallengeCompletion.__table__.create(db.engine, checkfirst=True)
     Quiz.__table__.create(db.engine, checkfirst=True)

@@ -7,7 +7,7 @@ from flask_login import current_user, login_required
 from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
-from helpers import get_ice_servers, get_media_type, save_media, validate_upload
+from helpers import get_ice_servers, get_media_type, save_media, send_device_push, validate_upload
 from models import Family, FamilyMember, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
@@ -405,18 +405,19 @@ def upload_message_file():
     db.session.add(message)
     db.session.commit()
     for user_id in recipients:
-        db.session.add(
-            Notification(
-                user_id=user_id,
-                category="message",
-                message=f"New file from {current_user.username}",
-                action_url=(
-                    url_for("chat.family_chat", family_id=message.family_id)
-                    if message.family_id
-                    else url_for("chat.direct_chat", user_id=current_user.id)
-                ),
-            )
+        notification = Notification(
+            user_id=user_id,
+            category="video_note" if media_type == "video" else "voice_note" if media_type == "audio" else "message",
+            message=f"New file from {current_user.username}",
+            action_url=(
+                url_for("chat.family_chat", family_id=message.family_id)
+                if message.family_id
+                else url_for("chat.direct_chat", user_id=current_user.id)
+            ),
         )
+        db.session.add(notification)
+        db.session.flush()
+        send_device_push(notification)
     db.session.commit()
     payload = serialize_message(message)
     socketio.emit(
@@ -659,6 +660,8 @@ def private_message(data):
         action_url=url_for("chat.direct_chat", user_id=current_user.id),
     )
     db.session.add(notification)
+    db.session.flush()
+    send_device_push(notification)
     db.session.commit()
     emit_notification(recipient_id, notification)
     emit(
@@ -704,6 +707,7 @@ def family_message(data):
             db.session.add(notification)
             db.session.flush()
             emit_notification(member.user_id, notification)
+            send_device_push(notification)
     db.session.commit()
     room = f"family-{family.id}"
     emit(

@@ -460,6 +460,27 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class PushSubscription(db.Model):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        db.UniqueConstraint("endpoint", name="uq_push_subscription_endpoint"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    endpoint = db.Column(db.Text, nullable=False)
+    p256dh = db.Column(db.Text, nullable=False)
+    auth = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("push_subscriptions", lazy="dynamic", cascade="all, delete-orphan"),
+    )
+
+
 class Block(db.Model):
     __tablename__ = "blocks"
     id = db.Column(db.Integer, primary_key=True)
