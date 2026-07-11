@@ -285,10 +285,15 @@ if (typeof chatConfig !== "undefined") {
     let longPressTimer = null;
     let activeRecorder = null;
     let activeRecorderButton = null;
+    const selectedMessages = new Map();
     const actionMenu = document.createElement("div");
     actionMenu.className = "message-action-menu";
     actionMenu.hidden = true;
     document.body.appendChild(actionMenu);
+    const selectionBar = document.createElement("div");
+    selectionBar.className = "message-selection-bar";
+    selectionBar.hidden = true;
+    document.body.appendChild(selectionBar);
 
     const sendTextMessage = (content) => {
       if (chatConfig.familyId) {
@@ -355,6 +360,81 @@ if (typeof chatConfig !== "undefined") {
       if (expireInput) expireInput.checked = false;
     };
 
+    const clearMessageSelection = () => {
+      selectedMessages.forEach((message) => message.classList.remove("is-selected"));
+      selectedMessages.clear();
+      selectionBar.hidden = true;
+      selectionBar.innerHTML = "";
+    };
+
+    const deleteSelectedMessages = async (scope) => {
+      const messages = Array.from(selectedMessages.values());
+      if (!messages.length) return;
+      const allowed = scope === "me" || messages.every(
+        (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
+      );
+      if (!allowed) {
+        window.alert("Only your own messages can be deleted for everyone.");
+        return;
+      }
+      await Promise.all(messages.map(async (message) => {
+        const formData = new FormData();
+        formData.append("scope", scope);
+        const response = await fetch(`/chat/message/${message.dataset.messageId}/delete`, {
+          method: "POST",
+          body: formData,
+        });
+        if (response.ok) message.remove();
+      }));
+      clearMessageSelection();
+    };
+
+    const updateSelectionBar = () => {
+      const count = selectedMessages.size;
+      if (!count) {
+        clearMessageSelection();
+        return;
+      }
+      const allOwn = Array.from(selectedMessages.values()).every(
+        (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
+      );
+      selectionBar.innerHTML = "";
+      const label = document.createElement("strong");
+      label.textContent = `${count} selected`;
+      const deleteMe = document.createElement("button");
+      deleteMe.type = "button";
+      deleteMe.textContent = "Delete for me";
+      deleteMe.addEventListener("click", () => deleteSelectedMessages("me"));
+      selectionBar.append(label, deleteMe);
+      if (allOwn) {
+        const deleteEveryone = document.createElement("button");
+        deleteEveryone.type = "button";
+        deleteEveryone.textContent = "Delete for everyone";
+        deleteEveryone.addEventListener("click", () => deleteSelectedMessages("everyone"));
+        selectionBar.appendChild(deleteEveryone);
+      }
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", clearMessageSelection);
+      selectionBar.appendChild(cancel);
+      selectionBar.hidden = false;
+    };
+
+    const toggleMessageSelection = (message) => {
+      const messageId = message.dataset.messageId;
+      if (!messageId) return;
+      actionMenu.hidden = true;
+      if (selectedMessages.has(messageId)) {
+        selectedMessages.delete(messageId);
+        message.classList.remove("is-selected");
+      } else {
+        selectedMessages.set(messageId, message);
+        message.classList.add("is-selected");
+      }
+      updateSelectionBar();
+    };
+
     const showMessageActions = (message) => {
       const messageId = message.dataset.messageId;
       if (!messageId) return;
@@ -364,6 +444,7 @@ if (typeof chatConfig !== "undefined") {
         ["reply", "Reply"],
         ["forward", "Forward"],
         ["pin", "Pin 24h"],
+        ["select", "Select"],
         ["delete_me", "Delete for me"],
       ];
       if (Number(message.dataset.senderId) === chatConfig.currentUserId) {
@@ -385,13 +466,17 @@ if (typeof chatConfig !== "undefined") {
       const messageId = message.dataset.messageId;
       actionMenu.hidden = true;
       if (action === "reply") {
+        clearMessageSelection();
         replyToId = messageId;
         if (replyPreview) {
           replyPreview.textContent = `Replying to: ${message.dataset.messageText || "media"}`;
           replyPreview.hidden = false;
         }
         chatInput.focus();
+      } else if (action === "select") {
+        toggleMessageSelection(message);
       } else if (action === "delete_me" || action === "delete_everyone") {
+        clearMessageSelection();
         const formData = new FormData();
         formData.append("scope", action === "delete_everyone" ? "everyone" : "me");
         fetch(`/chat/message/${messageId}/delete`, {
@@ -405,12 +490,14 @@ if (typeof chatConfig !== "undefined") {
           }
         });
       } else if (action === "pin") {
+        clearMessageSelection();
         fetch(`/chat/message/${messageId}/pin`, { method: "POST" }).then((response) => {
           if (response.ok) {
             message.classList.add("is-pinned");
           }
         });
       } else if (action === "forward") {
+        clearMessageSelection();
         const targetType = window.prompt("Forward to: user or family?", "user");
         const targetId = window.prompt(`Enter ${targetType === "family" ? "family" : "user"} id`);
         if (!targetId) return;
@@ -507,6 +594,11 @@ if (typeof chatConfig !== "undefined") {
         if (!actionMenu.contains(event.target)) actionMenu.hidden = true;
       });
       chatLog.addEventListener("click", (event) => {
+        const message = event.target.closest(".chat-message");
+        if (message && selectedMessages.size && !event.target.closest(".message-action-menu")) {
+          toggleMessageSelection(message);
+          return;
+        }
         const viewButton = event.target.closest(".view-once-button");
         if (!viewButton) return;
         const frame = viewButton.closest(".media-frame");
@@ -628,7 +720,11 @@ if (typeof chatConfig !== "undefined") {
 
     socket.on("message_deleted", (data) => {
       const item = chatLog && chatLog.querySelector(`[data-message-id="${data.message_id}"]`);
-      if (item) item.remove();
+      if (item) {
+        selectedMessages.delete(String(data.message_id));
+        item.remove();
+        updateSelectionBar();
+      }
     });
 
     socket.on("new_family_message", (data) => {
