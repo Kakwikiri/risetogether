@@ -7,7 +7,7 @@ from flask_login import current_user, login_required
 from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
-from helpers import allowed_file, get_ice_servers, get_media_type, save_media
+from helpers import get_ice_servers, get_media_type, save_media, validate_upload
 from models import Family, FamilyMember, LiveSession, Message, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
@@ -346,8 +346,9 @@ def upload_message_file():
     expires_in = request.form.get("expires_in")
     recipient_id = request.form.get("recipient_id")
     family_id = request.form.get("family_id")
-    if not media_file or not allowed_file(media_file.filename):
-        return jsonify({"error": "Unsupported file type."}), 400
+    is_valid, upload_message = validate_upload(media_file)
+    if not is_valid:
+        return jsonify({"error": upload_message}), 400
     filename = save_media(media_file)
     if not filename:
         return jsonify({"error": "Upload failed."}), 400

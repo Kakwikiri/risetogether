@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from flask import Flask, Response, request
 from flask_login import current_user
 from sqlalchemy import text
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import db, login_manager, socketio
@@ -31,7 +32,14 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 280,
 }
 app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["IMAGE_UPLOAD_LIMIT"] = int(os.getenv("IMAGE_UPLOAD_LIMIT_MB", "5")) * 1024 * 1024
+app.config["VIDEO_UPLOAD_LIMIT"] = int(os.getenv("VIDEO_UPLOAD_LIMIT_MB", "25")) * 1024 * 1024
+app.config["FILE_UPLOAD_LIMIT"] = int(os.getenv("FILE_UPLOAD_LIMIT_MB", "10")) * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = max(
+    app.config["IMAGE_UPLOAD_LIMIT"],
+    app.config["VIDEO_UPLOAD_LIMIT"],
+    app.config["FILE_UPLOAD_LIMIT"],
+) + 1024 * 1024
 app.config["REALTIME_MEDIA_ENABLED"] = (
     os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
     in {"1", "true", "yes", "on"}
@@ -55,6 +63,10 @@ socketio.init_app(
 
 def ensure_schema_compatibility():
     db.create_all()
+    from models import MediaAsset
+    from helpers import get_media_type, mimetype_for_filename
+
+    MediaAsset.__table__.create(db.engine, checkfirst=True)
     updates = [
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",
@@ -79,6 +91,24 @@ def ensure_schema_compatibility():
     ]
     for statement in updates:
         db.session.execute(text(statement))
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    if upload_folder.exists():
+        for path in upload_folder.iterdir():
+            if not path.is_file():
+                continue
+            filename = path.name
+            if MediaAsset.query.filter_by(filename=filename).first():
+                continue
+            data = path.read_bytes()
+            db.session.add(
+                MediaAsset(
+                    filename=filename,
+                    content_type=mimetype_for_filename(filename),
+                    media_type=get_media_type(filename),
+                    data=data,
+                    size=len(data),
+                )
+            )
     db.session.commit()
 
 with app.app_context():
@@ -143,6 +173,12 @@ def validate_cli_password(password):
 def admin_setup_token_is_valid(token):
     expected = os.getenv("ADMIN_SETUP_TOKEN", "").strip()
     return bool(expected) and token and token == expected
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_upload_too_large(error):
+    limit_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return f"Upload is too large. Please choose a file under {limit_mb} MB.", 413
 
 
 def admin_setup_form(token="", message="", status=200):

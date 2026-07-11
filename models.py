@@ -165,6 +165,17 @@ class PostShare(db.Model):
     )
 
 
+class MediaAsset(db.Model):
+    __tablename__ = "media_assets"
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    content_type = db.Column(db.String(120), default="application/octet-stream")
+    media_type = db.Column(db.String(32), default="file")
+    data = db.Column(db.LargeBinary, nullable=False)
+    size = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Reaction(db.Model):
     __tablename__ = "reactions"
     __table_args__ = (

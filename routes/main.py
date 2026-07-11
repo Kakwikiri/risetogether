@@ -6,7 +6,13 @@ from sqlalchemy import or_
 from markupsafe import Markup, escape
 
 from extensions import db, socketio
-from helpers import REACTION_LABELS, allowed_file, get_ice_servers, get_media_type, save_media
+from helpers import (
+    REACTION_LABELS,
+    get_ice_servers,
+    get_media_type,
+    save_media,
+    validate_upload,
+)
 from models import (
     Block,
     Comment,
@@ -293,7 +299,11 @@ def edit_profile():
         confirm_password = request.form.get("confirm_password", "").strip()
         reset_phrase = request.form.get("reset_phrase", "").strip()
         avatar_file = request.files.get("avatar")
-        if avatar_file and allowed_file(avatar_file.filename):
+        if avatar_file and avatar_file.filename:
+            is_valid, upload_message = validate_upload(avatar_file)
+            if not is_valid:
+                flash(upload_message, "warning")
+                return redirect(url_for("main.edit_profile"))
             filename = save_media(avatar_file)
             if filename:
                 profile.avatar = filename
@@ -336,7 +346,11 @@ def create_post():
         return redirect(url_for("main.home"))
     media_url = ""
     media_type = "text"
-    if media_file and allowed_file(media_file.filename):
+    if media_file and media_file.filename:
+        is_valid, upload_message = validate_upload(media_file)
+        if not is_valid:
+            flash(upload_message, "warning")
+            return redirect(url_for("main.home"))
         filename = save_media(media_file)
         if filename:
             media_url = filename
