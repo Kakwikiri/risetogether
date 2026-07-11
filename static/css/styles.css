@@ -208,7 +208,8 @@ body {
   }
 
   .form-grid.two-column,
-  .family-hero {
+  .family-hero,
+  .challenge-card {
     grid-template-columns: 1fr;
     flex-direction: column;
   }
@@ -1346,6 +1347,32 @@ textarea:focus {
 
 .family-goal-summary p {
   margin: 0.3rem 0;
+}
+
+.challenge-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.challenge-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.9rem;
+  background: #fbfefd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.challenge-card h4,
+.challenge-form h4 {
+  margin: 0.35rem 0;
+}
+
+.challenge-complete-form {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .notification-card {

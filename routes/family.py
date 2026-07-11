@@ -5,7 +5,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from extensions import db
-from models import Family, FamilyMember, Notification, Post, User
+from helpers import save_media
+from models import ChallengeCompletion, Family, FamilyChallenge, FamilyMember, Notification, Post, User
 
 family_bp = Blueprint("family", __name__)
 
@@ -25,12 +26,28 @@ FAMILY_CATEGORIES = {
 
 FAMILY_PRIVACY_OPTIONS = {"public", "private", "invite_only"}
 
+CHALLENGE_TYPES = {
+    "task": "Task",
+    "daily_check_in": "Daily check-in",
+    "learning_lesson": "Learning lesson",
+    "habit": "Habit",
+    "quiz": "Quiz",
+}
+
+CHALLENGE_STATUSES = {"active", "draft", "closed"}
+
 
 def family_admin_required(family):
     return FamilyMember.query.filter(
         FamilyMember.family_id == family.id,
         FamilyMember.user_id == current_user.id,
         FamilyMember.role == "admin",
+    ).first()
+
+
+def family_member_for_current_user(family):
+    return FamilyMember.query.filter_by(
+        family_id=family.id, user_id=current_user.id
     ).first()
 
 
@@ -51,6 +68,64 @@ def family_form_context(**extra):
     }
     context.update(extra)
     return context
+
+
+def parse_points(value):
+    try:
+        points = int((value or "10").strip())
+    except ValueError:
+        return None
+    if points < 0:
+        return None
+    return min(points, 10000)
+
+
+def challenge_is_current(challenge):
+    now = datetime.utcnow()
+    if challenge.status != "active":
+        return False
+    if challenge.starts_at and challenge.starts_at > now:
+        return False
+    if challenge.ends_at and challenge.ends_at < now:
+        return False
+    return True
+
+
+def challenge_dashboard(family, members, current_member):
+    challenges = family.challenges.order_by(FamilyChallenge.created_at.desc()).all()
+    active_challenges = [challenge for challenge in challenges if challenge_is_current(challenge)]
+    completions = ChallengeCompletion.query.join(FamilyChallenge).filter(
+        FamilyChallenge.family_id == family.id
+    ).all()
+    completed_challenge_ids = {
+        completion.challenge_id
+        for completion in completions
+        if completion.user_id == current_user.id
+    }
+    completion_counts = {}
+    member_points = {membership.user_id: 0 for membership in members}
+    member_completed = {membership.user_id: 0 for membership in members}
+    challenge_points = {challenge.id: challenge.points for challenge in challenges}
+    for completion in completions:
+        completion_counts[completion.challenge_id] = completion_counts.get(completion.challenge_id, 0) + 1
+        if completion.user_id in member_points:
+            member_points[completion.user_id] += challenge_points.get(completion.challenge_id, 0)
+            member_completed[completion.user_id] += 1
+    total_possible = len(active_challenges) * max(len(members), 1)
+    completed_total = sum(
+        completion_counts.get(challenge.id, 0) for challenge in active_challenges
+    )
+    family_progress = round((completed_total / total_possible) * 100) if total_possible else None
+    return {
+        "challenges": challenges,
+        "active_challenges": active_challenges,
+        "completed_challenge_ids": completed_challenge_ids,
+        "completion_counts": completion_counts,
+        "member_points": member_points,
+        "member_completed": member_completed,
+        "family_progress": family_progress,
+        "can_create_challenges": bool(current_member and current_member.role == "admin"),
+    }
 
 
 def validate_family_payload(form):
@@ -165,6 +240,8 @@ def family_detail(family_id):
         members=members,
         posts=posts,
         categories=FAMILY_CATEGORIES,
+        challenge_types=CHALLENGE_TYPES,
+        **challenge_dashboard(family, members, member),
     )
 
 
@@ -217,6 +294,90 @@ def join_family(family_id):
     db.session.commit()
     flash("You have joined the family.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/challenge/create", methods=["POST"])
+@login_required
+def create_challenge(family_id):
+    family = Family.query.get_or_404(family_id)
+    if not family_admin_required(family):
+        flash("Only family admins can create official challenges.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    challenge_type = request.form.get("challenge_type", "task").strip()
+    status = request.form.get("status", "active").strip()
+    points = parse_points(request.form.get("points"))
+    starts_at = parse_family_date(request.form.get("starts_at"))
+    ends_at = parse_family_date(request.form.get("ends_at"))
+    if ends_at:
+        ends_at = ends_at.replace(hour=23, minute=59, second=59)
+    if not title:
+        flash("Challenge title is required.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge_type not in CHALLENGE_TYPES:
+        flash("Choose a valid challenge type.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if status not in CHALLENGE_STATUSES:
+        status = "active"
+    if points is None:
+        flash("Challenge points must be a positive number.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    challenge = FamilyChallenge(
+        family_id=family.id,
+        creator_id=current_user.id,
+        title=title,
+        description=description,
+        challenge_type=challenge_type,
+        points=points,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        status=status,
+    )
+    db.session.add(challenge)
+    db.session.commit()
+    flash("Challenge created.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+
+
+@family_bp.route("/family/<int:family_id>/challenge/<int:challenge_id>/complete", methods=["POST"])
+@login_required
+def complete_challenge(family_id, challenge_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member:
+        flash("Join this Family before completing challenges.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    challenge = FamilyChallenge.query.filter_by(
+        id=challenge_id, family_id=family.id
+    ).first_or_404()
+    if not challenge_is_current(challenge):
+        flash("This challenge is not active.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    existing = ChallengeCompletion.query.filter_by(
+        challenge_id=challenge.id, user_id=current_user.id
+    ).first()
+    if existing:
+        flash("You already completed this challenge.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    evidence_text = request.form.get("evidence_text", "").strip()
+    evidence_file = request.files.get("evidence_media")
+    evidence_media_url = ""
+    if evidence_file and evidence_file.filename:
+        filename = save_media(evidence_file)
+        if filename:
+            evidence_media_url = filename
+    completion = ChallengeCompletion(
+        challenge_id=challenge.id,
+        user_id=current_user.id,
+        evidence_text=evidence_text,
+        evidence_media_url=evidence_media_url,
+        verification_status="completed",
+    )
+    db.session.add(completion)
+    db.session.commit()
+    flash("Challenge marked complete.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
 
 
 @family_bp.route("/family/<int:family_id>/invite", methods=["POST"])

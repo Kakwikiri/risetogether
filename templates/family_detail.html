@@ -58,7 +58,86 @@
 
   <section id="family-challenges" class="family-section">
     <h3>Challenges</h3>
-    <p class="muted-meta">Challenges and tasks will be added in Stage 2.</p>
+    {% if family_progress is not none %}
+    <div class="family-goal-summary">
+      <strong>Family progress</strong>
+      <p>{{ family_progress }}% of active member challenge slots are complete.</p>
+    </div>
+    {% endif %}
+
+    {% if can_create_challenges %}
+    <form
+      class="challenge-form compact-composer"
+      action="{{ url_for('family.create_challenge', family_id=family.id) }}"
+      method="post"
+    >
+      <h4>Create official challenge</h4>
+      <input type="text" name="title" placeholder="Challenge title" required />
+      <textarea name="description" rows="3" placeholder="What should members do?"></textarea>
+      <div class="form-grid two-column">
+        <label>
+          Type
+          <select name="challenge_type">
+            {% for key,label in challenge_types.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Points
+          <input type="number" name="points" min="0" value="10" />
+        </label>
+      </div>
+      <div class="form-grid two-column">
+        <label>
+          Starts
+          <input type="date" name="starts_at" />
+        </label>
+        <label>
+          Ends
+          <input type="date" name="ends_at" />
+        </label>
+      </div>
+      <button class="button" type="submit">Create challenge</button>
+    </form>
+    {% endif %}
+
+    <div class="challenge-list">
+      {% for challenge in active_challenges %}
+      <article class="challenge-card">
+        <div>
+          <span class="status-pill">{{ challenge.challenge_type|replace('_', ' ')|title }} · {{ challenge.points }} pts</span>
+          <h4>{{ challenge.title }}</h4>
+          <p>{{ challenge.description or 'No description.' }}</p>
+          <p class="muted-meta">
+            {{ completion_counts.get(challenge.id, 0) }} completions
+            {% if challenge.ends_at %} · Ends {{ challenge.ends_at.strftime('%b %d, %Y') }}{% endif %}
+          </p>
+        </div>
+        {% if member %}
+          {% if challenge.id in completed_challenge_ids %}
+          <span class="status-pill">Completed</span>
+          {% else %}
+          <form
+            action="{{ url_for('family.complete_challenge', family_id=family.id, challenge_id=challenge.id) }}"
+            method="post"
+            enctype="multipart/form-data"
+            class="challenge-complete-form"
+          >
+            <input type="text" name="evidence_text" placeholder="What did you do? Optional" />
+            <label class="file-pill">
+              Evidence
+              <input type="file" name="evidence_media" accept="image/*,audio/*,video/*,.pdf,.doc,.docx" />
+            </label>
+            <button class="button secondary" type="submit">Mark complete</button>
+          </form>
+          {% endif %}
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="muted-meta">No active challenges yet.</p>
+      {% endfor %}
+    </div>
   </section>
 
   <section id="family-members" class="family-section">
@@ -66,7 +145,13 @@
     <ul>
       {% for membership in members %}
       <li class="member-row">
-        <span>{{ membership.user.username }} - {{ membership.role }}</span>
+        <span>
+          {{ membership.user.username }} - {{ membership.role }}
+          <small class="muted-meta">
+            · {{ member_completed.get(membership.user_id, 0) }} completed
+            · {{ member_points.get(membership.user_id, 0) }} pts
+          </small>
+        </span>
         {% if member and member.role == 'admin' and membership.user_id != family.owner_id %}
         <span class="member-actions">
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post">

@@ -272,6 +272,47 @@ class FamilyMember(db.Model):
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class FamilyChallenge(db.Model):
+    __tablename__ = "family_challenges"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
+    )
+    creator_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    title = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, default="")
+    challenge_type = db.Column(db.String(40), default="task", nullable=False)
+    points = db.Column(db.Integer, default=10, nullable=False)
+    starts_at = db.Column(db.DateTime, nullable=True)
+    ends_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default="active", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    family = db.relationship("Family", backref=db.backref("challenges", lazy="dynamic", cascade="all, delete-orphan"))
+    creator = db.relationship("User", backref=db.backref("created_family_challenges", lazy="dynamic"))
+
+
+class ChallengeCompletion(db.Model):
+    __tablename__ = "challenge_completions"
+    __table_args__ = (
+        db.UniqueConstraint("challenge_id", "user_id", name="uq_challenge_completion_user"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("family_challenges.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    evidence_text = db.Column(db.Text, default="")
+    evidence_media_url = db.Column(db.String(255), default="")
+    verification_status = db.Column(db.String(20), default="completed", nullable=False)
+    challenge = db.relationship("FamilyChallenge", backref=db.backref("completions", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("challenge_completions", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class Message(db.Model):
     __tablename__ = "messages"
     id = db.Column(db.Integer, primary_key=True)
