@@ -210,9 +210,14 @@ body {
   .form-grid.two-column,
   .family-hero,
   .challenge-card,
-  .quiz-panels {
+  .quiz-panels,
+  .family-dashboard-grid {
     grid-template-columns: 1fr;
     flex-direction: column;
+  }
+
+  .family-dashboard-goal {
+    grid-column: auto;
   }
 
   .profile-post-actions,
@@ -1348,6 +1353,97 @@ textarea:focus {
 
 .family-goal-summary p {
   margin: 0.3rem 0;
+}
+
+.family-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.family-dashboard-panel {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.9rem;
+  background: #fbfefd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.family-dashboard-goal {
+  grid-column: span 2;
+  background: var(--soft);
+}
+
+.family-dashboard-panel h4,
+.family-dashboard-panel p {
+  margin: 0;
+}
+
+.dashboard-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.dashboard-list li {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.dashboard-list span,
+.dashboard-list small {
+  overflow-wrap: anywhere;
+}
+
+.member-progress-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.member-progress-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.progress-meter {
+  height: 0.55rem;
+  overflow: hidden;
+  background: #e4ede9;
+  border-radius: 999px;
+}
+
+.progress-meter span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+}
+
+.badge-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.achievement-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.25rem 0.55rem;
+  color: var(--brand-dark);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .challenge-list {

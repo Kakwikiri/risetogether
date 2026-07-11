@@ -39,14 +39,130 @@
 
   <section id="family-home" class="family-section">
     <h3>Family Home</h3>
-    <div class="family-goal-summary">
-      <strong>{{ family.goal_title or 'Shared goal not set yet' }}</strong>
-      <p>{{ family.goal_description or 'Admins can add a shared purpose for this Family.' }}</p>
-      <div class="muted-meta">
-        {% if family.start_date %}Starts {{ family.start_date.strftime('%b %d, %Y') }}{% endif %}
-        {% if family.target_date %} · Target {{ family.target_date.strftime('%b %d, %Y') }}{% endif %}
-      </div>
+    <div class="family-dashboard-grid">
+      <section class="family-dashboard-panel family-dashboard-goal">
+        <span class="eyebrow">
+          {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
+        </span>
+        <strong>{{ family.goal_title or 'Shared goal not set yet' }}</strong>
+        <p>{{ family.goal_description or 'Admins can add a shared purpose for this Family.' }}</p>
+        <div class="muted-meta">
+          {% if family.start_date %}Starts {{ family.start_date.strftime('%b %d, %Y') }}{% endif %}
+          {% if family.target_date %} · Target {{ family.target_date.strftime('%b %d, %Y') }}{% endif %}
+          {% if not family.start_date and not family.target_date %}No date target set.{% endif %}
+        </div>
+      </section>
+
+      <section class="family-dashboard-panel">
+        <h4>Active challenges</h4>
+        <ul class="dashboard-list">
+          {% for challenge in dashboard_active_challenges %}
+          <li>
+            <span>{{ challenge.title }}</span>
+            <small>{{ challenge.points }} pts{% if challenge.ends_at %} · ends {{ challenge.ends_at.strftime('%b %d') }}{% endif %}</small>
+          </li>
+          {% else %}
+          <li><span>No active challenges yet.</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="family-dashboard-panel">
+        <h4>Upcoming quiz</h4>
+        {% if dashboard_upcoming_quiz %}
+        <p><strong>{{ dashboard_upcoming_quiz.title }}</strong></p>
+        <p class="muted-meta">
+          {{ dashboard_upcoming_quiz.questions.count() }} questions
+          {% if dashboard_upcoming_quiz.opens_at %} · opens {{ dashboard_upcoming_quiz.opens_at.strftime('%b %d') }}{% endif %}
+          {% if dashboard_upcoming_quiz.closes_at %} · closes {{ dashboard_upcoming_quiz.closes_at.strftime('%b %d') }}{% endif %}
+        </p>
+        {% if member %}
+        <a class="text-button" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) }}">Open quiz</a>
+        {% endif %}
+        {% else %}
+        <p class="muted-meta">No open quiz is scheduled.</p>
+        {% endif %}
+      </section>
+
+      <section class="family-dashboard-panel">
+        <h4>Recent chat</h4>
+        <ul class="dashboard-list">
+          {% for message in dashboard_recent_messages %}
+          <li>
+            <span>{{ message.sender.username }}</span>
+            <small>
+              {% if message.media_type in ['audio', 'video'] %}{{ message.media_type|title }} note{% else %}{{ message.content|truncate(48) }}{% endif %}
+            </small>
+          </li>
+          {% else %}
+          <li><span>No family chat activity yet.</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="family-dashboard-panel">
+        <h4>Recent posts</h4>
+        <ul class="dashboard-list">
+          {% for post in dashboard_recent_posts %}
+          <li>
+            <span>{{ post.author.username }}</span>
+            <small>{{ post.content|truncate(54) }}</small>
+          </li>
+          {% else %}
+          <li><span>No Family posts yet.</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="family-dashboard-panel">
+        <h4>This week</h4>
+        <ul class="dashboard-list">
+          {% for achievement in dashboard_weekly_achievements %}
+          <li>
+            <span>{{ achievement.user.username }}</span>
+            <small>{{ achievement.label }}</small>
+          </li>
+          {% else %}
+          <li><span>No weekly achievements yet.</span></li>
+          {% endfor %}
+        </ul>
+      </section>
     </div>
+
+    <section class="family-dashboard-panel">
+      <div class="split-header">
+        <h4>Member progress</h4>
+        <span class="muted-meta">Ranked by earned challenge and quiz points</span>
+      </div>
+      <div class="member-progress-list">
+        {% for row in dashboard_member_progress %}
+        <article class="member-progress-card">
+          <div>
+            <strong>{{ row.membership.user.username }}</strong>
+            <p class="muted-meta">
+              {{ row.completed_challenges }} completed · {{ row.pending_challenges }} pending · {{ row.quiz_points }} quiz pts · {{ row.total_points }} total pts
+            </p>
+          </div>
+          {% if row.progress_percent is not none %}
+          <div class="progress-meter" aria-label="{{ row.progress_percent }}% challenge progress">
+            <span style="width: {{ row.progress_percent }}%"></span>
+          </div>
+          {% else %}
+          <p class="muted-meta">Activity-based goal: progress shown through completed work.</p>
+          {% endif %}
+          <div class="badge-row">
+            {% for badge in row.badges %}
+            <span class="achievement-badge">{{ badge }}</span>
+            {% else %}
+            <span class="muted-meta">No badges yet.</span>
+            {% endfor %}
+          </div>
+        </article>
+        {% else %}
+        <p class="muted-meta">No members yet.</p>
+        {% endfor %}
+      </div>
+    </section>
   </section>
 
   <section id="family-goal" class="family-section">

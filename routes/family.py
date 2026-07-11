@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -11,6 +11,7 @@ from models import (
     Family,
     FamilyChallenge,
     FamilyMember,
+    Message,
     Notification,
     Post,
     Quiz,
@@ -219,6 +220,162 @@ def quiz_dashboard(family, members, current_member):
     }
 
 
+def badges_for_member(membership, stats, top_quiz_score):
+    badges = []
+    if stats["encouragements"] >= 3:
+        badges.append("Encourager")
+    if stats["weekly_activity"] >= 3:
+        badges.append("Consistent Member")
+    if stats["posts"] >= 2 or stats["chat_messages"] >= 10:
+        badges.append("Helpful Contributor")
+    if stats["completed_challenges"] >= 3:
+        badges.append("Challenge Finisher")
+    if stats["quiz_points"] > 0 and stats["quiz_points"] == top_quiz_score:
+        badges.append("Quiz Champion")
+    if membership.role == "admin":
+        badges.append("Family Builder")
+    return badges
+
+
+def family_home_dashboard(family, members):
+    now = datetime.utcnow()
+    week_start = now - timedelta(days=7)
+    active_challenges = [challenge for challenge in family.challenges.all() if challenge_is_current(challenge)]
+    challenge_ids = [challenge.id for challenge in family.challenges.all()]
+    active_challenge_ids = {challenge.id for challenge in active_challenges}
+    completions = (
+        ChallengeCompletion.query.filter(ChallengeCompletion.challenge_id.in_(challenge_ids)).all()
+        if challenge_ids
+        else []
+    )
+    attempts = QuizAttempt.query.join(Quiz).filter(
+        Quiz.family_id == family.id,
+        QuizAttempt.submitted_at != None,
+    ).all()
+    family_posts = (
+        family.posts.filter(Post.is_hidden == False)
+        .order_by(Post.created_at.desc())
+        .all()
+    )
+    family_messages = (
+        Message.query.filter_by(family_id=family.id)
+        .order_by(Message.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    all_family_messages = Message.query.filter_by(family_id=family.id).all()
+    upcoming_quiz = (
+        family.quizzes.filter(Quiz.status == "open")
+        .order_by(Quiz.opens_at.asc().nullsfirst(), Quiz.created_at.asc())
+        .first()
+        if family_supports_quizzes(family)
+        else None
+    )
+    stats_by_user = {
+        membership.user_id: {
+            "completed_challenges": 0,
+            "pending_challenges": len(active_challenges),
+            "challenge_points": 0,
+            "quiz_points": 0,
+            "posts": 0,
+            "chat_messages": 0,
+            "weekly_activity": 0,
+            "encouragements": 0,
+        }
+        for membership in members
+    }
+    challenge_points = {challenge.id: challenge.points for challenge in family.challenges.all()}
+    completed_active_by_user = {membership.user_id: set() for membership in members}
+    weekly_achievements = []
+    for completion in completions:
+        if completion.user_id not in stats_by_user:
+            continue
+        stats = stats_by_user[completion.user_id]
+        stats["completed_challenges"] += 1
+        stats["challenge_points"] += challenge_points.get(completion.challenge_id, 0)
+        if completion.challenge_id in active_challenge_ids:
+            completed_active_by_user[completion.user_id].add(completion.challenge_id)
+        if completion.completed_at and completion.completed_at >= week_start:
+            stats["weekly_activity"] += 1
+            weekly_achievements.append(
+                {
+                    "user": completion.user,
+                    "label": f"completed {completion.challenge.title}",
+                    "created_at": completion.completed_at,
+                }
+            )
+    for attempt in attempts:
+        if attempt.user_id not in stats_by_user:
+            continue
+        stats = stats_by_user[attempt.user_id]
+        stats["quiz_points"] += attempt.score
+        if attempt.submitted_at and attempt.submitted_at >= week_start:
+            stats["weekly_activity"] += 1
+            weekly_achievements.append(
+                {
+                    "user": attempt.user,
+                    "label": f"scored {attempt.score} points on {attempt.quiz.title}",
+                    "created_at": attempt.submitted_at,
+                }
+            )
+    for post in family_posts:
+        if post.user_id not in stats_by_user:
+            continue
+        stats_by_user[post.user_id]["posts"] += 1
+        stats_by_user[post.user_id]["encouragements"] += 1
+        if post.created_at and post.created_at >= week_start:
+            stats_by_user[post.user_id]["weekly_activity"] += 1
+            weekly_achievements.append(
+                {
+                    "user": post.author,
+                    "label": "shared a Family post",
+                    "created_at": post.created_at,
+                }
+            )
+    for message in all_family_messages:
+        if message.sender_id not in stats_by_user:
+            continue
+        stats_by_user[message.sender_id]["chat_messages"] += 1
+        if message.created_at and message.created_at >= week_start:
+            stats_by_user[message.sender_id]["weekly_activity"] += 1
+    top_quiz_score = max((stats["quiz_points"] for stats in stats_by_user.values()), default=0)
+    member_progress = []
+    for membership in members:
+        stats = stats_by_user[membership.user_id]
+        stats["pending_challenges"] = max(
+            len(active_challenges) - len(completed_active_by_user[membership.user_id]),
+            0,
+        )
+        progress_percent = None
+        if active_challenges:
+            progress_percent = round(
+                (len(completed_active_by_user[membership.user_id]) / len(active_challenges)) * 100
+            )
+        total_points = stats["challenge_points"] + stats["quiz_points"]
+        member_progress.append(
+            {
+                "membership": membership,
+                "completed_challenges": stats["completed_challenges"],
+                "pending_challenges": stats["pending_challenges"],
+                "challenge_points": stats["challenge_points"],
+                "quiz_points": stats["quiz_points"],
+                "total_points": total_points,
+                "progress_percent": progress_percent,
+                "badges": badges_for_member(membership, stats, top_quiz_score),
+            }
+        )
+    member_progress.sort(key=lambda row: row["total_points"], reverse=True)
+    weekly_achievements.sort(key=lambda row: row["created_at"], reverse=True)
+    return {
+        "dashboard_active_challenges": active_challenges[:5],
+        "dashboard_member_progress": member_progress,
+        "dashboard_recent_posts": family_posts[:4],
+        "dashboard_recent_messages": family_messages[:5],
+        "dashboard_upcoming_quiz": upcoming_quiz,
+        "dashboard_weekly_achievements": weekly_achievements[:6],
+    }
+
+
 def validate_family_payload(form):
     name = form.get("name", "").strip()
     description = form.get("description", "").strip()
@@ -332,6 +489,7 @@ def family_detail(family_id):
         posts=posts,
         categories=FAMILY_CATEGORIES,
         challenge_types=CHALLENGE_TYPES,
+        **family_home_dashboard(family, members),
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
     )
