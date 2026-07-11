@@ -6,7 +6,20 @@ from sqlalchemy import or_
 
 from extensions import db
 from helpers import save_media
-from models import ChallengeCompletion, Family, FamilyChallenge, FamilyMember, Notification, Post, User
+from models import (
+    ChallengeCompletion,
+    Family,
+    FamilyChallenge,
+    FamilyMember,
+    Notification,
+    Post,
+    Quiz,
+    QuizAnswer,
+    QuizAttempt,
+    QuizChoice,
+    QuizQuestion,
+    User,
+)
 
 family_bp = Blueprint("family", __name__)
 
@@ -35,6 +48,16 @@ CHALLENGE_TYPES = {
 }
 
 CHALLENGE_STATUSES = {"active", "draft", "closed"}
+
+QUIZ_CAPABLE_CATEGORIES = {
+    "learning",
+    "quiz_and_trivia",
+    "coding",
+    "books",
+    "language_learning",
+}
+
+QUIZ_STATUSES = {"open", "draft", "closed"}
 
 
 def family_admin_required(family):
@@ -80,6 +103,19 @@ def parse_points(value):
     return min(points, 10000)
 
 
+def parse_optional_int(value, minimum=0, maximum=100000):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        number = int(value)
+    except ValueError:
+        return None
+    if number < minimum:
+        return None
+    return min(number, maximum)
+
+
 def challenge_is_current(challenge):
     now = datetime.utcnow()
     if challenge.status != "active":
@@ -89,6 +125,21 @@ def challenge_is_current(challenge):
     if challenge.ends_at and challenge.ends_at < now:
         return False
     return True
+
+
+def quiz_is_open(quiz):
+    now = datetime.utcnow()
+    if quiz.status != "open":
+        return False
+    if quiz.opens_at and quiz.opens_at > now:
+        return False
+    if quiz.closes_at and quiz.closes_at < now:
+        return False
+    return True
+
+
+def family_supports_quizzes(family):
+    return family.category in QUIZ_CAPABLE_CATEGORIES or family.category == "custom"
 
 
 def challenge_dashboard(family, members, current_member):
@@ -125,6 +176,46 @@ def challenge_dashboard(family, members, current_member):
         "member_completed": member_completed,
         "family_progress": family_progress,
         "can_create_challenges": bool(current_member and current_member.role == "admin"),
+    }
+
+
+def quiz_dashboard(family, members, current_member):
+    quizzes = family.quizzes.order_by(Quiz.created_at.desc()).all()
+    open_quizzes = [quiz for quiz in quizzes if quiz_is_open(quiz)]
+    attempts = QuizAttempt.query.join(Quiz).filter(
+        Quiz.family_id == family.id,
+        QuizAttempt.submitted_at != None,
+    ).all()
+    quiz_points = {membership.user_id: 0 for membership in members}
+    for attempt in attempts:
+        if attempt.user_id in quiz_points:
+            quiz_points[attempt.user_id] += attempt.score
+    quiz_history = [
+        attempt
+        for attempt in sorted(attempts, key=lambda item: item.submitted_at, reverse=True)
+        if attempt.user_id == current_user.id
+    ]
+    leaderboard = sorted(
+        [
+            {
+                "user": membership.user,
+                "points": quiz_points.get(membership.user_id, 0),
+            }
+            for membership in members
+        ],
+        key=lambda item: item["points"],
+        reverse=True,
+    )
+    leaderboard = [row for row in leaderboard if row["points"]]
+    return {
+        "quizzes": quizzes,
+        "open_quizzes": open_quizzes,
+        "quiz_history": quiz_history[:5],
+        "quiz_leaderboard": leaderboard[:10],
+        "supports_quizzes": family_supports_quizzes(family),
+        "can_create_quizzes": bool(
+            current_member and current_member.role == "admin" and family_supports_quizzes(family)
+        ),
     }
 
 
@@ -242,6 +333,7 @@ def family_detail(family_id):
         categories=FAMILY_CATEGORIES,
         challenge_types=CHALLENGE_TYPES,
         **challenge_dashboard(family, members, member),
+        **quiz_dashboard(family, members, member),
     )
 
 
@@ -378,6 +470,177 @@ def complete_challenge(family_id, challenge_id):
     db.session.commit()
     flash("Challenge marked complete.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+
+
+@family_bp.route("/family/<int:family_id>/quiz/create", methods=["POST"])
+@login_required
+def create_quiz(family_id):
+    family = Family.query.get_or_404(family_id)
+    if not family_admin_required(family):
+        flash("Only family admins can create quizzes.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if not family_supports_quizzes(family):
+        flash("This Family type does not use quizzes.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    status = request.form.get("status", "open").strip()
+    opens_at = parse_family_date(request.form.get("opens_at"))
+    closes_at = parse_family_date(request.form.get("closes_at"))
+    if closes_at:
+        closes_at = closes_at.replace(hour=23, minute=59, second=59)
+    if status not in QUIZ_STATUSES:
+        status = "open"
+    if not title:
+        flash("Quiz title is required.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    time_limit_seconds = parse_optional_int(request.form.get("time_limit_seconds"), 30, 7200)
+    quiz = Quiz(
+        family_id=family.id,
+        creator_id=current_user.id,
+        title=title,
+        description=description,
+        opens_at=opens_at,
+        closes_at=closes_at,
+        time_limit_seconds=time_limit_seconds,
+        status=status,
+        allow_multiple_attempts=request.form.get("allow_multiple_attempts") == "1",
+        show_correct_answers=request.form.get("show_correct_answers", "1") == "1",
+    )
+    db.session.add(quiz)
+    db.session.flush()
+    question_count = 0
+    for position in range(1, 6):
+        question_text = request.form.get(f"question_{position}", "").strip()
+        if not question_text:
+            continue
+        points = parse_points(request.form.get(f"question_{position}_points")) or 1
+        correct_choice = request.form.get(f"question_{position}_correct", "").strip()
+        question = QuizQuestion(
+            quiz_id=quiz.id,
+            question_text=question_text,
+            question_type="multiple_choice",
+            points=points,
+            position=position,
+        )
+        db.session.add(question)
+        db.session.flush()
+        valid_choices = 0
+        has_correct_choice = False
+        for choice_position in range(1, 5):
+            choice_text = request.form.get(
+                f"question_{position}_choice_{choice_position}", ""
+            ).strip()
+            if not choice_text:
+                continue
+            is_correct = correct_choice == str(choice_position)
+            has_correct_choice = has_correct_choice or is_correct
+            db.session.add(
+                QuizChoice(
+                    question_id=question.id,
+                    choice_text=choice_text,
+                    is_correct=is_correct,
+                )
+            )
+            valid_choices += 1
+        if valid_choices < 2 or not has_correct_choice:
+            db.session.rollback()
+            flash("Each quiz question needs at least two choices and one correct answer.", "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+        question_count += 1
+    if not question_count:
+        db.session.rollback()
+        flash("Add at least one quiz question.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    db.session.commit()
+    flash("Quiz created.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+
+
+@family_bp.route("/family/<int:family_id>/quiz/<int:quiz_id>", methods=["GET", "POST"])
+@login_required
+def take_quiz(family_id, quiz_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member:
+        flash("Join this Family before taking quizzes.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    quiz = Quiz.query.filter_by(id=quiz_id, family_id=family.id).first_or_404()
+    existing_attempt = QuizAttempt.query.filter_by(
+        quiz_id=quiz.id, user_id=current_user.id
+    ).filter(
+        QuizAttempt.submitted_at != None
+    ).order_by(QuizAttempt.submitted_at.desc()).first()
+    attempt_id = request.args.get("attempt_id")
+    selected_attempt = None
+    if attempt_id:
+        selected_attempt = QuizAttempt.query.filter_by(
+            id=attempt_id, quiz_id=quiz.id, user_id=current_user.id
+        ).first()
+    if selected_attempt or (existing_attempt and not quiz.allow_multiple_attempts):
+        attempt = selected_attempt or existing_attempt
+        answers = {answer.question_id: answer for answer in attempt.answers.all()}
+        return render_template(
+            "quiz_take.html",
+            family=family,
+            quiz=quiz,
+            questions=quiz.questions.order_by(QuizQuestion.position.asc()).all(),
+            attempt=attempt,
+            answers=answers,
+            show_results=True,
+        )
+    if not quiz_is_open(quiz):
+        flash("This quiz is not open.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    questions = quiz.questions.order_by(QuizQuestion.position.asc()).all()
+    if request.method == "POST":
+        attempt = QuizAttempt(quiz_id=quiz.id, user_id=current_user.id)
+        db.session.add(attempt)
+        db.session.flush()
+        score = 0
+        for question in questions:
+            selected_choice_id = request.form.get(f"question_{question.id}")
+            selected_choice = None
+            awarded_points = 0
+            if selected_choice_id:
+                try:
+                    selected_choice_id = int(selected_choice_id)
+                except ValueError:
+                    selected_choice_id = None
+                selected_choice = (
+                    QuizChoice.query.filter_by(
+                        id=selected_choice_id, question_id=question.id
+                    ).first()
+                    if selected_choice_id
+                    else None
+                )
+            if selected_choice and selected_choice.is_correct:
+                awarded_points = question.points
+                score += awarded_points
+            db.session.add(
+                QuizAnswer(
+                    attempt_id=attempt.id,
+                    question_id=question.id,
+                    selected_choice_id=selected_choice.id if selected_choice else None,
+                    awarded_points=awarded_points,
+                )
+            )
+        attempt.score = score
+        attempt.submitted_at = datetime.utcnow()
+        db.session.commit()
+        flash("Quiz submitted.", "success")
+        return redirect(
+            url_for("family.take_quiz", family_id=family.id, quiz_id=quiz.id, attempt_id=attempt.id)
+        )
+    return render_template(
+        "quiz_take.html",
+        family=family,
+        quiz=quiz,
+        questions=questions,
+        attempt=None,
+        answers={},
+        show_results=False,
+    )
 
 
 @family_bp.route("/family/<int:family_id>/invite", methods=["POST"])

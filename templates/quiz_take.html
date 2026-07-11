@@ -1,0 +1,56 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card panel quiz-page">
+  <div class="split-header">
+    <div>
+      <span class="eyebrow">{{ family.name }}</span>
+      <h2>{{ quiz.title }}</h2>
+      <p>{{ quiz.description }}</p>
+    </div>
+    <a class="button secondary" href="{{ url_for('family.family_detail', family_id=family.id) }}#family-quizzes">Back to Family</a>
+  </div>
+
+  {% if show_results and attempt %}
+  <section class="family-goal-summary">
+    <strong>Your score: {{ attempt.score }} points</strong>
+    {% if attempt.submitted_at %}
+    <p>Submitted {{ attempt.submitted_at.strftime('%b %d, %Y %H:%M') }}</p>
+    {% endif %}
+  </section>
+  <div class="quiz-question-list">
+    {% for question in questions %}
+    {% set answer = answers.get(question.id) %}
+    <article class="quiz-question-card">
+      <h3>{{ loop.index }}. {{ question.question_text }}</h3>
+      <ul>
+        {% for choice in question.choices.all() %}
+        <li class="{% if answer and answer.selected_choice_id == choice.id %}selected-answer{% endif %}{% if quiz.show_correct_answers and choice.is_correct %} correct-answer{% endif %}">
+          {{ choice.choice_text }}
+          {% if answer and answer.selected_choice_id == choice.id %}<span>Selected</span>{% endif %}
+          {% if quiz.show_correct_answers and choice.is_correct %}<strong>Correct</strong>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if answer %}
+      <p class="muted-meta">{{ answer.awarded_points }} / {{ question.points }} points</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <form action="" method="post" class="quiz-question-list">
+    {% for question in questions %}
+    <fieldset class="quiz-question-card">
+      <legend>{{ loop.index }}. {{ question.question_text }}</legend>
+      {% for choice in question.choices.all() %}
+      <label>
+        <input type="radio" name="question_{{ question.id }}" value="{{ choice.id }}" />
+        {{ choice.choice_text }}
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+    <button class="button" type="submit">Submit quiz</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

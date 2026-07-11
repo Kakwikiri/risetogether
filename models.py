@@ -313,6 +313,86 @@ class ChallengeCompletion(db.Model):
     user = db.relationship("User", backref=db.backref("challenge_completions", lazy="dynamic", cascade="all, delete-orphan"))
 
 
+class Quiz(db.Model):
+    __tablename__ = "quizzes"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
+    )
+    creator_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    title = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, default="")
+    opens_at = db.Column(db.DateTime, nullable=True)
+    closes_at = db.Column(db.DateTime, nullable=True)
+    time_limit_seconds = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(20), default="open", nullable=False)
+    allow_multiple_attempts = db.Column(db.Boolean, default=False, nullable=False)
+    show_correct_answers = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    family = db.relationship("Family", backref=db.backref("quizzes", lazy="dynamic", cascade="all, delete-orphan"))
+    creator = db.relationship("User", backref=db.backref("created_quizzes", lazy="dynamic"))
+
+
+class QuizQuestion(db.Model):
+    __tablename__ = "quiz_questions"
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(
+        db.Integer, db.ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False
+    )
+    question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.String(32), default="multiple_choice", nullable=False)
+    points = db.Column(db.Integer, default=1, nullable=False)
+    position = db.Column(db.Integer, default=1, nullable=False)
+    quiz = db.relationship("Quiz", backref=db.backref("questions", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class QuizChoice(db.Model):
+    __tablename__ = "quiz_choices"
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(
+        db.Integer, db.ForeignKey("quiz_questions.id", ondelete="CASCADE"), nullable=False
+    )
+    choice_text = db.Column(db.Text, nullable=False)
+    is_correct = db.Column(db.Boolean, default=False, nullable=False)
+    question = db.relationship("QuizQuestion", backref=db.backref("choices", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class QuizAttempt(db.Model):
+    __tablename__ = "quiz_attempts"
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(
+        db.Integer, db.ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    score = db.Column(db.Integer, default=0, nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    quiz = db.relationship("Quiz", backref=db.backref("attempts", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("quiz_attempts", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class QuizAnswer(db.Model):
+    __tablename__ = "quiz_answers"
+    id = db.Column(db.Integer, primary_key=True)
+    attempt_id = db.Column(
+        db.Integer, db.ForeignKey("quiz_attempts.id", ondelete="CASCADE"), nullable=False
+    )
+    question_id = db.Column(
+        db.Integer, db.ForeignKey("quiz_questions.id", ondelete="CASCADE"), nullable=False
+    )
+    selected_choice_id = db.Column(
+        db.Integer, db.ForeignKey("quiz_choices.id", ondelete="SET NULL"), nullable=True
+    )
+    awarded_points = db.Column(db.Integer, default=0, nullable=False)
+    attempt = db.relationship("QuizAttempt", backref=db.backref("answers", lazy="dynamic", cascade="all, delete-orphan"))
+    question = db.relationship("QuizQuestion", backref=db.backref("answers", lazy="dynamic", cascade="all, delete-orphan"))
+    selected_choice = db.relationship("QuizChoice", backref=db.backref("answers", lazy="dynamic"))
+
+
 class Message(db.Model):
     __tablename__ = "messages"
     id = db.Column(db.Integer, primary_key=True)

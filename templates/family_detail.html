@@ -33,6 +33,7 @@
     <a href="#family-posts">Posts</a>
     <a href="#family-goal">Goal</a>
     <a href="#family-challenges">Challenges</a>
+    <a href="#family-quizzes">Quizzes</a>
     <a href="#family-members">Members</a>
   </nav>
 
@@ -170,6 +171,115 @@
       <li>No members yet.</li>
       {% endfor %}
     </ul>
+  </section>
+
+  <section id="family-quizzes" class="family-section">
+    <h3>Quizzes</h3>
+    {% if not supports_quizzes %}
+    <p class="muted-meta">This Family category does not use quizzes by default.</p>
+    {% endif %}
+
+    {% if can_create_quizzes %}
+    <form
+      class="quiz-form compact-composer"
+      action="{{ url_for('family.create_quiz', family_id=family.id) }}"
+      method="post"
+    >
+      <h4>Create multiple-choice quiz</h4>
+      <input type="text" name="title" placeholder="Quiz title" required />
+      <textarea name="description" rows="2" placeholder="Short quiz description"></textarea>
+      <div class="form-grid two-column">
+        <label>
+          Opens
+          <input type="date" name="opens_at" />
+        </label>
+        <label>
+          Closes
+          <input type="date" name="closes_at" />
+        </label>
+      </div>
+      <label>
+        Time limit in seconds
+        <input type="number" name="time_limit_seconds" min="30" max="7200" placeholder="Optional" />
+      </label>
+      <label><input type="checkbox" name="allow_multiple_attempts" value="1" /> Allow multiple attempts</label>
+      <label><input type="checkbox" name="show_correct_answers" value="1" checked /> Show correct answers after submission</label>
+
+      {% for number in range(1, 6) %}
+      <fieldset class="quiz-question-builder">
+        <legend>Question {{ number }}</legend>
+        <input type="text" name="question_{{ number }}" placeholder="Question text" />
+        <input type="number" name="question_{{ number }}_points" min="0" value="1" />
+        {% for choice in range(1, 5) %}
+        <label>
+          Choice {{ choice }}
+          <input type="text" name="question_{{ number }}_choice_{{ choice }}" />
+        </label>
+        {% endfor %}
+        <label>
+          Correct choice
+          <select name="question_{{ number }}_correct">
+            <option value="">Choose correct answer</option>
+            <option value="1">Choice 1</option>
+            <option value="2">Choice 2</option>
+            <option value="3">Choice 3</option>
+            <option value="4">Choice 4</option>
+          </select>
+        </label>
+      </fieldset>
+      {% endfor %}
+
+      <button class="button" type="submit">Create quiz</button>
+    </form>
+    {% endif %}
+
+    <div class="challenge-list">
+      {% for quiz in open_quizzes %}
+      <article class="challenge-card">
+        <div>
+          <span class="status-pill">Quiz</span>
+          <h4>{{ quiz.title }}</h4>
+          <p>{{ quiz.description or 'No description.' }}</p>
+          <p class="muted-meta">
+            {{ quiz.questions.count() }} questions
+            {% if quiz.closes_at %} · Closes {{ quiz.closes_at.strftime('%b %d, %Y') }}{% endif %}
+          </p>
+        </div>
+        {% if member %}
+        <a class="button secondary" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=quiz.id) }}">Open quiz</a>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="muted-meta">No open quizzes yet.</p>
+      {% endfor %}
+    </div>
+
+    <div class="quiz-panels">
+      <section>
+        <h4>Family leaderboard</h4>
+        <ol>
+          {% for row in quiz_leaderboard %}
+          <li>{{ row.user.username }} - {{ row.points }} pts</li>
+          {% else %}
+          <li>No quiz points yet.</li>
+          {% endfor %}
+        </ol>
+      </section>
+      <section>
+        <h4>Your quiz history</h4>
+        <ul>
+          {% for attempt in quiz_history %}
+          <li>
+            <a href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=attempt.quiz_id, attempt_id=attempt.id) }}">
+              {{ attempt.quiz.title }} - {{ attempt.score }} pts
+            </a>
+          </li>
+          {% else %}
+          <li>No quiz attempts yet.</li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
   </section>
 
   <section id="family-posts" class="family-section">
