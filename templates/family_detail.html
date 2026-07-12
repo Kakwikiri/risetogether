@@ -6,12 +6,11 @@
       src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
       alt="{{ family.name }} picture"
     />
-    <div>
+    <div class="family-title-block">
       <span class="eyebrow">
         {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
       </span>
       <h2>{{ family.name }}</h2>
-      <p>{{ family.description }}</p>
       <p class="muted-meta">
         {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
         {% if family_is_full %} · Family is full{% endif %}
@@ -49,10 +48,18 @@
     <a href="#family-posts" data-family-tab>Post</a>
     <a href="#family-polls" data-family-tab>Poll</a>
     <a href="#family-challenges" data-family-tab>Challenge</a>
+    {% if supports_quizzes %}
     <a href="#family-quizzes" data-family-tab>Quiz</a>
+    {% endif %}
     <a href="#family-members" data-family-tab>Members</a>
     {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
   </div>
+
+  {% if family.description %}
+  <section class="family-description-panel">
+    <p>{{ family.description }}</p>
+  </section>
+  {% endif %}
 
   <section id="family-home" class="family-section" data-family-panel>
     <h3>Family Home</h3>

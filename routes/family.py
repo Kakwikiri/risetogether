@@ -1145,8 +1145,21 @@ def complete_challenge(family_id, challenge_id):
         verification_status="completed",
     )
     db.session.add(completion)
+    post_content = f"Completed challenge: {challenge.title}"
+    if evidence_text:
+        post_content = f"{post_content}\n\n{evidence_text}"
+    db.session.add(
+        Post(
+            user_id=current_user.id,
+            family_id=family.id,
+            content=post_content,
+            media_url=evidence_media_url,
+            media_type=get_media_type(evidence_media_url) if evidence_media_url else "text",
+            audience="family",
+        )
+    )
     db.session.commit()
-    flash("Challenge marked complete.", "success")
+    flash("Challenge marked complete and shared to Family posts.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
 
 

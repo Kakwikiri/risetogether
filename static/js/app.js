@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const toast = document.querySelector("[data-toast]");
+  const pageBack = document.querySelector("[data-page-back]");
   const updateNotice = document.querySelector("[data-update-notice]");
   const updateNow = document.querySelector("[data-update-now]");
   const updateLater = document.querySelector("[data-update-later]");
@@ -43,6 +44,16 @@ document.addEventListener("DOMContentLoaded", () => {
       toast.hidden = true;
     }, 5200);
   };
+
+  if (pageBack) {
+    pageBack.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
+    });
+  }
 
   const urlBase64ToUint8Array = (base64String) => {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -67,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat-family-polish", { scope: "/" });
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat500-family-feed", { scope: "/" });
   };
 
   const showUpdateNotice = (worker) => {

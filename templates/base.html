@@ -57,16 +57,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-chat-family-polish"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-chat500-family-feed"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-chat-family-polish"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-chat500-family-feed"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-chat-family-polish"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-chat500-family-feed"
     ></script>
   </head>
   <body>
@@ -150,6 +150,7 @@
         </div>
       </div>
     </div>
+    <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹ Back</button>
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %}
@@ -171,7 +172,7 @@
     <script>
       if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
-              navigator.serviceWorker.register('/service-worker.js?v=20260712-chat-family-polish', { scope: '/' })
+              navigator.serviceWorker.register('/service-worker.js?v=20260712-chat500-family-feed', { scope: '/' })
               .catch(err => console.warn('SW registration failed:', err));
           });
       }

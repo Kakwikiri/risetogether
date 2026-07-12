@@ -1,7 +1,7 @@
 {% extends 'base.html' %} {% block content %}
 <section class="chat-card">
   <header class="chat-header">
-    <a class="icon-button chat-back-button" href="{{ url_for('chat.messages') }}" aria-label="Back to messages" title="Back">‹</a>
+    <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back">‹</a>
     <div class="chat-title" data-chat-normal-header>
       <h2>
         {% if not family %}
@@ -41,13 +41,13 @@
       {% endif %}
     </div>
   </header>
-  {% set pinned_messages = messages|selectattr('pinned_until')|list %}
-  {% set pinned = pinned_messages|last if pinned_messages else none %}
-  <div class="pinned-chat-strip" data-pinned-strip {% if not pinned %}hidden{% endif %}>
-    {% if pinned %}
+  <div class="pinned-chat-strip" data-pinned-strip {% if not messages|selectattr('pinned_until')|list %}hidden{% endif %}>
+    {% for pinned in messages|selectattr('pinned_until')|list %}
+    {% if loop.last %}
     <span>Pinned for 24h</span>
     <strong>{{ pinned.content or pinned.media_type|title }}</strong>
     {% endif %}
+    {% endfor %}
   </div>
   <div id="chat-log" class="chat-log">
     {% for message in messages %}
