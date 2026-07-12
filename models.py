@@ -261,6 +261,9 @@ class Family(db.Model):
 
 class FamilyMember(db.Model):
     __tablename__ = "family_members"
+    __table_args__ = (
+        db.UniqueConstraint("family_id", "user_id", name="uq_family_member_user"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     family_id = db.Column(
         db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
@@ -270,6 +273,51 @@ class FamilyMember(db.Model):
     )
     role = db.Column(db.String(20), default="member")
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FamilyModerationLog(db.Model):
+    __tablename__ = "family_moderation_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    target_user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    action = db.Column(db.String(64), nullable=False)
+    previous_role = db.Column(db.String(20), default="")
+    new_role = db.Column(db.String(20), default="")
+    reason = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    family = db.relationship("Family", backref=db.backref("moderation_logs", lazy="dynamic", cascade="all, delete-orphan"))
+    actor = db.relationship("User", foreign_keys=[actor_id], backref="family_moderation_actions")
+    target_user = db.relationship("User", foreign_keys=[target_user_id], backref="family_moderation_events")
+
+
+class FamilyMemberRestriction(db.Model):
+    __tablename__ = "family_member_restrictions"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    restriction_type = db.Column(db.String(32), nullable=False)
+    reason = db.Column(db.Text, default="")
+    starts_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ends_at = db.Column(db.DateTime, nullable=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    family = db.relationship("Family", backref=db.backref("member_restrictions", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id], backref="family_restrictions")
+    created_by = db.relationship("User", foreign_keys=[created_by_id], backref="created_family_restrictions")
 
 
 class FamilyChallenge(db.Model):

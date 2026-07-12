@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
@@ -20,6 +21,7 @@ from models import (
     CommentReaction,
     Family,
     FamilyMember,
+    FamilyMemberRestriction,
     Follow,
     FriendRequest,
     LiveSession,
@@ -47,6 +49,20 @@ def emit_notification(notification):
         },
         room=f"user-{notification.user_id}",
     )
+
+
+def has_active_family_restriction(family_id, user_id, *restriction_types):
+    query = FamilyMemberRestriction.query.filter_by(
+        family_id=family_id,
+        user_id=user_id,
+        active=True,
+    ).filter(
+        (FamilyMemberRestriction.ends_at == None)
+        | (FamilyMemberRestriction.ends_at > datetime.utcnow())
+    )
+    if restriction_types:
+        query = query.filter(FamilyMemberRestriction.restriction_type.in_(restriction_types))
+    return query.first() is not None
 
 
 def add_notification(user_id, category, message, action_url=""):
@@ -380,6 +396,9 @@ def create_post():
             ).first()
             if not membership:
                 flash("Join that family before posting there.", "warning")
+                return redirect(url_for("main.home"))
+            if has_active_family_restriction(selected_family_id, current_user.id, "suspend"):
+                flash("You are temporarily suspended from posting in that Family.", "warning")
                 return redirect(url_for("main.home"))
             post.family_id = selected_family_id
             if post.audience == "public":

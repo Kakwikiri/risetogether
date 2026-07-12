@@ -20,7 +20,7 @@
       {% endif %}
       {% if member %}
       <a class="button" href="{{ url_for('chat.family_chat', family_id=family.id) }}">Open family chat</a>
-      {% if member.role == 'admin' %}
+      {% if can_edit_family %}
       <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
       {% endif %}
       {% endif %}
@@ -263,23 +263,50 @@
       {% for membership in members %}
       <li class="member-row">
         <span>
-          {{ membership.user.username }} - {{ membership.role }}
+          {{ membership.user.username }} <span class="status-pill">{{ role_labels.get(membership.role, 'Member') }}</span>
           <small class="muted-meta">
             · {{ member_completed.get(membership.user_id, 0) }} completed
             · {{ member_points.get(membership.user_id, 0) }} pts
           </small>
         </span>
-        {% if member and member.role == 'admin' and membership.user_id != family.owner_id %}
+        {% if member and membership.user_id != current_user.id and membership.role != 'owner' %}
         <span class="member-actions">
-          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post">
+          {% if can_manage_roles %}
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post" onsubmit="return confirm('Promote this member to Family admin?');">
+            <input type="hidden" name="confirm" value="1" />
             <button class="text-button" type="submit">Make admin</button>
           </form>
-          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='demote') }}" method="post">
-            <button class="text-button" type="submit">Remove admin</button>
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='make_moderator') }}" method="post" onsubmit="return confirm('Make this member a Family moderator?');">
+            <input type="hidden" name="confirm" value="1" />
+            <button class="text-button" type="submit">Make moderator</button>
           </form>
-          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='remove') }}" method="post">
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='demote') }}" method="post" onsubmit="return confirm('Remove this member role?');">
+            <input type="hidden" name="confirm" value="1" />
+            <button class="text-button" type="submit">Make member</button>
+          </form>
+          {% endif %}
+          {% if can_manage_members %}
+          <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='remove') }}" method="post" onsubmit="return confirm('Remove this member from the Family?');">
+            <input type="hidden" name="confirm" value="1" />
             <button class="text-button danger-text" type="submit">Remove</button>
           </form>
+          {% endif %}
+          {% if can_warn_members %}
+          <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='warn') }}" method="post" onsubmit="return confirm('Warn this member?');">
+            <input type="hidden" name="reason" value="Family rule reminder" />
+            <button class="text-button" type="submit">Warn</button>
+          </form>
+          <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='mute') }}" method="post" onsubmit="return confirm('Mute this member for Family chat?');">
+            <input type="hidden" name="reason" value="Temporary Family moderation action" />
+            <button class="text-button" type="submit">Mute</button>
+          </form>
+          {% endif %}
+          {% if can_suspend_members %}
+          <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='suspend') }}" method="post" onsubmit="return confirm('Temporarily suspend this member inside the Family?');">
+            <input type="hidden" name="reason" value="Temporary Family suspension" />
+            <button class="text-button danger-text" type="submit">Suspend</button>
+          </form>
+          {% endif %}
         </span>
         {% endif %}
       </li>
@@ -453,7 +480,7 @@
     {% endfor %}
   </section>
 
-  {% if member and member.role == 'admin' %}
+  {% if can_invite_members %}
   <section class="family-section">
     <h3>Invite someone</h3>
     <form action="{{ url_for('family.invite_family_member', family_id=family.id) }}" method="post">

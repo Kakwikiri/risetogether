@@ -102,6 +102,9 @@ def ensure_schema_compatibility():
         MediaAsset,
         MessageDeletion,
         PushSubscription,
+        FamilyMember,
+        FamilyMemberRestriction,
+        FamilyModerationLog,
         Quiz,
         QuizAnswer,
         QuizAttempt,
@@ -113,6 +116,8 @@ def ensure_schema_compatibility():
     MediaAsset.__table__.create(db.engine, checkfirst=True)
     MessageDeletion.__table__.create(db.engine, checkfirst=True)
     PushSubscription.__table__.create(db.engine, checkfirst=True)
+    FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
+    FamilyModerationLog.__table__.create(db.engine, checkfirst=True)
     FamilyChallenge.__table__.create(db.engine, checkfirst=True)
     ChallengeCompletion.__table__.create(db.engine, checkfirst=True)
     Quiz.__table__.create(db.engine, checkfirst=True)
@@ -149,6 +154,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_until TIMESTAMP",
         "ALTER TABLE post_shares ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "UPDATE family_members SET role = 'owner' FROM families WHERE family_members.family_id = families.id AND family_members.user_id = families.owner_id AND family_members.role != 'owner'",
     ]
     for statement in updates:
         db.session.execute(text(statement))

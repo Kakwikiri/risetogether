@@ -8,7 +8,7 @@ from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
 from helpers import get_ice_servers, get_media_type, save_media, send_device_push, validate_upload
-from models import Family, FamilyMember, LiveSession, Message, MessageDeletion, Notification, User
+from models import Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -47,6 +47,20 @@ def can_access_message(message):
             is not None
         )
     return False
+
+
+def has_active_family_restriction(family_id, user_id, *restriction_types):
+    query = FamilyMemberRestriction.query.filter_by(
+        family_id=family_id,
+        user_id=user_id,
+        active=True,
+    ).filter(
+        (FamilyMemberRestriction.ends_at == None)
+        | (FamilyMemberRestriction.ends_at > datetime.utcnow())
+    )
+    if restriction_types:
+        query = query.filter(FamilyMemberRestriction.restriction_type.in_(restriction_types))
+    return query.first() is not None
 
 
 def room_for_private_chat(user_id, other_id):
@@ -386,6 +400,8 @@ def upload_message_file():
         )
         if not family or not membership:
             return jsonify({"error": "Join this family before sending files."}), 403
+        if has_active_family_restriction(family.id, current_user.id, "mute", "suspend"):
+            return jsonify({"error": "You are temporarily restricted from sending Family messages."}), 403
         message.family_id = family.id
         room = f"family-{family.id}"
         recipients = [member.user_id for member in family.members if member.user_id != current_user.id]
@@ -687,6 +703,8 @@ def family_message(data):
         family_id=family.id, user_id=current_user.id
     ).first()
     if not membership:
+        return
+    if has_active_family_restriction(family.id, current_user.id, "mute", "suspend"):
         return
     message = Message(
         sender_id=current_user.id,

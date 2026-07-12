@@ -8,9 +8,12 @@ from extensions import db
 from helpers import save_media, send_device_push
 from models import (
     ChallengeCompletion,
+    Block,
     Family,
     FamilyChallenge,
     FamilyMember,
+    FamilyMemberRestriction,
+    FamilyModerationLog,
     Message,
     Notification,
     Post,
@@ -60,6 +63,32 @@ QUIZ_CAPABLE_CATEGORIES = {
 
 QUIZ_STATUSES = {"open", "draft", "closed"}
 
+FAMILY_ROLES = {"owner", "admin", "moderator", "member"}
+FAMILY_ROLE_LABELS = {
+    "owner": "Owner",
+    "admin": "Admin",
+    "moderator": "Moderator",
+    "member": "Member",
+}
+FAMILY_ROLE_RANK = {
+    "owner": 4,
+    "admin": 3,
+    "moderator": 2,
+    "member": 1,
+}
+FAMILY_PERMISSIONS = {
+    "edit_family": {"owner"},
+    "manage_roles": {"owner"},
+    "manage_members": {"owner", "admin"},
+    "warn_members": {"owner", "admin", "moderator"},
+    "mute_members": {"owner", "admin", "moderator"},
+    "suspend_members": {"owner", "admin"},
+    "create_challenge": {"owner", "admin"},
+    "create_quiz": {"owner", "admin"},
+    "invite_members": {"owner", "admin"},
+    "delete_family": {"owner"},
+}
+
 
 def add_family_notification(user_id, category, message, action_url):
     notification = Notification(
@@ -74,12 +103,71 @@ def add_family_notification(user_id, category, message, action_url):
     return notification
 
 
-def family_admin_required(family):
-    return FamilyMember.query.filter(
-        FamilyMember.family_id == family.id,
-        FamilyMember.user_id == current_user.id,
-        FamilyMember.role == "admin",
+def normalize_family_role(role):
+    return role if role in FAMILY_ROLES else "member"
+
+
+def family_role(member):
+    return normalize_family_role(member.role) if member else None
+
+
+def family_has_permission(member, permission):
+    return family_role(member) in FAMILY_PERMISSIONS.get(permission, set())
+
+
+def role_rank(role):
+    return FAMILY_ROLE_RANK.get(normalize_family_role(role), 0)
+
+
+def current_family_member_or_redirect(family, message="Join this Family first."):
+    member = family_member_for_current_user(family)
+    if not member:
+        flash(message, "warning")
+    return member
+
+
+def log_family_action(family, action, target_user_id=None, previous_role="", new_role="", reason=""):
+    db.session.add(
+        FamilyModerationLog(
+            family_id=family.id,
+            actor_id=current_user.id,
+            target_user_id=target_user_id,
+            action=action,
+            previous_role=previous_role or "",
+            new_role=new_role or "",
+            reason=reason or "",
+        )
+    )
+
+
+def user_blocked_or_suspended(user_id):
+    user = User.query.get(user_id)
+    if not user or user.is_banned:
+        return True
+    blocked = Block.query.filter(
+        ((Block.blocker_id == current_user.id) & (Block.blocked_id == user_id))
+        | ((Block.blocker_id == user_id) & (Block.blocked_id == current_user.id))
     ).first()
+    return blocked is not None
+
+
+def active_family_restriction(family_id, user_id, restriction_type=None):
+    query = FamilyMemberRestriction.query.filter_by(
+        family_id=family_id,
+        user_id=user_id,
+        active=True,
+    ).filter(
+        (FamilyMemberRestriction.ends_at == None)
+        | (FamilyMemberRestriction.ends_at > datetime.utcnow())
+    )
+    if restriction_type:
+        query = query.filter_by(restriction_type=restriction_type)
+    return query.first()
+
+
+def family_admin_required(family):
+    member = family_member_for_current_user(family)
+    return member if family_role(member) in {"owner", "admin"} else None
 
 
 def family_member_for_current_user(family):
@@ -189,7 +277,7 @@ def challenge_dashboard(family, members, current_member):
         "member_points": member_points,
         "member_completed": member_completed,
         "family_progress": family_progress,
-        "can_create_challenges": bool(current_member and current_member.role == "admin"),
+        "can_create_challenges": family_has_permission(current_member, "create_challenge"),
     }
 
 
@@ -228,7 +316,7 @@ def quiz_dashboard(family, members, current_member):
         "quiz_leaderboard": leaderboard[:10],
         "supports_quizzes": family_supports_quizzes(family),
         "can_create_quizzes": bool(
-            current_member and current_member.role == "admin" and family_supports_quizzes(family)
+            family_has_permission(current_member, "create_quiz") and family_supports_quizzes(family)
         ),
     }
 
@@ -245,7 +333,7 @@ def badges_for_member(membership, stats, top_quiz_score):
         badges.append("Challenge Finisher")
     if stats["quiz_points"] > 0 and stats["quiz_points"] == top_quiz_score:
         badges.append("Quiz Champion")
-    if membership.role == "admin":
+    if family_role(membership) in {"owner", "admin"}:
         badges.append("Family Builder")
     return badges
 
@@ -472,7 +560,7 @@ def create_family():
         db.session.add(family)
         db.session.commit()
         member = FamilyMember(
-            family_id=family.id, user_id=current_user.id, role="admin"
+            family_id=family.id, user_id=current_user.id, role="owner"
         )
         db.session.add(member)
         db.session.commit()
@@ -502,6 +590,13 @@ def family_detail(family_id):
         posts=posts,
         categories=FAMILY_CATEGORIES,
         challenge_types=CHALLENGE_TYPES,
+        role_labels=FAMILY_ROLE_LABELS,
+        can_edit_family=family_has_permission(member, "edit_family"),
+        can_manage_roles=family_has_permission(member, "manage_roles"),
+        can_manage_members=family_has_permission(member, "manage_members"),
+        can_warn_members=family_has_permission(member, "warn_members"),
+        can_suspend_members=family_has_permission(member, "suspend_members"),
+        can_invite_members=family_has_permission(member, "invite_members"),
         **family_home_dashboard(family, members),
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
@@ -512,8 +607,9 @@ def family_detail(family_id):
 @login_required
 def edit_family(family_id):
     family = Family.query.get_or_404(family_id)
-    if not family_admin_required(family):
-        flash("Only family admins can edit family details.", "danger")
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "edit_family"):
+        flash("Only the Family owner can edit these Family details.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     if request.method == "POST":
         payload, error = validate_family_payload(request.form)
@@ -563,8 +659,9 @@ def join_family(family_id):
 @login_required
 def create_challenge(family_id):
     family = Family.query.get_or_404(family_id)
-    if not family_admin_required(family):
-        flash("Only family admins can create official challenges.", "danger")
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_challenge"):
+        flash("Only Family owners and admins can create official challenges.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
@@ -657,8 +754,9 @@ def complete_challenge(family_id, challenge_id):
 @login_required
 def create_quiz(family_id):
     family = Family.query.get_or_404(family_id)
-    if not family_admin_required(family):
-        flash("Only family admins can create quizzes.", "danger")
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_quiz"):
+        flash("Only Family owners and admins can create quizzes.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     if not family_supports_quizzes(family):
         flash("This Family type does not use quizzes.", "warning")
@@ -837,8 +935,9 @@ def take_quiz(family_id, quiz_id):
 @login_required
 def invite_family_member(family_id):
     family = Family.query.get_or_404(family_id)
-    if not family_admin_required(family):
-        flash("Only family admins can invite members.", "danger")
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "invite_members"):
+        flash("Only Family owners and admins can invite members.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     username = request.form.get("username", "").strip()
     user = User.query.filter_by(username=username).first()
@@ -863,25 +962,130 @@ def invite_family_member(family_id):
 @login_required
 def manage_family_member(family_id, member_id, action):
     family = Family.query.get_or_404(family_id)
-    admin_member = family_admin_required(family)
-    if not admin_member:
-        flash("Only family admins can manage members.", "danger")
+    actor_member = family_member_for_current_user(family)
+    if not family_has_permission(actor_member, "manage_members"):
+        flash("You do not have permission to manage Family members.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    member = FamilyMember.query.filter_by(id=member_id, family_id=family.id).first_or_404()
-    if member.user_id == family.owner_id and action in {"remove", "demote"}:
-        flash("The family owner cannot be removed or demoted.", "warning")
+    target_member = FamilyMember.query.filter_by(id=member_id, family_id=family.id).first_or_404()
+    if request.form.get("confirm") != "1":
+        flash("Please confirm this member action.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
+    actor_role = family_role(actor_member)
+    target_role = family_role(target_member)
+    if target_role == "owner":
+        flash("The Family owner cannot be removed, demoted, or reassigned here.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if target_member.user_id == current_user.id:
+        flash("You cannot change your own Family role here.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    new_role = None
     if action == "promote":
-        member.role = "admin"
-        flash("Member promoted to admin.", "success")
+        new_role = "admin"
+    elif action == "make_moderator":
+        new_role = "moderator"
     elif action == "demote":
-        member.role = "member"
-        flash("Admin privileges removed.", "info")
+        new_role = "member"
+    if new_role:
+        if not family_has_permission(actor_member, "manage_roles"):
+            flash("Only the Family owner can appoint or remove Family roles.", "danger")
+            return redirect(url_for("family.family_detail", family_id=family.id))
+        if new_role in {"admin", "moderator"} and user_blocked_or_suspended(target_member.user_id):
+            flash("Blocked or suspended users cannot be promoted.", "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id))
+        if target_role == new_role:
+            flash("That member already has this role.", "info")
+            return redirect(url_for("family.family_detail", family_id=family.id))
+        previous_role = target_role
+        target_member.role = new_role
+        log_family_action(
+            family,
+            "role_changed",
+            target_user_id=target_member.user_id,
+            previous_role=previous_role,
+            new_role=new_role,
+        )
+        add_family_notification(
+            target_member.user_id,
+            "family_role",
+            f"Your role in {family.name} changed to {FAMILY_ROLE_LABELS[new_role]}.",
+            url_for("family.family_detail", family_id=family.id),
+        )
+        flash("Family role updated.", "success")
     elif action == "remove":
-        db.session.delete(member)
+        if actor_role != "owner" and target_role != "member":
+            flash("Family admins can only remove regular members.", "danger")
+            return redirect(url_for("family.family_detail", family_id=family.id))
+        removed_user_id = target_member.user_id
+        previous_role = target_role
+        db.session.delete(target_member)
+        log_family_action(
+            family,
+            "member_removed",
+            target_user_id=removed_user_id,
+            previous_role=previous_role,
+            reason=request.form.get("reason", "").strip(),
+        )
+        add_family_notification(
+            removed_user_id,
+            "family_role",
+            f"You were removed from {family.name}.",
+            url_for("family.families"),
+        )
         flash("Member removed from family.", "info")
     else:
         flash("Invalid member action.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     db.session.commit()
+    return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/member/<int:member_id>/restrict/<action>", methods=["POST"])
+@login_required
+def restrict_family_member(family_id, member_id, action):
+    family = Family.query.get_or_404(family_id)
+    actor_member = family_member_for_current_user(family)
+    target_member = FamilyMember.query.filter_by(id=member_id, family_id=family.id).first_or_404()
+    if action not in {"warn", "mute", "suspend"}:
+        flash("Invalid member restriction.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    permission = {
+        "warn": "warn_members",
+        "mute": "mute_members",
+        "suspend": "suspend_members",
+    }[action]
+    if not family_has_permission(actor_member, permission):
+        flash("You do not have permission for this Family action.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if target_member.user_id == current_user.id or family_role(target_member) == "owner":
+        flash("You cannot apply this action to that member.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if role_rank(family_role(actor_member)) <= role_rank(family_role(target_member)):
+        flash("You cannot restrict a member with an equal or higher Family role.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    reason = request.form.get("reason", "").strip()
+    duration_days = 1 if action == "mute" else 7 if action == "suspend" else None
+    restriction = FamilyMemberRestriction(
+        family_id=family.id,
+        user_id=target_member.user_id,
+        created_by_id=current_user.id,
+        restriction_type=action,
+        reason=reason,
+        ends_at=datetime.utcnow() + timedelta(days=duration_days) if duration_days else None,
+        active=True,
+    )
+    db.session.add(restriction)
+    log_family_action(
+        family,
+        f"member_{action}",
+        target_user_id=target_member.user_id,
+        reason=reason,
+    )
+    add_family_notification(
+        target_member.user_id,
+        "family_moderation",
+        f"You received a Family {action} in {family.name}.",
+        url_for("family.family_detail", family_id=family.id),
+    )
+    db.session.commit()
+    flash(f"Member {action} recorded.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
