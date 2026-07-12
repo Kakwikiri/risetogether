@@ -211,6 +211,39 @@ def serialize_message(message):
     }
 
 
+def emit_chat_message(message, room, event_name=None, recipient_ids=None):
+    event = event_name or ("new_family_message" if message.family_id else "new_private_message")
+    payload = serialize_message(message)
+    delivered_rooms = set()
+    if room:
+        socketio.emit(event, payload, room=room)
+        delivered_rooms.add(room)
+    user_ids = set(recipient_ids or [])
+    if message.sender_id:
+        user_ids.add(message.sender_id)
+    if message.recipient_id:
+        user_ids.add(message.recipient_id)
+    for user_id in user_ids:
+        personal_room = user_room(user_id)
+        if personal_room in delivered_rooms:
+            continue
+        socketio.emit(event, payload, room=personal_room)
+        delivered_rooms.add(personal_room)
+    current_app.logger.info(
+        "chat_realtime_emit %s",
+        {
+            "event": event,
+            "message_id": message.id,
+            "sender_id": message.sender_id,
+            "recipient_id": message.recipient_id,
+            "family_id": message.family_id,
+            "room": room,
+            "user_rooms": sorted(user_ids),
+        },
+    )
+    return payload
+
+
 def create_call_history(sender_id, recipient_id, mode, status):
     label = "audio" if mode == "audio" else "video"
     messages = {
@@ -227,7 +260,7 @@ def create_call_history(sender_id, recipient_id, mode, status):
     db.session.add(message)
     db.session.commit()
     room = room_for_private_chat(sender_id, recipient_id)
-    socketio.emit("new_private_message", serialize_message(message), room=room)
+    emit_chat_message(message, room, "new_private_message", [sender_id, recipient_id])
     return message
 
 
@@ -443,11 +476,11 @@ def upload_message_file():
         db.session.flush()
         send_device_push(notification)
     db.session.commit()
-    payload = serialize_message(message)
-    socketio.emit(
+    payload = emit_chat_message(
+        message,
+        room,
         "new_family_message" if message.family_id else "new_private_message",
-        payload,
-        room=room,
+        [current_user.id, *recipients],
     )
     return jsonify(payload)
 
@@ -520,9 +553,14 @@ def forward_message(message_id):
             return jsonify({"error": "Join the family before forwarding there."}), 403
         forwarded.family_id = family_id
         room = f"family-{family_id}"
+        realtime_recipients = [
+            member.user_id
+            for member in FamilyMember.query.filter_by(family_id=family_id).all()
+        ]
     elif recipient_id:
         forwarded.recipient_id = recipient_id
         room = f"private-{min(current_user.id, recipient_id)}-{max(current_user.id, recipient_id)}"
+        realtime_recipients = [current_user.id, recipient_id]
     else:
         return jsonify({"error": "Choose where to forward."}), 400
     db.session.add(forwarded)
@@ -538,10 +576,11 @@ def forward_message(message_id):
         "media_type": forwarded.media_type,
         "created_at": forwarded.created_at.strftime("%Y-%m-%d %H:%M"),
     }
-    socketio.emit(
+    emit_chat_message(
+        forwarded,
+        room,
         "new_family_message" if forwarded.family_id else "new_private_message",
-        payload,
-        room=room,
+        realtime_recipients,
     )
     return jsonify(payload)
 
@@ -688,13 +727,7 @@ def private_message(data):
     send_device_push(notification)
     db.session.commit()
     emit_notification(recipient_id, notification)
-    emit(
-        "new_private_message",
-        {
-            **serialize_message(message),
-        },
-        room=room,
-    )
+    emit_chat_message(message, room, "new_private_message", [current_user.id, recipient_id])
 
 
 @socketio.on("family_message")
@@ -736,12 +769,11 @@ def family_message(data):
             send_device_push(notification)
     db.session.commit()
     room = f"family-{family.id}"
-    emit(
+    emit_chat_message(
+        message,
+        room,
         "new_family_message",
-        {
-            **serialize_message(message),
-        },
-        room=room,
+        [member.user_id for member in family.members],
     )
 
 
