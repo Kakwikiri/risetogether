@@ -61,8 +61,15 @@
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% elif message.media_type == 'audio' %}
-        <audio controls src="{{ url_for('api.serve_upload', filename=message.media_url) }}"></audio>
-        <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download>Download audio</a>
+        <div class="voice-note-player">
+          <audio controls src="{{ url_for('api.serve_upload', filename=message.media_url) }}"></audio>
+          <div class="voice-note-tools">
+            <button type="button" data-audio-speed="1">1x</button>
+            <button type="button" data-audio-speed="1.5">1.5x</button>
+            <button type="button" data-audio-speed="2">2x</button>
+            <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download>Download audio</a>
+          </div>
+        </div>
         {% else %}
         <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" target="_blank" rel="noopener" download>Download file</a>
         {% endif %}
@@ -100,6 +107,25 @@
     </div>
     <button class="send-button" type="submit" aria-label="Send">➤</button>
   </form>
+  <section id="voice-note-panel" class="voice-note-panel" hidden>
+    <div class="voice-note-status-row">
+      <span class="recording-dot" data-voice-recording-dot></span>
+      <strong data-voice-state>Ready</strong>
+      <span data-voice-timer>00:00</span>
+    </div>
+    <div class="voice-waveform" aria-hidden="true" data-voice-waveform>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <audio data-voice-preview controls hidden></audio>
+    <div class="voice-note-actions">
+      <button class="button secondary" type="button" data-voice-pause hidden>Pause</button>
+      <button class="button secondary" type="button" data-voice-resume hidden>Resume</button>
+      <button class="button" type="button" data-voice-stop hidden>Stop</button>
+      <button class="button secondary" type="button" data-voice-record-again hidden>Record again</button>
+      <button class="button" type="button" data-voice-send hidden>Send</button>
+      <button class="button secondary" type="button" data-voice-cancel>Cancel</button>
+    </div>
+  </section>
 </section>
 <script>
   const chatConfig = {

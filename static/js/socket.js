@@ -21,6 +21,55 @@ const socketLog = (event, extra = {}) => {
   console.log("[SOCKET]", socketContext({ event, ...extra }));
 };
 
+const pauseOtherVoiceNotes = (currentAudio) => {
+  document.querySelectorAll("audio").forEach((audio) => {
+    if (audio !== currentAudio && !audio.paused) audio.pause();
+  });
+};
+
+const enhanceVoiceNotePlayer = (container) => {
+  if (!container || container.dataset.enhancedVoiceNote === "1") return;
+  const audio = container.querySelector("audio");
+  if (!audio) return;
+  container.dataset.enhancedVoiceNote = "1";
+  audio.addEventListener("play", () => pauseOtherVoiceNotes(audio));
+  container.querySelectorAll("[data-audio-speed]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const speed = Number(button.dataset.audioSpeed || "1");
+      audio.playbackRate = speed;
+      container.querySelectorAll("[data-audio-speed]").forEach((speedButton) => {
+        speedButton.classList.toggle("active", speedButton === button);
+      });
+    });
+  });
+};
+
+const createVoiceNoteElement = (url) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "voice-note-player";
+  const audio = document.createElement("audio");
+  audio.controls = true;
+  audio.src = url;
+  const tools = document.createElement("div");
+  tools.className = "voice-note-tools";
+  ["1", "1.5", "2"].forEach((speed) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.audioSpeed = speed;
+    button.textContent = `${speed}x`;
+    tools.appendChild(button);
+  });
+  const download = document.createElement("a");
+  download.className = "chat-file";
+  download.href = url;
+  download.download = "";
+  download.textContent = "Download audio";
+  tools.appendChild(download);
+  wrapper.append(audio, tools);
+  enhanceVoiceNotePlayer(wrapper);
+  return wrapper;
+};
+
 const showRealtimeToast = (message) => {
   const toast = document.querySelector("[data-toast]");
   if (!toast) return;
@@ -105,9 +154,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       video.src = data.media_url;
       media.appendChild(video);
     } else if (data.media_type === "audio") {
-      media = document.createElement("audio");
-      media.controls = true;
-      media.src = data.media_url;
+      media = createVoiceNoteElement(data.media_url);
     } else {
       media = document.createElement("a");
       media.className = "chat-file";
@@ -278,6 +325,17 @@ if (typeof chatConfig !== "undefined") {
     const locationButton = document.getElementById("location-button");
     const voiceNoteButton = document.getElementById("voice-note-button");
     const videoNoteButton = document.getElementById("video-note-button");
+    const voicePanel = document.getElementById("voice-note-panel");
+    const voiceState = voicePanel ? voicePanel.querySelector("[data-voice-state]") : null;
+    const voiceTimer = voicePanel ? voicePanel.querySelector("[data-voice-timer]") : null;
+    const voicePreview = voicePanel ? voicePanel.querySelector("[data-voice-preview]") : null;
+    const voiceWaveform = voicePanel ? voicePanel.querySelector("[data-voice-waveform]") : null;
+    const voicePauseButton = voicePanel ? voicePanel.querySelector("[data-voice-pause]") : null;
+    const voiceResumeButton = voicePanel ? voicePanel.querySelector("[data-voice-resume]") : null;
+    const voiceStopButton = voicePanel ? voicePanel.querySelector("[data-voice-stop]") : null;
+    const voiceRecordAgainButton = voicePanel ? voicePanel.querySelector("[data-voice-record-again]") : null;
+    const voiceSendButton = voicePanel ? voicePanel.querySelector("[data-voice-send]") : null;
+    const voiceCancelButton = voicePanel ? voicePanel.querySelector("[data-voice-cancel]") : null;
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
@@ -285,6 +343,15 @@ if (typeof chatConfig !== "undefined") {
     let longPressTimer = null;
     let activeRecorder = null;
     let activeRecorderButton = null;
+    let voiceStream = null;
+    let voiceRecorder = null;
+    let voiceChunks = [];
+    let voiceBlob = null;
+    let voiceObjectUrl = "";
+    let voiceStartedAt = 0;
+    let voiceElapsedBeforePause = 0;
+    let voiceTimerId = null;
+    let voiceCancelled = false;
     const selectedMessages = new Map();
     const actionMenu = document.createElement("div");
     actionMenu.className = "message-action-menu";
@@ -337,13 +404,14 @@ if (typeof chatConfig !== "undefined") {
           // Keep the generic message when the response is not JSON.
         }
         window.alert(message);
-        return;
+        return false;
       }
       const data = await response.json();
       appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
       if (chatLog) {
         chatLog.scrollTop = chatLog.scrollHeight;
       }
+      return true;
     };
 
     const clearComposerState = () => {
@@ -639,6 +707,231 @@ if (typeof chatConfig !== "undefined") {
       return choices.find((type) => MediaRecorder.isTypeSupported(type)) || "";
     };
 
+    const formatVoiceDuration = (milliseconds) => {
+      const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+      const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+      const seconds = String(totalSeconds % 60).padStart(2, "0");
+      return `${minutes}:${seconds}`;
+    };
+
+    const currentVoiceElapsed = () => {
+      if (!voiceRecorder || voiceRecorder.state === "inactive") return voiceElapsedBeforePause;
+      if (voiceRecorder.state === "paused") return voiceElapsedBeforePause;
+      return voiceElapsedBeforePause + Date.now() - voiceStartedAt;
+    };
+
+    const setVoiceStatus = (status) => {
+      if (voiceState) voiceState.textContent = status;
+    };
+
+    const setVoiceControls = (state) => {
+      if (!voicePanel) return;
+      if (voicePauseButton) voicePauseButton.hidden = state !== "recording";
+      if (voiceResumeButton) voiceResumeButton.hidden = state !== "paused";
+      if (voiceStopButton) voiceStopButton.hidden = !["recording", "paused"].includes(state);
+      if (voiceRecordAgainButton) voiceRecordAgainButton.hidden = state !== "preview";
+      if (voiceSendButton) voiceSendButton.hidden = state !== "preview";
+      if (voiceWaveform) voiceWaveform.classList.toggle("active", state === "recording");
+      if (voicePreview) voicePreview.hidden = state !== "preview";
+    };
+
+    const stopVoiceTimer = () => {
+      if (voiceTimerId) window.clearInterval(voiceTimerId);
+      voiceTimerId = null;
+    };
+
+    const startVoiceTimer = () => {
+      stopVoiceTimer();
+      voiceTimerId = window.setInterval(() => {
+        if (voiceTimer) voiceTimer.textContent = formatVoiceDuration(currentVoiceElapsed());
+      }, 250);
+    };
+
+    const stopVoiceTracks = () => {
+      if (voiceStream) {
+        voiceStream.getTracks().forEach((track) => track.stop());
+      }
+      voiceStream = null;
+    };
+
+    const clearVoiceObjectUrl = () => {
+      if (voiceObjectUrl) URL.revokeObjectURL(voiceObjectUrl);
+      voiceObjectUrl = "";
+    };
+
+    const resetVoicePanel = (status = "Ready") => {
+      stopVoiceTimer();
+      stopVoiceTracks();
+      clearVoiceObjectUrl();
+      voiceRecorder = null;
+      voiceChunks = [];
+      voiceBlob = null;
+      voiceStartedAt = 0;
+      voiceElapsedBeforePause = 0;
+      voiceCancelled = false;
+      if (voiceTimer) voiceTimer.textContent = "00:00";
+      if (voicePreview) {
+        voicePreview.pause();
+        voicePreview.removeAttribute("src");
+        voicePreview.load();
+      }
+      setVoiceStatus(status);
+      setVoiceControls("ready");
+      if (voicePanel) voicePanel.hidden = true;
+      if (voiceNoteButton) {
+        voiceNoteButton.classList.remove("recording");
+        voiceNoteButton.textContent = "◉";
+      }
+    };
+
+    const keepVeryShortVoiceNote = (duration) => {
+      if (duration >= 1500) return true;
+      return window.confirm("This voice note is very short. Keep it anyway?");
+    };
+
+    const finishVoiceRecording = async () => {
+      stopVoiceTimer();
+      stopVoiceTracks();
+      if (voiceCancelled) {
+        resetVoicePanel("Ready");
+        return;
+      }
+      setVoiceStatus("Processing");
+      setVoiceControls("processing");
+      const type = voiceRecorder && voiceRecorder.mimeType ? voiceRecorder.mimeType : "audio/webm";
+      voiceBlob = new Blob(voiceChunks, { type });
+      const duration = currentVoiceElapsed();
+      if (!voiceBlob.size || duration < 800 || !keepVeryShortVoiceNote(duration)) {
+        resetVoicePanel("Recording failed");
+        window.alert("Voice note was too short to send.");
+        return;
+      }
+      clearVoiceObjectUrl();
+      voiceObjectUrl = URL.createObjectURL(voiceBlob);
+      if (voicePreview) {
+        voicePreview.src = voiceObjectUrl;
+        voicePreview.hidden = false;
+      }
+      setVoiceStatus("Preview");
+      setVoiceControls("preview");
+      if (voiceTimer) voiceTimer.textContent = formatVoiceDuration(duration);
+      if (voiceNoteButton) {
+        voiceNoteButton.classList.remove("recording");
+        voiceNoteButton.textContent = "◉";
+      }
+    };
+
+    const startVoiceRecording = async () => {
+      if (voiceRecorder && voiceRecorder.state !== "inactive") {
+        return;
+      }
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        if (voicePanel) voicePanel.hidden = false;
+        setVoiceStatus("Recording failed");
+        window.alert("Recording is not supported by this browser.");
+        return;
+      }
+      resetVoicePanel("Ready");
+      if (voicePanel) voicePanel.hidden = false;
+      setVoiceStatus("Requesting microphone");
+      try {
+        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        setVoiceStatus("Permission denied");
+        window.alert("Microphone is blocked.");
+        return;
+      }
+      const mimeType = getRecorderMimeType("audio");
+      try {
+        voiceRecorder = new MediaRecorder(voiceStream, mimeType ? { mimeType } : undefined);
+      } catch (error) {
+        stopVoiceTracks();
+        setVoiceStatus("Recording failed");
+        window.alert("Voice recording could not start.");
+        return;
+      }
+      voiceChunks = [];
+      voiceCancelled = false;
+      voiceElapsedBeforePause = 0;
+      voiceStartedAt = Date.now();
+      voiceRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) voiceChunks.push(event.data);
+      };
+      voiceRecorder.onstop = finishVoiceRecording;
+      voiceRecorder.start();
+      setVoiceStatus("Recording");
+      setVoiceControls("recording");
+      startVoiceTimer();
+      if (voiceNoteButton) {
+        voiceNoteButton.classList.add("recording");
+        voiceNoteButton.textContent = "■";
+      }
+      window.setTimeout(() => {
+        if (voiceRecorder && voiceRecorder.state !== "inactive") {
+          stopVoiceRecording();
+        }
+      }, 180000);
+    };
+
+    const pauseVoiceRecording = () => {
+      if (!voiceRecorder || voiceRecorder.state !== "recording") return;
+      voiceElapsedBeforePause += Date.now() - voiceStartedAt;
+      voiceRecorder.pause();
+      stopVoiceTimer();
+      setVoiceStatus("Paused");
+      setVoiceControls("paused");
+    };
+
+    const resumeVoiceRecording = () => {
+      if (!voiceRecorder || voiceRecorder.state !== "paused") return;
+      voiceStartedAt = Date.now();
+      voiceRecorder.resume();
+      startVoiceTimer();
+      setVoiceStatus("Recording");
+      setVoiceControls("recording");
+    };
+
+    const stopVoiceRecording = () => {
+      if (!voiceRecorder || voiceRecorder.state === "inactive") return;
+      if (voiceRecorder.state === "recording") {
+        voiceElapsedBeforePause += Date.now() - voiceStartedAt;
+      }
+      voiceRecorder.stop();
+    };
+
+    const cancelVoiceRecording = () => {
+      voiceCancelled = true;
+      if (voiceRecorder && voiceRecorder.state !== "inactive") {
+        voiceRecorder.stop();
+      } else {
+        resetVoicePanel("Ready");
+      }
+    };
+
+    const sendVoicePreview = async () => {
+      if (!voiceBlob) return;
+      setVoiceStatus("Uploading");
+      setVoiceControls("uploading");
+      const extension = voiceBlob.type.includes("ogg") ? "ogg" : "webm";
+      const file = new File([voiceBlob], `voice-note-${Date.now()}.${extension}`, {
+        type: voiceBlob.type || "audio/webm",
+      });
+      try {
+        const sent = await uploadChatFile(file, "Voice note", { mediaKind: "audio" });
+        if (!sent) {
+          setVoiceStatus("Upload failed");
+          setVoiceControls("preview");
+          return;
+        }
+        clearComposerState();
+        setVoiceStatus("Sent");
+        window.setTimeout(() => resetVoicePanel("Ready"), 900);
+      } catch (error) {
+        setVoiceStatus("Upload failed");
+        setVoiceControls("preview");
+      }
+    };
+
     const stopActiveRecorder = () => {
       if (activeRecorder && activeRecorder.state !== "inactive") {
         activeRecorder.stop();
@@ -701,12 +994,46 @@ if (typeof chatConfig !== "undefined") {
     };
 
     if (voiceNoteButton) {
-      voiceNoteButton.addEventListener("click", () => toggleNoteRecording("audio", voiceNoteButton));
+      voiceNoteButton.addEventListener("click", startVoiceRecording);
+    }
+
+    if (voicePauseButton) {
+      voicePauseButton.addEventListener("click", pauseVoiceRecording);
+    }
+
+    if (voiceResumeButton) {
+      voiceResumeButton.addEventListener("click", resumeVoiceRecording);
+    }
+
+    if (voiceStopButton) {
+      voiceStopButton.addEventListener("click", stopVoiceRecording);
+    }
+
+    if (voiceCancelButton) {
+      voiceCancelButton.addEventListener("click", cancelVoiceRecording);
+    }
+
+    if (voiceRecordAgainButton) {
+      voiceRecordAgainButton.addEventListener("click", startVoiceRecording);
+    }
+
+    if (voiceSendButton) {
+      voiceSendButton.addEventListener("click", sendVoicePreview);
     }
 
     if (videoNoteButton) {
       videoNoteButton.addEventListener("click", () => toggleNoteRecording("video", videoNoteButton));
     }
+
+    window.addEventListener("beforeunload", () => {
+      voiceCancelled = true;
+      if (voiceRecorder && voiceRecorder.state !== "inactive") {
+        voiceRecorder.stop();
+      }
+      stopVoiceTracks();
+    });
+
+    document.querySelectorAll(".voice-note-player").forEach(enhanceVoiceNotePlayer);
 
     socket.on("new_private_message", (data) => {
       if (!chatConfig.targetUserId) return;

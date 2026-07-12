@@ -367,6 +367,10 @@ def upload_message_file():
     media_kind = request.form.get("media_kind", "").strip()
     recipient_id = request.form.get("recipient_id")
     family_id = request.form.get("family_id")
+    if media_kind == "audio":
+        extension = media_file.filename.rsplit(".", 1)[1].lower() if media_file and "." in media_file.filename else ""
+        if extension not in {"webm", "ogg", "mp3", "wav", "m4a"}:
+            return jsonify({"error": "Voice notes must be uploaded as an audio recording."}), 400
     is_valid, upload_message = validate_upload(media_file)
     if not is_valid:
         return jsonify({"error": upload_message}), 400

@@ -927,7 +927,7 @@ def create_poll(family_id):
         text_value = value.strip()
         if text_value and text_value not in option_texts:
             option_texts.append(text_value)
-    option_texts = option_texts[:8]
+    option_texts = option_texts[:4]
     closes_at = parse_family_datetime(request.form.get("closes_at"))
     if not question or len(question) > 240:
         flash("Poll question must be between 1 and 240 characters.", "warning")
