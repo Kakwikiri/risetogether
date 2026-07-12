@@ -1,23 +1,31 @@
 {% extends 'base.html' %} {% block content %}
 <div class="grid-layout">
-  <section class="panel">
+  <section class="panel" data-live-search data-live-search-singular="person" data-live-search-plural="people">
     <div class="panel-header">
       <h2>People</h2>
     </div>
-    <form class="people-search" method="get" action="{{ url_for('main.people') }}">
-      <input
-        type="search"
-        name="q"
-        value="{{ query }}"
-        placeholder="Search username or email"
-        aria-label="Search people"
-      />
+    <form class="people-search search-shell" method="get" action="{{ url_for('main.people') }}">
+      <label class="search-input-wrap">
+        <span aria-hidden="true">Search</span>
+        <input
+          type="search"
+          name="q"
+          value="{{ query }}"
+          placeholder="Search username, name, or email"
+          aria-label="Search people"
+          autocomplete="off"
+          data-live-search-input
+        />
+      </label>
       <button class="button" type="submit">Search</button>
     </form>
+    <p class="search-results-count" data-live-search-count>
+      Showing {{ users|length }} {{ 'person' if users|length == 1 else 'people' }}
+    </p>
 
     <div class="people-list">
       {% for user in users %}
-      <article class="person-card">
+      <article class="person-card" data-search-item data-search-text="{{ user.username }} {{ user.profile.display_name }} {{ user.email }}">
         <img
           class="avatar"
           src="{{ url_for('static', filename='images/default-avatar.png') if not user.profile.avatar else url_for('api.serve_upload', filename=user.profile.avatar) }}"
@@ -54,6 +62,7 @@
       <p>No people found yet.</p>
       {% endfor %}
     </div>
+    <p class="live-search-empty" data-live-search-empty hidden>No matching people in this list.</p>
   </section>
 
   <aside class="panel panel-sidebar">

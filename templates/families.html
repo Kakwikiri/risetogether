@@ -1,16 +1,34 @@
 {% extends 'base.html' %} {% block content %}
-<section class="card panel">
+<section class="card panel" data-live-search data-live-search-singular="family" data-live-search-plural="families">
   <div class="split-header">
     <h2>Families</h2>
     <a class="button" href="{{ url_for('family.create_family') }}">Create Family</a>
   </div>
-  <form class="people-search" method="get" action="{{ url_for('family.families') }}">
-    <input type="text" name="q" value="{{ query }}" placeholder="Search families..." />
+  <form class="people-search search-shell" method="get" action="{{ url_for('family.families') }}">
+    <label class="search-input-wrap">
+      <span aria-hidden="true">Search</span>
+      <input
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search family name, goal, or category"
+        aria-label="Search families"
+        autocomplete="off"
+        data-live-search-input
+      />
+    </label>
     <button class="button secondary" type="submit">Search</button>
   </form>
+  <p class="search-results-count" data-live-search-count>
+    Showing {{ families|length }} {{ 'family' if families|length == 1 else 'families' }}
+  </p>
   <div class="family-list">
     {% for family in families %}
-    <article class="card family-card">
+    <article
+      class="card family-card"
+      data-search-item
+      data-search-text="{{ family.name }} {{ family.description or '' }} {{ family.goal_title or '' }} {{ family.category }} {{ family.privacy }}"
+    >
       <img
         class="family-card-image"
         src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
@@ -37,5 +55,6 @@
     <p>No families created yet.</p>
     {% endfor %}
   </div>
+  <p class="live-search-empty" data-live-search-empty hidden>No matching families in this list.</p>
 </section>
 {% endblock %}

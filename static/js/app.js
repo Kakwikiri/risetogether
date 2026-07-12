@@ -510,6 +510,37 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelectorAll("[data-live-search]").forEach((root) => {
+    const input = root.querySelector("[data-live-search-input]");
+    const items = Array.from(root.querySelectorAll("[data-search-item]"));
+    const count = root.querySelector("[data-live-search-count]");
+    const empty = root.querySelector("[data-live-search-empty]");
+    if (!input || !items.length) return;
+    const singular = root.dataset.liveSearchSingular || "result";
+    const plural = root.dataset.liveSearchPlural || `${singular}s`;
+
+    const updateResults = () => {
+      const query = input.value.trim().toLowerCase();
+      let visible = 0;
+      items.forEach((item) => {
+        const haystack = (item.dataset.searchText || item.textContent || "").toLowerCase();
+        const matches = !query || haystack.includes(query);
+        item.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      if (count) {
+        const noun = visible === 1 ? singular : plural;
+        count.textContent = query ? `${visible} ${noun} match "${input.value.trim()}"` : `Showing ${visible} ${noun}`;
+      }
+      if (empty) {
+        empty.hidden = visible !== 0;
+      }
+    };
+
+    input.addEventListener("input", updateResults);
+    updateResults();
+  });
+
   const familyPanels = Array.from(document.querySelectorAll("[data-family-panel]"));
   const familyTabs = Array.from(document.querySelectorAll("[data-family-tab]"));
   if (familyPanels.length && familyTabs.length) {
@@ -535,6 +566,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     const initialId = window.location.hash ? window.location.hash.slice(1) : "family-home";
     showFamilyPanel(initialId, Boolean(window.location.hash));
+  }
+
+  const familyDescriptionPanel = document.querySelector("[data-family-description-panel]");
+  const familyDescriptionToggle = document.querySelector("[data-family-description-toggle]");
+  const familyDescriptionClose = document.querySelector("[data-family-description-close]");
+  if (familyDescriptionPanel && familyDescriptionToggle) {
+    const setDescriptionOpen = (open) => {
+      familyDescriptionPanel.hidden = !open;
+      familyDescriptionToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      familyDescriptionToggle.classList.toggle("active", open);
+      if (open) {
+        familyDescriptionPanel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    };
+    familyDescriptionToggle.addEventListener("click", () => {
+      setDescriptionOpen(familyDescriptionPanel.hidden);
+    });
+    if (familyDescriptionClose) {
+      familyDescriptionClose.addEventListener("click", () => setDescriptionOpen(false));
+    }
   }
 
   const liveStartForm = document.querySelector("[data-live-start-form]");

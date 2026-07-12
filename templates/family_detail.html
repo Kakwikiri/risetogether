@@ -55,10 +55,17 @@
     {% endif %}
     <a href="#family-members" data-family-tab>Members</a>
     {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
+    {% if family.description %}
+    <button type="button" data-family-description-toggle aria-expanded="false">About</button>
+    {% endif %}
   </div>
 
   {% if family.description %}
-  <section class="family-description-panel">
+  <section class="family-description-panel" data-family-description-panel hidden>
+    <div class="split-header">
+      <h3>About this Family</h3>
+      <button class="text-button" type="button" data-family-description-close>Close</button>
+    </div>
     <p>{{ family.description }}</p>
   </section>
   {% endif %}
@@ -386,11 +393,30 @@
     </div>
   </section>
 
-  <section id="family-members" class="family-section" data-family-panel hidden>
-    <h3>Members</h3>
-    <ul>
+  <section id="family-members" class="family-section" data-family-panel hidden data-live-search data-live-search-singular="member" data-live-search-plural="members">
+    <div class="split-header">
+      <h3>Members</h3>
+      <span class="search-results-count" data-live-search-count>
+        Showing {{ members|length }} {{ 'member' if members|length == 1 else 'members' }}
+      </span>
+    </div>
+    <label class="search-input-wrap member-search">
+      <span aria-hidden="true">Search</span>
+      <input
+        type="search"
+        placeholder="Search members by name or role"
+        aria-label="Search family members"
+        autocomplete="off"
+        data-live-search-input
+      />
+    </label>
+    <ul class="member-list">
       {% for membership in members %}
-      <li class="member-row">
+      <li
+        class="member-row"
+        data-search-item
+        data-search-text="{{ membership.user.username }} {{ membership.user.profile.display_name if membership.user.profile else '' }} {{ role_labels.get(membership.role, 'Member') }}"
+      >
         <span>
           {{ membership.user.username }} <span class="status-pill">{{ role_labels.get(membership.role, 'Member') }}</span>
           <small class="muted-meta">
@@ -443,6 +469,7 @@
       <li>No members yet.</li>
       {% endfor %}
     </ul>
+    <p class="live-search-empty" data-live-search-empty hidden>No matching members in this Family.</p>
   </section>
 
   <section id="family-quizzes" class="family-section" data-family-panel hidden>
