@@ -1087,8 +1087,7 @@ if (typeof chatConfig !== "undefined") {
       if (videoSwitchButton) videoSwitchButton.hidden = !["ready", "preparing"].includes(state);
       if (videoRecordAgainButton) videoRecordAgainButton.hidden = state !== "preview";
       if (videoSendButton) videoSendButton.hidden = state !== "preview";
-      if (videoLive) videoLive.hidden = !["ready", "recording"].includes(state);
-      if (videoPreview) videoPreview.hidden = state !== "preview";
+      if (videoLive) videoLive.hidden = !["ready", "recording", "preview"].includes(state);
       syncChatBottomSpace();
     };
 
@@ -1132,7 +1131,11 @@ if (typeof chatConfig !== "undefined") {
       if (videoTimer) videoTimer.textContent = "00:00";
       if (videoPreview) {
         videoPreview.pause();
+        videoPreview.srcObject = null;
         videoPreview.removeAttribute("src");
+        videoPreview.controls = false;
+        videoPreview.muted = true;
+        videoPreview.autoplay = true;
         videoPreview.load();
       }
       if (videoCameraStatus) videoCameraStatus.textContent = "Camera: idle";
@@ -1211,8 +1214,11 @@ if (typeof chatConfig !== "undefined") {
       clearVideoObjectUrl();
       videoObjectUrl = URL.createObjectURL(videoBlob);
       if (videoPreview) {
+        videoPreview.srcObject = null;
         videoPreview.src = videoObjectUrl;
         videoPreview.muted = false;
+        videoPreview.autoplay = false;
+        videoPreview.controls = true;
         videoPreview.hidden = false;
       }
       setVideoStatus("Preview");

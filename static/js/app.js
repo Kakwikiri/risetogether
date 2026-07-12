@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260712-recorder-pin";
+  const APP_VERSION = "20260713-header-video-one";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;

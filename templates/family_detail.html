@@ -1,20 +1,22 @@
 {% extends 'base.html' %} {% block content %}
 <section class="card family-detail-card">
   <header class="family-hero">
-    <img
-      class="family-profile-image"
-      src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
-      alt="{{ family.name }} picture"
-    />
-    <div class="family-title-block">
-      <span class="eyebrow">
-        {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
-      </span>
-      <h2>{{ family.name }}</h2>
-      <p class="muted-meta">
-        {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
-        {% if family_is_full %} · Family is full{% endif %}
-      </p>
+    <div class="family-identity-row">
+      <img
+        class="family-profile-image"
+        src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
+        alt="{{ family.name }} picture"
+      />
+      <div class="family-title-block">
+        <span class="eyebrow">
+          {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
+        </span>
+        <h2>{{ family.name }}</h2>
+        <p class="muted-meta">
+          {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
+          {% if family_is_full %} · Family is full{% endif %}
+        </p>
+      </div>
     </div>
     <div class="family-actions">
       {% if not member %}

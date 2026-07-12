@@ -224,13 +224,6 @@ body {
     display: none;
   }
 
-  .family-hero {
-    display: grid;
-    grid-template-columns: 54px minmax(0, 1fr);
-    gap: 0.65rem;
-    align-items: center;
-  }
-
   .family-profile-image {
     width: 54px;
     height: 54px;
@@ -254,7 +247,27 @@ body {
   }
 
   .family-actions {
-    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .family-hero {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .family-identity-row,
+  .profile-identity-row {
+    flex: 1 1 100%;
+    gap: 0.55rem;
+  }
+
+  .profile-hero {
+    padding: 0.9rem;
+  }
+
+  .profile-hero-avatar {
+    width: 58px;
+    height: 58px;
   }
 
   .profile-post-actions,
@@ -1474,13 +1487,33 @@ textarea:focus {
 
 .family-hero {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
+.family-identity-row,
+.profile-identity-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
 .family-title-block {
   min-width: 0;
+}
+
+.profile-title-block {
+  min-width: 0;
+  text-align: left;
+}
+
+.family-title-block h2,
+.profile-title-block h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .family-description-panel {
@@ -2149,10 +2182,10 @@ textarea:focus {
 
 .profile-hero {
   display: grid;
-  justify-items: center;
+  justify-items: stretch;
   gap: 0.55rem;
   padding: clamp(1.25rem, 4vw, 2rem);
-  text-align: center;
+  text-align: left;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -2160,8 +2193,8 @@ textarea:focus {
 }
 
 .profile-hero-avatar {
-  width: 118px;
-  height: 118px;
+  width: 72px;
+  height: 72px;
 }
 
 .profile-avatar-wrap {
@@ -2210,7 +2243,7 @@ textarea:focus {
 .profile-post-actions form {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 0.55rem;
 }
