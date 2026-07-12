@@ -3465,6 +3465,53 @@ body.media-viewer-open {
   cursor: not-allowed;
 }
 
+.chat-delete-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  background: rgba(5, 8, 7, 0.42);
+}
+
+.chat-delete-sheet[hidden] {
+  display: none;
+}
+
+.chat-delete-card {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 440px);
+  margin: 0 auto calc(var(--keyboard-inset, 0px) + env(safe-area-inset-bottom));
+  padding: 1rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+}
+
+.chat-delete-card strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.chat-delete-card p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.chat-delete-actions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.chat-delete-actions .button {
+  justify-content: center;
+  width: 100%;
+}
+
 .is-pinned,
 .pinned-message {
   outline: 2px solid rgba(245, 158, 11, 0.4);

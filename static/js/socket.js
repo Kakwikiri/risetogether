@@ -396,6 +396,11 @@ if (typeof chatConfig !== "undefined") {
     const selectionMore = document.querySelector("[data-selection-more]");
     const normalHeaderParts = document.querySelectorAll("[data-chat-normal-header]");
     const pinnedStrip = document.querySelector("[data-pinned-strip]");
+    const deleteSheet = document.querySelector("[data-delete-sheet]");
+    const deleteSheetSummary = document.querySelector("[data-delete-sheet-summary]");
+    const deleteForEveryone = document.querySelector("[data-delete-everyone]");
+    const deleteForMe = document.querySelector("[data-delete-me]");
+    const deleteCancel = document.querySelector("[data-delete-cancel]");
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
@@ -535,9 +540,33 @@ if (typeof chatConfig !== "undefined") {
 
     const selectedMessageList = () => Array.from(selectedMessages.values());
 
+    const closeDeleteSheet = () => {
+      if (deleteSheet) deleteSheet.hidden = true;
+    };
+
+    const selectedMessagesAllOwn = () => selectedMessageList().every(
+      (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
+    );
+
+    const openDeleteSheet = () => {
+      const messages = selectedMessageList();
+      if (!messages.length || !deleteSheet) return;
+      const allOwn = selectedMessagesAllOwn();
+      const countText = `${messages.length} ${messages.length === 1 ? "message" : "messages"}`;
+      if (deleteSheetSummary) {
+        deleteSheetSummary.textContent = `Choose what to do with ${countText}.`;
+      }
+      if (deleteForEveryone) {
+        deleteForEveryone.hidden = !allOwn;
+        deleteForEveryone.disabled = !allOwn;
+      }
+      deleteSheet.hidden = false;
+    };
+
     const deleteSelectedMessages = async (scope) => {
       const messages = Array.from(selectedMessages.values());
       if (!messages.length) return;
+      closeDeleteSheet();
       const allowed = scope === "me" || messages.every(
         (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
       );
@@ -667,13 +696,7 @@ if (typeof chatConfig !== "undefined") {
         if (messages.length !== 1) return;
         runMessageAction(action, messages[0]);
       } else if (action === "delete") {
-        const allOwn = messages.every(
-          (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
-        );
-        const scope = allOwn && window.confirm("Delete selected messages for everyone? Press Cancel to delete only for you.")
-          ? "everyone"
-          : "me";
-        deleteSelectedMessages(scope);
+        openDeleteSheet();
       } else if (action === "forward") {
         messages.forEach((message) => runMessageAction("forward", message));
         clearMessageSelection();
@@ -814,6 +837,20 @@ if (typeof chatConfig !== "undefined") {
     if (selectionPin) selectionPin.addEventListener("click", () => runSelectionAction("pin"));
     if (selectionDelete) selectionDelete.addEventListener("click", () => runSelectionAction("delete"));
     if (selectionForward) selectionForward.addEventListener("click", () => runSelectionAction("forward"));
+    if (deleteForEveryone) {
+      deleteForEveryone.addEventListener("click", () => deleteSelectedMessages("everyone"));
+    }
+    if (deleteForMe) {
+      deleteForMe.addEventListener("click", () => deleteSelectedMessages("me"));
+    }
+    if (deleteCancel) {
+      deleteCancel.addEventListener("click", closeDeleteSheet);
+    }
+    if (deleteSheet) {
+      deleteSheet.addEventListener("click", (event) => {
+        if (event.target === deleteSheet) closeDeleteSheet();
+      });
+    }
     if (selectionMore) {
       selectionMore.addEventListener("click", () => {
         notifyChat("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");

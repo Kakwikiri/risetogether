@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-message-search-dark";
+  const APP_VERSION = "20260713-delete-sheet";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;

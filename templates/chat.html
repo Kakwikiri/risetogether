@@ -126,6 +126,19 @@
     </div>
     {% endfor %}
   </div>
+  <div class="chat-delete-sheet" data-delete-sheet hidden>
+    <div class="chat-delete-card" role="dialog" aria-modal="true" aria-labelledby="delete-sheet-title">
+      <div>
+        <strong id="delete-sheet-title">Delete selected messages?</strong>
+        <p data-delete-sheet-summary>Choose how you want to delete this message.</p>
+      </div>
+      <div class="chat-delete-actions">
+        <button class="button danger" type="button" data-delete-everyone>Delete for everyone</button>
+        <button class="button secondary" type="button" data-delete-me>Delete for me</button>
+        <button class="button ghost" type="button" data-delete-cancel>Cancel</button>
+      </div>
+    </div>
+  </div>
   <form id="chat-form" class="chat-form">
     <div class="chat-tools">
       <label class="icon-button" aria-label="Attach file" title="Attach file">
