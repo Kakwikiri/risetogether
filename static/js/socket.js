@@ -64,10 +64,12 @@ const createVoiceNoteElement = (url, options = {}) => {
   });
   if (!options.viewOnce) {
     const download = document.createElement("a");
-    download.className = "chat-file";
+    download.className = "chat-file voice-download";
     download.href = url;
     download.download = "";
-    download.textContent = "Download audio";
+    download.textContent = "↓";
+    download.setAttribute("aria-label", "Download audio");
+    download.setAttribute("title", "Download audio");
     tools.appendChild(download);
   }
   wrapper.append(audio, tools);

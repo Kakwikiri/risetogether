@@ -2820,6 +2820,70 @@ textarea:focus {
   object-fit: cover;
 }
 
+.video-note-stage {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #050807;
+}
+
+.video-note-stage .video-note-preview {
+  width: 100%;
+  max-height: min(46vh, 420px);
+  border: 0;
+  border-radius: 14px;
+}
+
+.video-note-stage .voice-note-status-row {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  display: flex;
+  width: auto;
+  padding: 0.4rem 0.55rem;
+  color: white;
+  background: rgba(5, 8, 7, 0.58);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+}
+
+.video-note-stage .video-note-meta {
+  position: absolute;
+  left: 0.55rem;
+  bottom: 3.7rem;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.76rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+.video-note-stage .voice-note-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 0.65rem;
+  z-index: 3;
+  flex-wrap: nowrap;
+  padding: 0.35rem;
+  background: rgba(5, 8, 7, 0.56);
+  border-radius: 999px;
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.video-note-stage .recorder-icon-button {
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.video-note-stage .recorder-icon-button.primary,
+.video-note-stage .recorder-icon-button.danger {
+  color: white;
+}
+
 .video-note-meta {
   display: flex;
   gap: 0.7rem;
@@ -2928,24 +2992,45 @@ textarea:focus {
 
 .voice-note-panel audio,
 .voice-note-player audio {
-  width: min(100%, 320px);
+  width: min(100%, 230px);
+  height: 34px;
 }
 
 .voice-note-player {
-  display: grid;
-  gap: 0.35rem;
-  min-width: min(280px, 100%);
+  display: inline-grid;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: min(240px, 72vw);
+  padding: 0.28rem 0.35rem;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
+}
+
+.voice-note-tools {
+  gap: 0.25rem;
 }
 
 .voice-note-tools button {
-  min-height: 28px;
-  padding: 0.18rem 0.45rem;
+  min-height: 24px;
+  padding: 0.1rem 0.38rem;
   color: var(--ink);
   background: var(--soft);
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
   font-weight: 800;
+  font-size: 0.72rem;
+}
+
+.voice-download {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  margin-top: 0;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.95rem;
 }
 
 .voice-note-tools button.active {
@@ -3474,7 +3559,7 @@ textarea:focus {
 
 .chat-log .media-frame,
 .chat-log .voice-note-player {
-  max-width: min(280px, 78vw);
+  max-width: min(240px, 72vw);
 }
 
 .chat-log .media-frame img,

@@ -98,7 +98,7 @@
             <button type="button" data-audio-speed="1.5">1.5x</button>
             <button type="button" data-audio-speed="2">2x</button>
             {% if not message.view_once %}
-            <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download>Download audio</a>
+            <a class="chat-file voice-download" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download aria-label="Download audio" title="Download audio">↓</a>
             {% endif %}
           </div>
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
@@ -164,7 +164,7 @@
       <button class="recorder-icon-button" type="button" data-voice-cancel aria-label="Cancel" title="Cancel">×</button>
     </div>
   </section>
-  <section id="video-note-panel" class="video-note-panel" hidden>
+  <section id="video-note-panel" class="video-note-panel video-note-stage" hidden>
     <div class="voice-note-status-row">
       <span class="recording-dot" data-video-recording-dot></span>
       <strong data-video-state>Preparing camera</strong>
