@@ -429,6 +429,7 @@ a {
 
 .nav-links a,
 .install-button,
+.share-app-button,
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -447,6 +448,8 @@ a {
 .nav-links a:focus-visible,
 .install-button:hover,
 .install-button:focus-visible,
+.share-app-button:hover,
+.share-app-button:focus-visible,
 .theme-toggle:hover,
 .theme-toggle:focus-visible {
   color: var(--brand-dark);
@@ -2374,6 +2377,16 @@ textarea:focus {
   font-weight: 900;
 }
 
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .icon-button.recording {
   color: white;
   background: var(--danger);
@@ -2502,7 +2515,8 @@ textarea:focus {
   align-items: center;
   gap: 0.5rem;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
 }
 
 .chat-file-preview,
@@ -2949,6 +2963,7 @@ textarea:focus {
 
   .nav-links a,
   .install-button,
+  .share-app-button,
   .theme-toggle {
     justify-content: flex-start;
     width: 100%;
@@ -3007,9 +3022,15 @@ textarea:focus {
 
   .chat-header-actions .icon-button,
   .chat-tools .icon-button {
-    width: 34px;
-    height: 34px;
-    font-size: 0.95rem;
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
+  .chat-header-actions .icon-button svg,
+  .chat-tools .icon-button svg {
+    width: 21px;
+    height: 21px;
   }
 
   .chat-log {
@@ -3017,9 +3038,9 @@ textarea:focus {
   }
 
   .chat-message {
-    max-width: 76%;
+    max-width: 82%;
     padding: 0.36rem 0.5rem 0.3rem;
-    font-size: 0.94rem;
+    font-size: 1rem;
   }
 
   .chat-form {
@@ -3039,7 +3060,8 @@ textarea:focus {
 
   .chat-privacy-controls {
     gap: 0.42rem;
-    font-size: 0.68rem;
+    font-size: 0.78rem;
+    flex-wrap: wrap;
   }
 
   .send-button {

@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const existing = await navigator.serviceWorker.getRegistration();
     if (existing) return existing;
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-pwa", { scope: "/" });
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat-icons", { scope: "/" });
   };
 
   if (pushEnable) {
@@ -135,6 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const installButton = document.querySelector(".install-button");
+  const shareAppButton = document.querySelector("[data-share-app]");
   const installPanel = document.querySelector("[data-install-panel]");
   const installMessage = document.querySelector("[data-install-message]");
   const installClose = document.querySelector("[data-install-close]");
@@ -220,6 +221,32 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   showManualInstallButton();
+
+  if (shareAppButton) {
+    shareAppButton.addEventListener("click", async () => {
+      const shareData = {
+        title: "RiseTogether",
+        text: "Join me on RiseTogether.",
+        url: window.location.origin,
+      };
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+          return;
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(shareData.url);
+          showToast("App link copied.");
+          return;
+        }
+        window.prompt("Copy this RiseTogether link:", shareData.url);
+      } catch (error) {
+        if (error && error.name !== "AbortError") {
+          showToast("Could not share the app link.");
+        }
+      }
+    });
+  }
 
   document.querySelectorAll(".password-toggle").forEach((button) => {
     button.addEventListener("click", () => {

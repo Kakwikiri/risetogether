@@ -19,20 +19,33 @@
     />
     <link
       rel="apple-touch-icon"
+      sizes="192x192"
       href="{{ url_for('static', filename='images/icon-192.png') }}"
     />
     <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="{{ url_for('static', filename='images/icon-192.png') }}"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="{{ url_for('static', filename='images/icon-512.png') }}"
+    />
+    <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-pwa"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-chat-icons"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-pwa"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-chat-icons"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-pwa"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-chat-icons"
     ></script>
   </head>
   <body>
@@ -87,6 +100,7 @@
         <a href="{{ url_for('auth.signup') }}">Signup</a>
         {% endif %}
         <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
+        <button class="share-app-button" type="button" data-share-app>Share app</button>
         <button class="install-button" type="button" hidden>Install</button>
       </nav>
     </header>

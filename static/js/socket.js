@@ -354,8 +354,6 @@ if (typeof chatConfig !== "undefined") {
     const expireInput = document.getElementById("expire-one-minute");
     let replyToId = null;
     let longPressTimer = null;
-    let activeRecorder = null;
-    let activeRecorderButton = null;
     let voiceStream = null;
     let voiceRecorder = null;
     let voiceChunks = [];
@@ -781,6 +779,13 @@ if (typeof chatConfig !== "undefined") {
       voiceObjectUrl = "";
     };
 
+    const setRecorderButtonState = (button, isRecording, idleLabel, activeLabel) => {
+      if (!button) return;
+      button.classList.toggle("recording", isRecording);
+      button.setAttribute("aria-label", isRecording ? activeLabel : idleLabel);
+      button.setAttribute("title", isRecording ? activeLabel : idleLabel);
+    };
+
     const resetVoicePanel = (status = "Ready") => {
       stopVoiceTimer();
       stopVoiceTracks();
@@ -800,10 +805,7 @@ if (typeof chatConfig !== "undefined") {
       setVoiceStatus(status);
       setVoiceControls("ready");
       if (voicePanel) voicePanel.hidden = true;
-      if (voiceNoteButton) {
-        voiceNoteButton.classList.remove("recording");
-        voiceNoteButton.textContent = "◉";
-      }
+      setRecorderButtonState(voiceNoteButton, false, "Record voice note", "Stop voice note");
     };
 
     const keepVeryShortVoiceNote = (duration) => {
@@ -837,10 +839,7 @@ if (typeof chatConfig !== "undefined") {
       setVoiceStatus("Preview");
       setVoiceControls("preview");
       if (voiceTimer) voiceTimer.textContent = formatVoiceDuration(duration);
-      if (voiceNoteButton) {
-        voiceNoteButton.classList.remove("recording");
-        voiceNoteButton.textContent = "◉";
-      }
+      setRecorderButtonState(voiceNoteButton, false, "Record voice note", "Stop voice note");
     };
 
     const startVoiceRecording = async () => {
@@ -884,10 +883,7 @@ if (typeof chatConfig !== "undefined") {
       setVoiceStatus("Recording");
       setVoiceControls("recording");
       startVoiceTimer();
-      if (voiceNoteButton) {
-        voiceNoteButton.classList.add("recording");
-        voiceNoteButton.textContent = "■";
-      }
+      setRecorderButtonState(voiceNoteButton, true, "Record voice note", "Stop voice note");
       window.setTimeout(() => {
         if (voiceRecorder && voiceRecorder.state !== "inactive") {
           stopVoiceRecording();
@@ -919,6 +915,14 @@ if (typeof chatConfig !== "undefined") {
         voiceElapsedBeforePause += Date.now() - voiceStartedAt;
       }
       voiceRecorder.stop();
+    };
+
+    const toggleVoiceNote = () => {
+      if (voiceRecorder && voiceRecorder.state !== "inactive") {
+        stopVoiceRecording();
+        return;
+      }
+      startVoiceRecording();
     };
 
     const cancelVoiceRecording = () => {
@@ -1017,10 +1021,7 @@ if (typeof chatConfig !== "undefined") {
       setVideoStatus(status);
       setVideoControls("idle");
       if (videoPanel) videoPanel.hidden = true;
-      if (videoNoteButton) {
-        videoNoteButton.classList.remove("recording");
-        videoNoteButton.textContent = "▣";
-      }
+      setRecorderButtonState(videoNoteButton, false, "Record video note", "Stop video note");
     };
 
     const prepareVideoNote = async () => {
@@ -1092,10 +1093,7 @@ if (typeof chatConfig !== "undefined") {
       setVideoStatus("Preview");
       setVideoControls("preview");
       if (videoTimer) videoTimer.textContent = formatVoiceDuration(duration);
-      if (videoNoteButton) {
-        videoNoteButton.classList.remove("recording");
-        videoNoteButton.textContent = "▣";
-      }
+      setRecorderButtonState(videoNoteButton, false, "Record video note", "Stop video note");
     };
 
     const startVideoRecording = () => {
@@ -1119,10 +1117,7 @@ if (typeof chatConfig !== "undefined") {
       setVideoStatus("Recording");
       setVideoControls("recording");
       startVideoTimer();
-      if (videoNoteButton) {
-        videoNoteButton.classList.add("recording");
-        videoNoteButton.textContent = "■";
-      }
+      setRecorderButtonState(videoNoteButton, true, "Record video note", "Stop video note");
       window.setTimeout(() => {
         if (videoRecorder && videoRecorder.state !== "inactive") {
           videoRecorder.stop();
@@ -1133,6 +1128,18 @@ if (typeof chatConfig !== "undefined") {
     const stopVideoRecording = () => {
       if (!videoRecorder || videoRecorder.state === "inactive") return;
       videoRecorder.stop();
+    };
+
+    const toggleVideoNote = async () => {
+      if (videoRecorder && videoRecorder.state !== "inactive") {
+        stopVideoRecording();
+        return;
+      }
+      if (videoStream) {
+        startVideoRecording();
+        return;
+      }
+      await prepareVideoNote();
     };
 
     const cancelVideoNote = () => {
@@ -1172,69 +1179,8 @@ if (typeof chatConfig !== "undefined") {
       }
     };
 
-    const stopActiveRecorder = () => {
-      if (activeRecorder && activeRecorder.state !== "inactive") {
-        activeRecorder.stop();
-      }
-    };
-
-    const toggleNoteRecording = async (kind, button) => {
-      if (!navigator.mediaDevices || !window.MediaRecorder) {
-        window.alert("Recording is not supported by this browser.");
-        return;
-      }
-      if (activeRecorder) {
-        stopActiveRecorder();
-        return;
-      }
-      const chunks = [];
-      let stream = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: kind === "video",
-        });
-      } catch (error) {
-        window.alert(kind === "video" ? "Camera or microphone is blocked." : "Microphone is blocked.");
-        return;
-      }
-      const mimeType = getRecorderMimeType(kind);
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      activeRecorder = recorder;
-      activeRecorderButton = button;
-      button.classList.add("recording");
-      button.textContent = "■";
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size) chunks.push(event.data);
-      };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const type = recorder.mimeType || (kind === "video" ? "video/webm" : "audio/webm");
-        const extension = type.includes("ogg") ? "ogg" : "webm";
-        const blob = new Blob(chunks, { type });
-        const file = new File([blob], `${kind}-note-${Date.now()}.${extension}`, { type });
-        const label = kind === "video" ? "Video note" : "Voice note";
-        if (blob.size > 0) {
-          await uploadChatFile(file, label, { mediaKind: kind === "video" ? "video" : "audio" });
-          clearComposerState();
-        }
-        if (activeRecorderButton) {
-          activeRecorderButton.classList.remove("recording");
-          activeRecorderButton.textContent = kind === "video" ? "▣" : "◉";
-        }
-        activeRecorder = null;
-        activeRecorderButton = null;
-      };
-      recorder.start();
-      window.setTimeout(() => {
-        if (activeRecorder === recorder && recorder.state !== "inactive") {
-          recorder.stop();
-        }
-      }, kind === "video" ? 60000 : 180000);
-    };
-
     if (voiceNoteButton) {
-      voiceNoteButton.addEventListener("click", startVoiceRecording);
+      voiceNoteButton.addEventListener("click", toggleVoiceNote);
     }
 
     if (voicePauseButton) {
@@ -1262,7 +1208,7 @@ if (typeof chatConfig !== "undefined") {
     }
 
     if (videoNoteButton) {
-      videoNoteButton.addEventListener("click", prepareVideoNote);
+      videoNoteButton.addEventListener("click", toggleVideoNote);
     }
 
     if (videoRecordButton) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "risetogether-cache-v13";
+const CACHE_NAME = "risetogether-cache-v14";
 const ASSETS = [
   "/offline",
   "/static/manifest.json",
