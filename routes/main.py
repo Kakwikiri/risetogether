@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
 from sqlalchemy import or_
 from markupsafe import Markup, escape
@@ -221,6 +221,13 @@ def get_reaction_counts(post):
         key: Reaction.query.filter_by(post_id=post.id, type=key).count()
         for key in REACTION_LABELS
     }
+
+
+def wants_json_response():
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.accept_mimetypes.best == "application/json"
+    )
 
 
 def trend_score(post):
@@ -486,6 +493,8 @@ def react_post(post_id):
         abort(404)
     reaction_type = request.form.get("reaction_type")
     if reaction_type not in REACTION_LABELS:
+        if wants_json_response():
+            return jsonify({"ok": False, "error": "Invalid reaction."}), 400
         flash("Invalid reaction.", "warning")
         return redirect(url_for("main.home"))
     existing_reactions = Reaction.query.filter_by(
@@ -495,8 +504,17 @@ def react_post(post_id):
         for reaction in existing_reactions:
             db.session.delete(reaction)
         db.session.commit()
+        if wants_json_response():
+            return jsonify(
+                {
+                    "ok": True,
+                    "status": "removed",
+                    "counts": get_reaction_counts(post),
+                    "message": "Reaction removed.",
+                }
+            )
         flash("Reaction removed.", "info")
-        return redirect(url_for("main.post_detail", post_id=post.id))
+        return redirect(request.referrer or url_for("main.home"))
     reaction = Reaction(post_id=post.id, user_id=current_user.id, type=reaction_type)
     db.session.add(reaction)
     if post.user_id != current_user.id:
@@ -507,8 +525,17 @@ def react_post(post_id):
             url_for("main.post_detail", post_id=post.id),
         )
     db.session.commit()
+    if wants_json_response():
+        return jsonify(
+            {
+                "ok": True,
+                "status": "added",
+                "counts": get_reaction_counts(post),
+                "message": "Your support reaction has been added.",
+            }
+        )
     flash("Your support reaction has been added.", "success")
-    return redirect(url_for("main.post_detail", post_id=post.id))
+    return redirect(request.referrer or url_for("main.home"))
 
 
 @main_bp.route("/post/<int:post_id>/share", methods=["GET", "POST"])

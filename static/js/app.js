@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-logo-chat", { scope: "/" });
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-feed-reaction", { scope: "/" });
   };
 
   const showUpdateNotice = (worker) => {
@@ -587,6 +587,43 @@ document.addEventListener("DOMContentLoaded", () => {
     frame.addEventListener("contextmenu", (event) => event.preventDefault());
     frame.querySelectorAll("img, video").forEach((media) => {
       media.draggable = false;
+    });
+  });
+
+  document.querySelectorAll(".reaction-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      const submitter = event.submitter;
+      if (!submitter || !window.fetch) return;
+      event.preventDefault();
+      submitter.disabled = true;
+      const formData = new FormData(form);
+      if (submitter.name && submitter.value) {
+        formData.set(submitter.name, submitter.value);
+      }
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: formData,
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            Accept: "application/json",
+          },
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Reaction failed.");
+        }
+        Object.entries(payload.counts || {}).forEach(([type, count]) => {
+          const button = form.querySelector(`[data-reaction-type="${type}"]`);
+          const countTarget = button ? button.querySelector("[data-reaction-count]") : null;
+          if (countTarget) countTarget.textContent = count;
+        });
+        showToast(payload.message || "Reaction updated.");
+      } catch (error) {
+        showToast(error.message || "Reaction failed. Please try again.");
+      } finally {
+        submitter.disabled = false;
+      }
     });
   });
 

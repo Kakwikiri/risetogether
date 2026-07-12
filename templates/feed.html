@@ -14,10 +14,7 @@
     <nav class="mobile-feed-tabs" aria-label="Feed filters">
       <a class="{{ 'active' if not video_only else '' }}" href="{{ url_for('main.home') }}">All</a>
       <a class="{{ 'active' if video_only else '' }}" href="{{ url_for('main.home', type='videos') }}">Videos</a>
-      <a href="#community-highlights">Highlights</a>
-      <a href="#available-families">Families</a>
-      <a href="#trending-videos">Trending</a>
-      <a href="#kindness-challenge">Challenge</a>
+      <a href="{{ url_for('family.families') }}">Families</a>
     </nav>
     {% if video_only %}
     <div class="video-quick-actions">
@@ -52,7 +49,7 @@
           src="{{ url_for('static', filename='images/default-avatar.png') if not current_user.profile.avatar else url_for('api.serve_upload', filename=current_user.profile.avatar) }}"
           alt=""
         />
-        <span>Share something uplifting or honest...</span>
+        <span>Share your story...</span>
         <strong aria-label="Add media">＋</strong>
       </button>
       <form
@@ -167,8 +164,9 @@
           class="reaction-form"
         >
           {% for key,label in reactions.items() %}
-          <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}">
-            {{ post.reactions.filter_by(type=key).count() }} {{ label }}
+          <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}" data-reaction-button data-reaction-type="{{ key }}">
+            <span data-reaction-count>{{ post.reactions.filter_by(type=key).count() }}</span>
+            <span data-reaction-label>{{ label }}</span>
           </button>
           {% endfor %}
         </form>
