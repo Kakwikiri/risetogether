@@ -113,6 +113,7 @@ def signup():
         user.set_password(password)
         if should_make_admin(email):
             user.is_admin = True
+            user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
         db.session.add(user)
         db.session.commit()
         profile = Profile(user_id=user.id, display_name=username)
@@ -313,6 +314,7 @@ def google_callback():
         user.set_password(secrets.token_urlsafe(24))
         if should_make_admin(email):
             user.is_admin = True
+            user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
         db.session.add(user)
         db.session.commit()
         db.session.add(Profile(user_id=user.id, display_name=info.get("name") or username))

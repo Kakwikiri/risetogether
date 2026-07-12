@@ -38,6 +38,7 @@ class User(db.Model, UserMixin):
         cascade="all, delete-orphan",
     )
     is_admin = db.Column(db.Boolean, default=False)
+    admin_role = db.Column(db.String(20), default="")
     is_banned = db.Column(db.Boolean, default=False, nullable=False)
     ban_until = db.Column(db.DateTime, nullable=True)
     warning_count = db.Column(db.Integer, default=0, nullable=False)

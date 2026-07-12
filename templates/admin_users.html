@@ -38,7 +38,7 @@
         <td>{{ user.username }}</td>
         <td>{{ user.email }}</td>
         <td>{{ user.country or 'Unknown' }}</td>
-        <td>{{ 'Admin' if user.is_admin else 'Member' }}</td>
+        <td>{{ role_labels.get(user.admin_role or ('admin' if user.is_admin else ''), 'Member') }}</td>
         <td>{{ 'Verified' if user.is_verified else 'None' }}</td>
         <td>
           {% if user.is_banned %}
@@ -51,11 +51,24 @@
         <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
         <td class="admin-actions">
           {% if user.id != current_user.id %}
+          {% if current_admin_role == 'super_admin' %}
+          <form action="{{ url_for('moderation.set_website_role', user_id=user.id) }}" method="post">
+            <select name="admin_role">
+              <option value="" {% if not user.admin_role and not user.is_admin %}selected{% endif %}>Member</option>
+              <option value="moderator" {% if user.admin_role == 'moderator' %}selected{% endif %}>Moderator</option>
+              <option value="admin" {% if user.admin_role == 'admin' or (user.is_admin and not user.admin_role) %}selected{% endif %}>Admin</option>
+              <option value="super_admin" {% if user.admin_role == 'super_admin' %}selected{% endif %}>Super Admin</option>
+            </select>
+            <button class="button secondary" type="submit">Set role</button>
+          </form>
+          {% endif %}
+          {% if current_admin_role == 'super_admin' %}
           <form action="{{ url_for('moderation.toggle_admin', user_id=user.id) }}" method="post">
             <button class="button secondary" type="submit">
               {{ 'Remove admin' if user.is_admin else 'Make admin' }}
             </button>
           </form>
+          {% endif %}
           <form action="{{ url_for('moderation.toggle_ban_user', user_id=user.id) }}" method="post">
             <button class="button secondary" type="submit">
               {{ 'Unban' if user.is_banned else 'Ban' }}
@@ -79,12 +92,14 @@
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='hide_directory') }}" method="post">
             <button class="button secondary" type="submit">{{ 'Show in users' if user.is_hidden_from_directory else 'Hide from users' }}</button>
           </form>
+          {% if current_admin_role == 'super_admin' %}
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='reset_password') }}" method="post">
             <button class="button secondary" type="submit">Generate password</button>
           </form>
           <form action="{{ url_for('moderation.admin_delete_user', user_id=user.id) }}" method="post">
             <button class="button danger" type="submit">Delete</button>
           </form>
+          {% endif %}
           {% endif %}
         </td>
       </tr>

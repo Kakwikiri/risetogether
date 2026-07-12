@@ -145,6 +145,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(32) DEFAULT 'text'",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_role VARCHAR(20) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_until TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS warning_count INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_phrase_hash VARCHAR(256) DEFAULT ''",
@@ -177,6 +178,9 @@ def ensure_schema_compatibility():
         "ALTER TABLE family_polls ADD COLUMN IF NOT EXISTS allow_vote_changes BOOLEAN NOT NULL DEFAULT TRUE",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_polls_family_status') THEN CREATE INDEX ix_family_polls_family_status ON family_polls (family_id, status); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_poll_votes_poll_user') THEN CREATE INDEX ix_family_poll_votes_poll_user ON family_poll_votes (poll_id, user_id); END IF; END $$",
+        "UPDATE users SET admin_role = 'admin' WHERE is_admin = TRUE AND COALESCE(admin_role, '') = ''",
+        "WITH first_admin AS (SELECT id FROM users WHERE is_admin = TRUE ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET admin_role = 'super_admin' WHERE id IN (SELECT id FROM first_admin) AND NOT EXISTS (SELECT 1 FROM users WHERE admin_role = 'super_admin')",
+        "UPDATE users SET is_admin = TRUE WHERE admin_role IN ('super_admin', 'admin', 'moderator')",
     ]
     for statement in updates:
         db.session.execute(text(statement))
@@ -341,6 +345,7 @@ def admin_setup_web():
             user = User(username=username, email=email, country=country)
             user.set_password(password)
             user.is_admin = True
+            user.admin_role = "super_admin"
             user.is_banned = False
             user.ban_until = None
             user.is_verified = True
@@ -356,6 +361,11 @@ def admin_setup_web():
             raise ValueError("No user found with that username or email.")
         if action == "promote":
             user.is_admin = True
+            user.admin_role = user.admin_role or (
+                "super_admin"
+                if User.query.filter_by(admin_role="super_admin").count() == 0
+                else "admin"
+            )
             user.is_banned = False
             user.ban_until = None
             db.session.commit()
@@ -408,6 +418,7 @@ def create_admin_command():
         user = User(username=username, email=email, country=country)
         user.set_password(password)
         user.is_admin = True
+        user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
         user.is_banned = False
         user.ban_until = None
         user.is_verified = True
@@ -438,6 +449,11 @@ def promote_admin_command():
 
     try:
         user.is_admin = True
+        user.admin_role = user.admin_role or (
+            "super_admin"
+            if User.query.filter_by(admin_role="super_admin").count() == 0
+            else "admin"
+        )
         user.is_banned = False
         user.ban_until = None
         db.session.commit()

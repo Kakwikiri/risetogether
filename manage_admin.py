@@ -34,6 +34,7 @@ def main():
         user.set_password(password)
         user.set_reset_phrase(reset_phrase)
         user.is_admin = True
+        user.admin_role = "super_admin"
         user.is_banned = False
         user.is_verified = True
         user.is_hidden_from_directory = True

@@ -10,6 +10,63 @@ from models import Block, HelpRequest, Post, Report, SiteSetting, User
 
 mod_bp = Blueprint("moderation", __name__)
 
+ADMIN_ROLE_LABELS = {
+    "super_admin": "Super Admin",
+    "admin": "Admin",
+    "moderator": "Moderator",
+    "": "Member",
+}
+ADMIN_ROLE_RANK = {
+    "super_admin": 3,
+    "admin": 2,
+    "moderator": 1,
+    "": 0,
+}
+
+
+def website_role(user):
+    role = getattr(user, "admin_role", "") or ""
+    if role in ADMIN_ROLE_RANK:
+        return role
+    return "admin" if getattr(user, "is_admin", False) else ""
+
+
+def role_rank(user):
+    return ADMIN_ROLE_RANK.get(website_role(user), 0)
+
+
+def has_admin_role(minimum_role="moderator"):
+    return current_user.is_authenticated and role_rank(current_user) >= ADMIN_ROLE_RANK[minimum_role]
+
+
+def require_admin_role(minimum_role="moderator"):
+    if has_admin_role(minimum_role):
+        return True
+    flash("Admin access required.", "danger")
+    return False
+
+
+def sync_admin_flag(user):
+    user.is_admin = website_role(user) in {"super_admin", "admin", "moderator"}
+
+
+def active_super_admin_count():
+    return User.query.filter(
+        User.is_admin == True,
+        User.admin_role == "super_admin",
+        User.is_banned == False,
+    ).count()
+
+
+def can_act_on(target, action="manage"):
+    if target.id == current_user.id and action in {"temp_ban", "perm_ban", "delete", "demote", "role"}:
+        flash("You cannot perform that action on your own account.", "warning")
+        return False
+    if role_rank(target) and role_rank(current_user) <= role_rank(target):
+        flash("You cannot manage an account with an equal or higher website role.", "danger")
+        return False
+    return True
+
 
 @mod_bp.route("/report/user/<int:user_id>", methods=["POST"])
 @login_required
@@ -68,8 +125,7 @@ def block_user(user_id):
 @mod_bp.route("/admin/reports")
 @login_required
 def admin_reports():
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     reports = Report.query.order_by(Report.created_at.desc()).all()
     return render_template("admin_reports.html", reports=reports)
@@ -78,8 +134,7 @@ def admin_reports():
 @mod_bp.route("/admin/users")
 @login_required
 def admin_users():
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     users = User.query.order_by(User.created_at.desc()).all()
     location_counts = Counter(user.country or "Unknown" for user in users)
@@ -91,6 +146,8 @@ def admin_users():
         location_counts=location_counts.most_common(),
         temp_password=temp_password,
         temp_user=temp_user,
+        role_labels=ADMIN_ROLE_LABELS,
+        current_admin_role=website_role(current_user),
     )
 
 
@@ -115,8 +172,7 @@ def help_request():
 @mod_bp.route("/admin/help")
 @login_required
 def admin_help_requests():
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).all()
     return render_template("admin_help.html", requests=requests)
@@ -125,8 +181,7 @@ def admin_help_requests():
 @mod_bp.route("/admin/help/<int:request_id>/<action>", methods=["POST"])
 @login_required
 def manage_help_request(request_id, action):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     help_request = HelpRequest.query.get_or_404(request_id)
     if action in {"open", "reviewed", "closed"}:
@@ -139,8 +194,7 @@ def manage_help_request(request_id, action):
 @mod_bp.route("/admin/settings", methods=["GET", "POST"])
 @fresh_login_required
 def admin_settings():
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
     keys = ["google_client_id", "google_client_secret", "smtp_host", "smtp_from", "smtp_username", "smtp_password"]
     if request.method == "POST":
@@ -164,28 +218,54 @@ def admin_settings():
 @mod_bp.route("/admin/users/<int:user_id>/toggle-admin", methods=["POST"])
 @login_required
 def toggle_admin(user_id):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
-        flash("You cannot remove your own admin access.", "warning")
+    if not can_act_on(user, "role"):
         return redirect(url_for("moderation.admin_users"))
-    user.is_admin = not user.is_admin
+    user.admin_role = "" if website_role(user) else "admin"
+    sync_admin_flag(user)
     db.session.commit()
     flash("Admin privileges updated.", "success")
+    return redirect(url_for("moderation.admin_users"))
+
+
+@mod_bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
+@login_required
+def set_website_role(user_id):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    user = User.query.get_or_404(user_id)
+    new_role = request.form.get("admin_role", "").strip()
+    if new_role not in ADMIN_ROLE_RANK:
+        flash("Choose a valid website role.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    old_role = website_role(user)
+    if user.id == current_user.id and new_role != old_role:
+        flash("You cannot change your own website role here.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    if old_role == "super_admin" and new_role != "super_admin" and active_super_admin_count() <= 1:
+        flash("You cannot remove the last active Super Admin.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    if not can_act_on(user, "role") and old_role:
+        return redirect(url_for("moderation.admin_users"))
+    user.admin_role = new_role
+    sync_admin_flag(user)
+    if new_role:
+        user.is_banned = False
+        user.ban_until = None
+    db.session.commit()
+    flash("Website role updated.", "success")
     return redirect(url_for("moderation.admin_users"))
 
 
 @mod_bp.route("/admin/users/<int:user_id>/ban", methods=["POST"])
 @login_required
 def toggle_ban_user(user_id):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
-        flash("You cannot ban your own account.", "warning")
+    if not can_act_on(user, "temp_ban"):
         return redirect(request.referrer or url_for("moderation.admin_users"))
     user.is_banned = not user.is_banned
     if not user.is_banned:
@@ -198,12 +278,11 @@ def toggle_ban_user(user_id):
 @mod_bp.route("/admin/users/<int:user_id>/<action>", methods=["POST"])
 @login_required
 def admin_user_action(user_id, action):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    minimum_role = "moderator" if action == "warn" else "super_admin" if action == "reset_password" else "admin"
+    if not require_admin_role(minimum_role):
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id and action in {"temp_ban", "perm_ban", "delete"}:
-        flash("You cannot perform that action on your own account.", "warning")
+    if not can_act_on(user, action):
         return redirect(url_for("moderation.admin_users"))
     if action == "warn":
         user.warning_count += 1
@@ -247,12 +326,13 @@ def admin_user_action(user_id, action):
 @mod_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 def admin_delete_user(user_id):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
-        flash("You cannot delete your own account.", "warning")
+    if website_role(user) == "super_admin" and active_super_admin_count() <= 1:
+        flash("You cannot delete the last active Super Admin.", "warning")
+        return redirect(request.referrer or url_for("moderation.admin_users"))
+    if not can_act_on(user, "delete"):
         return redirect(request.referrer or url_for("moderation.admin_users"))
     db.session.delete(user)
     db.session.commit()
@@ -263,8 +343,8 @@ def admin_delete_user(user_id):
 @mod_bp.route("/admin/reports/<int:report_id>/<action>", methods=["POST"])
 @login_required
 def manage_report(report_id, action):
-    if not current_user.is_admin:
-        flash("Admin access required.", "danger")
+    minimum_role = "admin" if action in {"ban_user", "delete_user"} else "moderator"
+    if not require_admin_role(minimum_role):
         return redirect(url_for("main.home"))
     report = Report.query.get_or_404(report_id)
     if action == "reviewed":
@@ -275,15 +355,18 @@ def manage_report(report_id, action):
         report.status = "actioned"
         flash("Reported post deleted.", "info")
     elif action == "ban_user" and report.reported_user:
-        if report.reported_user_id == current_user.id:
-            flash("You cannot ban your own account.", "warning")
+        if not can_act_on(report.reported_user, "perm_ban"):
             return redirect(url_for("moderation.admin_reports"))
         report.reported_user.is_banned = True
         report.status = "actioned"
         flash("Reported account banned.", "success")
     elif action == "delete_user" and report.reported_user:
-        if report.reported_user_id == current_user.id:
-            flash("You cannot delete your own account.", "warning")
+        if not require_admin_role("super_admin"):
+            return redirect(url_for("main.home"))
+        if website_role(report.reported_user) == "super_admin" and active_super_admin_count() <= 1:
+            flash("You cannot delete the last active Super Admin.", "warning")
+            return redirect(url_for("moderation.admin_reports"))
+        if not can_act_on(report.reported_user, "delete"):
             return redirect(url_for("moderation.admin_reports"))
         db.session.delete(report.reported_user)
         report.status = "actioned"
