@@ -54,6 +54,10 @@
       <span>Website admins</span>
       <strong>{{ stats.website_admins }}</strong>
     </article>
+    <article>
+      <span>Audit records</span>
+      <strong>{{ stats.audit_logs }}</strong>
+    </article>
     {% endif %}
   </div>
 </section>
@@ -79,7 +83,7 @@
     <a href="{{ url_for('moderation.admin_reports') }}">Content moderation</a>
     {% if current_admin_role == 'super_admin' %}
     <a href="{{ url_for('moderation.admin_users') }}">Website admins</a>
-    <span class="admin-section-disabled">Audit log</span>
+    <a href="{{ url_for('moderation.admin_audit_log') }}">Audit log</a>
     <a href="{{ url_for('moderation.admin_settings') }}">Platform settings</a>
     {% endif %}
   </div>

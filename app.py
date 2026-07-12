@@ -107,6 +107,7 @@ def ensure_schema_compatibility():
         MediaAsset,
         MessageDeletion,
         PushSubscription,
+        AuditLog,
         FamilyMember,
         FamilyMemberRestriction,
         FamilyModerationLog,
@@ -124,6 +125,7 @@ def ensure_schema_compatibility():
     MediaAsset.__table__.create(db.engine, checkfirst=True)
     MessageDeletion.__table__.create(db.engine, checkfirst=True)
     PushSubscription.__table__.create(db.engine, checkfirst=True)
+    AuditLog.__table__.create(db.engine, checkfirst=True)
     FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
     FamilyModerationLog.__table__.create(db.engine, checkfirst=True)
     FamilyPoll.__table__.create(db.engine, checkfirst=True)

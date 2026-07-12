@@ -1,0 +1,49 @@
+{% extends 'base.html' %} {% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Website administration</p>
+      <h2>Audit log</h2>
+    </div>
+    <a class="button secondary" href="{{ url_for('moderation.admin_dashboard') }}">Overview</a>
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Actor</th>
+        <th>Role</th>
+        <th>Action</th>
+        <th>Target user</th>
+        <th>Family</th>
+        <th>Reason</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ log.actor.username if log.actor else 'System' }}</td>
+        <td>{{ log.actor_role.replace('_', ' ')|title }}</td>
+        <td>{{ log.action_type.replace('_', ' ')|title }}</td>
+        <td>{{ log.target_user.username if log.target_user else '-' }}</td>
+        <td>{{ log.target_family.name if log.target_family else '-' }}</td>
+        <td>
+          {{ log.reason or '-' }}
+          {% if log.metadata_text %}
+          <br /><small>{{ log.metadata_text }}</small>
+          {% endif %}
+        </td>
+        <td>{{ log.ip_address or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8">No audit records yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -679,6 +679,30 @@ class SiteSetting(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    actor_user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    actor_role = db.Column(db.String(20), default="")
+    action_type = db.Column(db.String(80), nullable=False)
+    target_user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    target_family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="SET NULL"), nullable=True
+    )
+    target_content_id = db.Column(db.Integer, nullable=True)
+    reason = db.Column(db.Text, default="")
+    metadata_text = db.Column(db.Text, default="")
+    ip_address = db.Column(db.String(64), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    actor = db.relationship("User", foreign_keys=[actor_user_id], backref="audit_actions")
+    target_user = db.relationship("User", foreign_keys=[target_user_id], backref="audit_events")
+    target_family = db.relationship("Family", foreign_keys=[target_family_id], backref="audit_events")
+
+
 class LiveSession(db.Model):
     __tablename__ = "live_sessions"
     id = db.Column(db.Integer, primary_key=True)

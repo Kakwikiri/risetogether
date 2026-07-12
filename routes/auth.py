@@ -3,6 +3,7 @@ import secrets
 import smtplib
 import urllib.parse
 import urllib.request
+from urllib.parse import urljoin
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 
@@ -55,13 +56,46 @@ def setting_value(key, default=""):
     return setting.value if setting and setting.value else default
 
 
+def config_value(setting_key, *env_names, default=""):
+    for env_name in env_names:
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
+    return setting_value(setting_key, default)
+
+
+def public_url_for(endpoint, **values):
+    base_url = (
+        os.getenv("PUBLIC_BASE_URL", "").strip()
+        or os.getenv("SITE_URL", "").strip()
+        or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    )
+    if not base_url and os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip():
+        base_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME').strip()}"
+    if base_url:
+        return urljoin(base_url.rstrip("/") + "/", url_for(endpoint, **values).lstrip("/"))
+    return url_for(endpoint, _external=True, _scheme="https", **values)
+
+
+def google_oauth_config():
+    return {
+        "client_id": config_value("google_client_id", "GOOGLE_CLIENT_ID", "GOOGLE_ID"),
+        "client_secret": config_value(
+            "google_client_secret",
+            "GOOGLE_CLIENT_SECRET",
+            "GOOGLE_SECRET",
+            "GOOGLE_CLIENT_SECRET_KEY",
+        ),
+    }
+
+
 def should_make_admin(email):
     return False
 
 
 def send_password_reset_email(user, reset_url):
-    host = os.getenv("SMTP_HOST") or setting_value("smtp_host")
-    sender = os.getenv("SMTP_FROM") or setting_value("smtp_from")
+    host = config_value("smtp_host", "SMTP_HOST")
+    sender = config_value("smtp_from", "SMTP_FROM", "MAIL_FROM", "RESET_EMAIL_FROM")
     if not host or not sender:
         current_app.logger.info("Password reset link for %s: %s", user.email, reset_url)
         return False
@@ -72,15 +106,27 @@ def send_password_reset_email(user, reset_url):
     message.set_content(
         f"Open this link to reset your RiseTogether password:\n\n{reset_url}\n\nThis link expires in 1 hour."
     )
-    port = int(os.getenv("SMTP_PORT", "587"))
-    username = os.getenv("SMTP_USERNAME") or setting_value("smtp_username")
-    password = os.getenv("SMTP_PASSWORD") or setting_value("smtp_password")
-    with smtplib.SMTP(host, port) as smtp:
-        smtp.starttls()
-        if username and password:
-            smtp.login(username, password)
-        smtp.send_message(message)
-    return True
+    try:
+        port = int(config_value("smtp_port", "SMTP_PORT", default="587"))
+        username = config_value("smtp_username", "SMTP_USERNAME", "MAIL_USERNAME")
+        password = config_value("smtp_password", "SMTP_PASSWORD", "MAIL_PASSWORD")
+        use_ssl = config_value("smtp_use_ssl", "SMTP_USE_SSL", default="").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+        with smtp_class(host, port, timeout=15) as smtp:
+            if not use_ssl:
+                smtp.starttls()
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+        return True
+    except Exception:
+        current_app.logger.exception("Password reset email failed for %s", user.email)
+        return False
 
 
 @auth_bp.route("/signup", methods=["GET", "POST"])
@@ -185,7 +231,7 @@ def forgot_password():
             )
             db.session.add(reset)
             db.session.commit()
-            reset_url = url_for("auth.reset_password", token=token, _external=True)
+            reset_url = public_url_for("auth.reset_password", token=token)
             sent = send_password_reset_email(user, reset_url)
             if sent:
                 reset_url = None
@@ -223,8 +269,9 @@ def reset_password(token):
 
 @auth_bp.route("/login/google")
 def google_login():
-    client_id = os.getenv("GOOGLE_CLIENT_ID") or setting_value("google_client_id")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or setting_value("google_client_secret")
+    google_config = google_oauth_config()
+    client_id = google_config["client_id"]
+    client_secret = google_config["client_secret"]
     if not client_id or not client_secret:
         missing = []
         if not client_id:
@@ -239,7 +286,7 @@ def google_login():
     params = urllib.parse.urlencode(
         {
             "client_id": client_id,
-            "redirect_uri": url_for("auth.google_callback", _external=True),
+            "redirect_uri": public_url_for("auth.google_callback"),
             "response_type": "code",
             "scope": "openid email profile",
             "state": state,
@@ -258,8 +305,9 @@ def google_callback():
         flash("Google login could not be verified.", "danger")
         return redirect(url_for("auth.login"))
     code = request.args.get("code")
-    client_id = os.getenv("GOOGLE_CLIENT_ID") or setting_value("google_client_id")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or setting_value("google_client_secret")
+    google_config = google_oauth_config()
+    client_id = google_config["client_id"]
+    client_secret = google_config["client_secret"]
     if not code or not client_id or not client_secret:
         flash("Google login is not configured correctly.", "warning")
         return redirect(url_for("auth.login"))
@@ -268,7 +316,7 @@ def google_callback():
             "code": code,
             "client_id": client_id,
             "client_secret": client_secret,
-            "redirect_uri": url_for("auth.google_callback", _external=True),
+            "redirect_uri": public_url_for("auth.google_callback"),
             "grant_type": "authorization_code",
         }
     ).encode()
