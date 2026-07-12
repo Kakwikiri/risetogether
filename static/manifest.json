@@ -9,20 +9,26 @@
   "orientation": "portrait",
   "background_color": "#f2f6fb",
   "theme_color": "#0f766e",
-  "description": "A safe supportive community for stories, families, chat, and encouragement.",
+  "description": "RiseTogether is a safe support community for stories, families, chat, and encouragement.",
   "categories": ["social", "health", "lifestyle"],
   "icons": [
     {
       "src": "/static/images/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/static/images/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/static/images/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [

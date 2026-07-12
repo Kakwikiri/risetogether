@@ -9,6 +9,7 @@ from email.message import EmailMessage
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import confirm_login, current_user, login_required, login_user, logout_user
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
 from models import PasswordResetToken, Profile, SiteSetting, User
@@ -129,6 +130,59 @@ def send_password_reset_email(user, reset_url):
         return False
 
 
+def send_password_reset_code_email(user, code):
+    host = config_value("smtp_host", "SMTP_HOST")
+    sender = config_value("smtp_from", "SMTP_FROM", "MAIL_FROM", "RESET_EMAIL_FROM")
+    if not host or not sender:
+        current_app.logger.warning("Password reset SMTP is not configured for %s", user.email)
+        return False
+    message = EmailMessage()
+    message["Subject"] = "Your RiseTogether password reset code"
+    message["From"] = sender
+    message["To"] = user.email
+    message.set_content(
+        "Use this RiseTogether password reset code:\n\n"
+        f"{code}\n\n"
+        "This code expires in 3 hours. If you did not request it, you can ignore this email."
+    )
+    try:
+        port = int(config_value("smtp_port", "SMTP_PORT", default="587"))
+        username = config_value("smtp_username", "SMTP_USERNAME", "MAIL_USERNAME")
+        password = config_value("smtp_password", "SMTP_PASSWORD", "MAIL_PASSWORD")
+        use_ssl = config_value("smtp_use_ssl", "SMTP_USE_SSL", default="").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+        with smtp_class(host, port, timeout=15) as smtp:
+            if not use_ssl:
+                smtp.starttls()
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+        return True
+    except Exception:
+        current_app.logger.exception("Password reset code email failed for %s", user.email)
+        return False
+
+
+def normalize_reset_email():
+    return request.form.get("email", session.get("reset_email", "")).strip().lower()
+
+
+def latest_active_reset(user):
+    if not user:
+        return None
+    return (
+        PasswordResetToken.query.filter_by(user_id=user.id, used=False)
+        .filter(PasswordResetToken.code_hash != "")
+        .order_by(PasswordResetToken.created_at.desc())
+        .first()
+    )
+
+
 @auth_bp.route("/signup", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:
@@ -212,43 +266,110 @@ def reauthenticate():
 def forgot_password():
     if current_user.is_authenticated:
         return redirect(url_for("main.home"))
-    reset_url = None
     if request.method == "POST":
-        identifier = request.form.get("email", "").strip()
-        reset_phrase = request.form.get("reset_phrase", "").strip()
-        user = User.query.filter(
-            (User.email == identifier.lower()) | (User.username.ilike(identifier))
-        ).first()
+        email = normalize_reset_email()
+        user = User.query.filter_by(email=email).first()
         if user and not user.is_banned:
-            if user.reset_phrase_hash and not user.check_reset_phrase(reset_phrase):
-                flash("Reset word is incorrect.", "danger")
-                return render_template("forgot_password.html", reset_url=None)
-            token = secrets.token_urlsafe(32)
-            reset = PasswordResetToken(
-                user_id=user.id,
-                token=token,
-                expires_at=datetime.utcnow() + timedelta(hours=1),
-            )
-            db.session.add(reset)
-            db.session.commit()
-            reset_url = public_url_for("auth.reset_password", token=token)
-            sent = send_password_reset_email(user, reset_url)
-            if sent:
-                reset_url = None
+            now = datetime.utcnow()
+            active_reset = latest_active_reset(user)
+            cooldown_until = None
+            if active_reset and active_reset.last_sent_at:
+                cooldown_until = active_reset.last_sent_at + timedelta(seconds=60)
+            if not cooldown_until or cooldown_until <= now:
+                PasswordResetToken.query.filter_by(user_id=user.id, used=False).update(
+                    {"used": True}
+                )
+                code = f"{secrets.randbelow(1000000):06d}"
+                reset = PasswordResetToken(
+                    user_id=user.id,
+                    token=secrets.token_urlsafe(32),
+                    code_hash=generate_password_hash(code),
+                    expires_at=now + timedelta(hours=3),
+                    attempts=0,
+                    last_sent_at=now,
+                )
+                db.session.add(reset)
+                db.session.commit()
+                send_password_reset_code_email(user, code)
+            else:
+                db.session.commit()
+                current_app.logger.info("Password reset resend cooldown active for %s", user.email)
+        session["reset_email"] = email
         flash(
-            "If that email exists, a password reset link has been prepared.",
+            "If an account exists for that email, a reset code has been sent.",
             "info",
         )
-    return render_template("forgot_password.html", reset_url=reset_url)
+        return redirect(url_for("auth.verify_reset_code"))
+    return render_template("forgot_password.html")
 
 
-@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
-def reset_password(token):
+@auth_bp.route("/forgot-password/verify", methods=["GET", "POST"])
+def verify_reset_code():
     if current_user.is_authenticated:
         return redirect(url_for("main.home"))
-    reset = PasswordResetToken.query.filter_by(token=token, used=False).first_or_404()
-    if reset.expires_at < datetime.utcnow():
-        flash("This reset link has expired. Please request a new one.", "warning")
+    email = normalize_reset_email()
+    if request.method == "POST":
+        action = request.form.get("action", "verify")
+        user = User.query.filter_by(email=email).first()
+        if action == "resend":
+            if user and not user.is_banned:
+                now = datetime.utcnow()
+                active_reset = latest_active_reset(user)
+                last_sent_at = active_reset.last_sent_at if active_reset else None
+                if last_sent_at and last_sent_at + timedelta(seconds=60) > now:
+                    flash("Please wait before requesting another code.", "warning")
+                    return render_template("verify_reset_code.html", email=email)
+                PasswordResetToken.query.filter_by(user_id=user.id, used=False).update(
+                    {"used": True}
+                )
+                code = f"{secrets.randbelow(1000000):06d}"
+                reset = PasswordResetToken(
+                    user_id=user.id,
+                    token=secrets.token_urlsafe(32),
+                    code_hash=generate_password_hash(code),
+                    expires_at=now + timedelta(hours=3),
+                    attempts=0,
+                    last_sent_at=now,
+                )
+                db.session.add(reset)
+                db.session.commit()
+                send_password_reset_code_email(user, code)
+            session["reset_email"] = email
+            flash("If an account exists for that email, a reset code has been sent.", "info")
+            return render_template("verify_reset_code.html", email=email)
+
+        code = request.form.get("code", "").strip().replace(" ", "")
+        reset = latest_active_reset(user)
+        now = datetime.utcnow()
+        if not reset or reset.expires_at < now or reset.attempts >= 5:
+            if reset:
+                reset.used = True
+                db.session.commit()
+            flash("The reset code is incorrect or expired.", "danger")
+            return render_template("verify_reset_code.html", email=email)
+        if not code.isdigit() or len(code) != 6 or not check_password_hash(reset.code_hash, code):
+            reset.attempts += 1
+            if reset.attempts >= 5:
+                reset.used = True
+            db.session.commit()
+            flash("The reset code is incorrect or expired.", "danger")
+            return render_template("verify_reset_code.html", email=email)
+        session["password_reset_id"] = reset.id
+        session["reset_email"] = email
+        flash("Code verified. Choose a new password.", "success")
+        return redirect(url_for("auth.reset_password"))
+    return render_template("verify_reset_code.html", email=email)
+
+
+@auth_bp.route("/reset-password", methods=["GET", "POST"])
+def reset_password():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.home"))
+    reset_id = session.get("password_reset_id")
+    reset = PasswordResetToken.query.filter_by(id=reset_id, used=False).first()
+    if not reset or reset.expires_at < datetime.utcnow() or reset.attempts >= 5:
+        session.pop("password_reset_id", None)
+        flash("Please request a new reset code.", "warning")
         return redirect(url_for("auth.forgot_password"))
     if request.method == "POST":
         password = request.form.get("password", "").strip()
@@ -262,9 +383,17 @@ def reset_password(token):
         reset.user.set_password(password)
         reset.used = True
         db.session.commit()
+        session.pop("password_reset_id", None)
+        session.pop("reset_email", None)
         flash("Password reset successfully. Please log in.", "success")
         return redirect(url_for("auth.login"))
     return render_template("reset_password.html")
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password_token_legacy(token):
+    flash("Password resets now use an email verification code. Please request a new code.", "info")
+    return redirect(url_for("auth.forgot_password"))
 
 
 @auth_bp.route("/login/google")

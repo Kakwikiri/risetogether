@@ -12,6 +12,21 @@
       name="description"
       content="RiseTogether is a safe support community for stories, families, chat, and encouragement."
     />
+    <meta property="og:title" content="RiseTogether - Safe Community" />
+    <meta
+      property="og:description"
+      content="RiseTogether is a safe support community for stories, families, chat, and encouragement."
+    />
+    <meta property="og:image" content="{{ social_preview_image_url }}" />
+    <meta property="og:url" content="{{ public_page_url }}" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RiseTogether - Safe Community" />
+    <meta
+      name="twitter:description"
+      content="RiseTogether is a safe support community for stories, families, chat, and encouragement."
+    />
+    <meta name="twitter:image" content="{{ social_preview_image_url }}" />
     <title>RiseTogether - {{ title if title else 'Safe Community' }}</title>
     <link
       rel="manifest"
@@ -19,8 +34,14 @@
     />
     <link
       rel="apple-touch-icon"
-      sizes="192x192"
-      href="{{ url_for('static', filename='images/icon-192.png') }}"
+      sizes="180x180"
+      href="{{ url_for('static', filename='images/apple-touch-icon.png') }}"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="{{ url_for('static', filename='images/favicon.png') }}"
     />
     <link
       rel="icon"
@@ -36,16 +57,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-chat-icons"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260712-pwa-reset"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-chat-icons"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260712-pwa-reset"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-chat-icons"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260712-pwa-reset"
     ></script>
   </head>
   <body>

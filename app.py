@@ -2,10 +2,11 @@ import os
 from datetime import timedelta
 from html import escape
 from pathlib import Path
+from urllib.parse import urljoin
 
 import click
 from dotenv import load_dotenv
-from flask import Flask, Response, request
+from flask import Flask, Response, request, url_for
 from flask_login import current_user
 from sqlalchemy import text
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -99,6 +100,35 @@ def service_worker():
     return response
 
 
+def public_base_url():
+    base_url = (
+        os.getenv("PUBLIC_BASE_URL", "").strip()
+        or os.getenv("SITE_URL", "").strip()
+        or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    )
+    if not base_url and os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip():
+        base_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME').strip()}"
+    return base_url.rstrip("/")
+
+
+@app.context_processor
+def inject_social_meta():
+    base_url = public_base_url()
+    current_path = request.full_path.rstrip("?") if request else "/"
+    page_url = urljoin(base_url + "/", current_path.lstrip("/")) if base_url else request.url
+    image_path = url_for("static", filename="images/social-preview.png")
+    image_url = urljoin(base_url + "/", image_path.lstrip("/")) if base_url else url_for(
+        "static",
+        filename="images/social-preview.png",
+        _external=True,
+        _scheme="https",
+    )
+    return {
+        "public_page_url": page_url,
+        "social_preview_image_url": image_url,
+    }
+
+
 def ensure_schema_compatibility():
     db.create_all()
     from models import (
@@ -148,6 +178,10 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(32) DEFAULT 'text'",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255) DEFAULT ''",
+        "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS code_hash VARCHAR(256) DEFAULT ''",
+        "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_password_reset_tokens_user_used') THEN CREATE INDEX ix_password_reset_tokens_user_used ON password_reset_tokens (user_id, used); END IF; END $$",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_role VARCHAR(20) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_until TIMESTAMP",

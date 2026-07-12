@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const existing = await navigator.serviceWorker.getRegistration();
     if (existing) return existing;
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat-icons", { scope: "/" });
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-pwa-reset", { scope: "/" });
   };
 
   if (pushEnable) {

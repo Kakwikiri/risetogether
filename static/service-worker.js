@@ -1,4 +1,4 @@
-const CACHE_NAME = "risetogether-cache-v14";
+const CACHE_NAME = "risetogether-cache-v15";
 const ASSETS = [
   "/offline",
   "/static/manifest.json",
@@ -8,6 +8,10 @@ const ASSETS = [
   "/static/images/default-avatar.png",
   "/static/images/icon-192.png",
   "/static/images/icon-512.png",
+  "/static/images/icon-maskable-512.png",
+  "/static/images/apple-touch-icon.png",
+  "/static/images/favicon.png",
+  "/static/images/social-preview.png",
   "/static/images/risetogether-logo.png",
 ];
 

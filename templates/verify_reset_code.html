@@ -1,0 +1,36 @@
+{% extends 'base.html' %} {% block content %}
+<section class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-intro">
+      <span class="eyebrow">Account help</span>
+      <h1>Enter reset code</h1>
+      <p>Use the 6-digit code sent to your email. It expires after 3 hours.</p>
+    </div>
+    <form action="" method="post" class="stacked-form">
+      <input type="hidden" name="email" value="{{ email }}" />
+      <label for="code">Verification code</label>
+      <input
+        id="code"
+        class="reset-code-input"
+        type="text"
+        name="code"
+        inputmode="numeric"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        autocomplete="one-time-code"
+        required
+      />
+      <button class="button full-width" type="submit" name="action" value="verify">
+        Verify code
+      </button>
+      <button class="button secondary full-width" type="submit" name="action" value="resend">
+        Resend code
+      </button>
+    </form>
+    <p class="auth-switch">
+      Wrong email?
+      <a href="{{ url_for('auth.forgot_password') }}">Start again</a>.
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -653,9 +653,12 @@ class PasswordResetToken(db.Model):
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     token = db.Column(db.String(128), unique=True, nullable=False)
+    code_hash = db.Column(db.String(256), default="")
     used = db.Column(db.Boolean, default=False, nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
+    last_sent_at = db.Column(db.DateTime, nullable=True)
     user = db.relationship("User", backref="password_reset_tokens")
 
 

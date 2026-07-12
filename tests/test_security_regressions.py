@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from flask import Flask
 
-from models import AuditLog
+from models import AuditLog, PasswordResetToken
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
 
 
@@ -79,6 +79,42 @@ class SecurityRegressionTests(unittest.TestCase):
             "user_delete",
         ]:
             self.assertIn(action_type, source)
+
+    def test_password_reset_code_model_has_expected_fields(self):
+        columns = PasswordResetToken.__table__.columns
+        for column in [
+            "user_id",
+            "token",
+            "code_hash",
+            "used",
+            "attempts",
+            "created_at",
+            "expires_at",
+            "last_sent_at",
+        ]:
+            self.assertIn(column, columns)
+
+    def test_password_reset_routes_use_code_flow(self):
+        source = (ROOT / "routes" / "auth.py").read_text()
+        self.assertIn("send_password_reset_code_email", source)
+        self.assertIn('@auth_bp.route("/forgot-password/verify"', source)
+        self.assertIn('@auth_bp.route("/reset-password", methods=["GET", "POST"])', source)
+        self.assertIn("generate_password_hash(code)", source)
+        self.assertIn("check_password_hash(reset.code_hash, code)", source)
+        self.assertIn("timedelta(hours=3)", source)
+        self.assertNotIn("Reset word is incorrect", source)
+
+    def test_base_template_has_social_preview_metadata(self):
+        source = (ROOT / "templates" / "base.html").read_text()
+        for snippet in [
+            'property="og:title" content="RiseTogether - Safe Community"',
+            'property="og:image" content="{{ social_preview_image_url }}"',
+            'property="og:url" content="{{ public_page_url }}"',
+            'name="twitter:card" content="summary_large_image"',
+            "images/apple-touch-icon.png",
+            "images/favicon.png",
+        ]:
+            self.assertIn(snippet, source)
 
 
 if __name__ == "__main__":
