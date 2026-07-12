@@ -53,6 +53,11 @@ app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads
 app.config["IMAGE_UPLOAD_LIMIT"] = int(os.getenv("IMAGE_UPLOAD_LIMIT_MB", "5")) * 1024 * 1024
 app.config["VIDEO_UPLOAD_LIMIT"] = int(os.getenv("VIDEO_UPLOAD_LIMIT_MB", "25")) * 1024 * 1024
 app.config["FILE_UPLOAD_LIMIT"] = int(os.getenv("FILE_UPLOAD_LIMIT_MB", "10")) * 1024 * 1024
+try:
+    default_family_member_limit = int(os.getenv("DEFAULT_FAMILY_MEMBER_LIMIT", "50"))
+except ValueError:
+    default_family_member_limit = 50
+app.config["DEFAULT_FAMILY_MEMBER_LIMIT"] = max(2, default_family_member_limit)
 app.config["MAX_CONTENT_LENGTH"] = max(
     app.config["IMAGE_UPLOAD_LIMIT"],
     app.config["VIDEO_UPLOAD_LIMIT"],
@@ -125,6 +130,7 @@ def ensure_schema_compatibility():
     QuizChoice.__table__.create(db.engine, checkfirst=True)
     QuizAttempt.__table__.create(db.engine, checkfirst=True)
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
+    default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     updates = [
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",
@@ -148,6 +154,9 @@ def ensure_schema_compatibility():
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS start_date TIMESTAMP",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS target_date TIMESTAMP",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS member_limit INTEGER",
+        f"UPDATE families SET member_limit = {default_family_member_limit} WHERE member_limit IS NULL",
+        f"ALTER TABLE families ALTER COLUMN member_limit SET DEFAULT {default_family_member_limit}",
+        "ALTER TABLE families ALTER COLUMN member_limit SET NOT NULL",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN NOT NULL DEFAULT FALSE",
@@ -155,6 +164,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_until TIMESTAMP",
         "ALTER TABLE post_shares ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
         "UPDATE family_members SET role = 'owner' FROM families WHERE family_members.family_id = families.id AND family_members.user_id = families.owner_id AND family_members.role != 'owner'",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_families_member_limit_min') THEN ALTER TABLE families ADD CONSTRAINT ck_families_member_limit_min CHECK (member_limit >= 2); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_family_member_user_idx') AND NOT EXISTS (SELECT 1 FROM (SELECT family_id, user_id FROM family_members GROUP BY family_id, user_id HAVING COUNT(*) > 1) duplicates) THEN CREATE UNIQUE INDEX uq_family_member_user_idx ON family_members (family_id, user_id); END IF; END $$",
     ]
     for statement in updates:
         db.session.execute(text(statement))

@@ -245,7 +245,7 @@ class Family(db.Model):
     start_date = db.Column(db.DateTime, nullable=True)
     target_date = db.Column(db.DateTime, nullable=True)
     privacy = db.Column(db.String(20), default="public", nullable=False)
-    member_limit = db.Column(db.Integer, nullable=True)
+    member_limit = db.Column(db.Integer, default=50, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(

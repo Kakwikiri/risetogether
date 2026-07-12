@@ -8,15 +8,21 @@
       <h2>{{ family.name }}</h2>
       <p>{{ family.description }}</p>
       <p class="muted-meta">
-        {{ members|length }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
-        {% if family.member_limit %} · Limit {{ family.member_limit }}{% endif %}
+        {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
+        {% if family_is_full %} · Family is full{% endif %}
       </p>
     </div>
     <div class="family-actions">
       {% if not member %}
+      {% if family_is_full %}
+      <button class="button secondary" type="button" disabled>Family is full</button>
+      {% elif not family.is_active %}
+      <button class="button secondary" type="button" disabled>Family paused</button>
+      {% else %}
       <form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post">
         <button class="button" type="submit">Join family</button>
       </form>
+      {% endif %}
       {% endif %}
       {% if member %}
       <a class="button" href="{{ url_for('chat.family_chat', family_id=family.id) }}">Open family chat</a>

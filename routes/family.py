@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from helpers import save_media, send_device_push
@@ -88,6 +89,43 @@ FAMILY_PERMISSIONS = {
     "invite_members": {"owner", "admin"},
     "delete_family": {"owner"},
 }
+
+
+def default_family_member_limit():
+    try:
+        return max(2, int(current_app.config.get("DEFAULT_FAMILY_MEMBER_LIMIT", 50)))
+    except (TypeError, ValueError):
+        return 50
+
+
+def effective_family_member_limit(family):
+    return family.member_limit or default_family_member_limit()
+
+
+def active_family_members_query(family_id):
+    return FamilyMember.query.join(User, FamilyMember.user_id == User.id).filter(
+        FamilyMember.family_id == family_id,
+        User.is_banned == False,
+    )
+
+
+def active_family_member_count(family):
+    return active_family_members_query(family.id).count()
+
+
+def family_is_full(family):
+    return active_family_member_count(family) >= effective_family_member_limit(family)
+
+
+def family_capacity_status(family):
+    limit = effective_family_member_limit(family)
+    count = active_family_member_count(family)
+    return {
+        "member_count": count,
+        "member_limit": limit,
+        "remaining_slots": max(0, limit - count),
+        "is_full": count >= limit,
+    }
 
 
 def add_family_notification(user_id, category, message, action_url):
@@ -190,6 +228,7 @@ def family_form_context(**extra):
     context = {
         "categories": FAMILY_CATEGORIES,
         "privacy_options": FAMILY_PRIVACY_OPTIONS,
+        "default_member_limit": default_family_member_limit(),
     }
     context.update(extra)
     return context
@@ -501,7 +540,7 @@ def validate_family_payload(form):
         return None, "Family name is required."
     if not goal_title:
         return None, "Add a shared goal for this Family."
-    member_limit = None
+    member_limit = default_family_member_limit()
     if member_limit_raw:
         try:
             member_limit = int(member_limit_raw)
@@ -541,7 +580,13 @@ def families():
             )
         )
     families = family_query.order_by(Family.created_at.desc()).all()
-    return render_template("families.html", families=families, query=query)
+    capacity_by_family = {family.id: family_capacity_status(family) for family in families}
+    return render_template(
+        "families.html",
+        families=families,
+        query=query,
+        capacity_by_family=capacity_by_family,
+    )
 
 
 @family_bp.route("/family/create", methods=["GET", "POST"])
@@ -577,6 +622,7 @@ def family_detail(family_id):
         family_id=family.id, user_id=current_user.id
     ).first()
     members = FamilyMember.query.filter_by(family_id=family.id).all()
+    capacity = family_capacity_status(family)
     posts = (
         family.posts.filter(or_(Post.is_hidden == False, Post.user_id == current_user.id))
         .order_by(Post.created_at.desc())
@@ -597,6 +643,10 @@ def family_detail(family_id):
         can_warn_members=family_has_permission(member, "warn_members"),
         can_suspend_members=family_has_permission(member, "suspend_members"),
         can_invite_members=family_has_permission(member, "invite_members"),
+        active_member_count=capacity["member_count"],
+        effective_member_limit=capacity["member_limit"],
+        family_is_full=capacity["is_full"],
+        remaining_slots=capacity["remaining_slots"],
         **family_home_dashboard(family, members),
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
@@ -616,6 +666,13 @@ def edit_family(family_id):
         if error:
             flash(error, "warning")
             return redirect(url_for("family.edit_family", family_id=family.id))
+        active_count = active_family_member_count(family)
+        if payload["member_limit"] < active_count:
+            flash(
+                f"Member limit cannot be below the current active member count ({active_count}).",
+                "warning",
+            )
+            return redirect(url_for("family.edit_family", family_id=family.id))
         for key, value in payload.items():
             setattr(family, key, value)
         family.is_active = request.form.get("is_active", "1") == "1"
@@ -628,7 +685,7 @@ def edit_family(family_id):
 @family_bp.route("/family/<int:family_id>/join", methods=["POST"])
 @login_required
 def join_family(family_id):
-    family = Family.query.get_or_404(family_id)
+    family = Family.query.filter_by(id=family_id).with_for_update().first_or_404()
     existing = FamilyMember.query.filter_by(
         family_id=family.id, user_id=current_user.id
     ).first()
@@ -638,8 +695,8 @@ def join_family(family_id):
     if not family.is_active:
         flash("This Family is currently paused.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    if family.member_limit and family.members.count() >= family.member_limit:
-        flash("This Family has reached its member limit.", "warning")
+    if family_is_full(family):
+        flash("Family is full.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     member = FamilyMember(family_id=family.id, user_id=current_user.id, role="member")
     db.session.add(member)
@@ -650,7 +707,12 @@ def join_family(family_id):
             f"{current_user.username} joined your family {family.name}.",
             url_for("family.family_detail", family_id=family.id),
         )
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("You are already a part of this family.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
     flash("You have joined the family.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
 

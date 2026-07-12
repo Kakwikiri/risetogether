@@ -57,7 +57,7 @@
       </label>
       <label>
         Member limit
-        <input type="number" name="member_limit" min="2" value="{{ form.get('member_limit', '') if form else '' }}" placeholder="Optional" />
+        <input type="number" name="member_limit" min="2" value="{{ form.get('member_limit', default_member_limit) if form else default_member_limit }}" />
       </label>
     </div>
 
