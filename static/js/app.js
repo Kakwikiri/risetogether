@@ -541,6 +541,98 @@ document.addEventListener("DOMContentLoaded", () => {
     updateResults();
   });
 
+  document.querySelectorAll("[data-remote-search]").forEach((root) => {
+    const input = root.querySelector("[data-live-search-input], input[type='search'], input[name='q'], input[name='username']");
+    const results = root.querySelector("[data-remote-search-results]") || root.nextElementSibling;
+    const endpoint = root.dataset.remoteSearchUrl;
+    if (!input || !results || !endpoint) return;
+    const fillInput = root.dataset.remoteSearchFillInput === "1";
+    const type = root.dataset.remoteSearchType || "results";
+    let controller = null;
+    let timer = null;
+
+    const setResults = (message, items = []) => {
+      results.innerHTML = "";
+      if (!message && !items.length) {
+        results.hidden = true;
+        return;
+      }
+      if (message) {
+        const note = document.createElement("p");
+        note.className = "search-suggestion-empty";
+        note.textContent = message;
+        results.appendChild(note);
+      }
+      items.forEach((item) => {
+        const element = fillInput ? document.createElement("button") : document.createElement("a");
+        element.className = "search-suggestion-item";
+        if (fillInput) {
+          element.type = "button";
+          element.addEventListener("click", () => {
+            input.value = item.username || item.name || item.label || "";
+            results.hidden = true;
+            input.focus();
+          });
+        } else {
+          element.href = item.url || "#";
+        }
+        const label = document.createElement("strong");
+        label.textContent = item.label || item.display_name || item.name || item.username || "Result";
+        element.appendChild(label);
+        const metaText = item.meta || (item.username ? `@${item.username}` : "");
+        if (metaText) {
+          const meta = document.createElement("span");
+          meta.textContent = metaText;
+          element.appendChild(meta);
+        }
+        results.appendChild(element);
+      });
+      results.hidden = false;
+    };
+
+    const runSearch = () => {
+      const query = input.value.trim();
+      if (!query) {
+        setResults("");
+        return;
+      }
+      if (query.length < 1) return;
+      if (controller) controller.abort();
+      controller = new AbortController();
+      const url = new URL(endpoint, window.location.origin);
+      url.searchParams.set("q", query);
+      setResults("Searching...");
+      fetch(url.toString(), {
+        credentials: "same-origin",
+        signal: controller.signal,
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error("Search failed");
+          return response.json();
+        })
+        .then((data) => {
+          const items = Array.isArray(data.results) ? data.results : [];
+          if (!items.length) {
+            setResults(type === "people" ? "Username not found." : "No results found.");
+            return;
+          }
+          setResults("", items);
+        })
+        .catch((error) => {
+          if (error.name === "AbortError") return;
+          setResults("Search is unavailable right now.");
+        });
+    };
+
+    input.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(runSearch, 220);
+    });
+    input.addEventListener("focus", () => {
+      if (input.value.trim()) runSearch();
+    });
+  });
+
   const familyPanels = Array.from(document.querySelectorAll("[data-family-panel]"));
   const familyTabs = Array.from(document.querySelectorAll("[data-family-tab]"));
   if (familyPanels.length && familyTabs.length) {

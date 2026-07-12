@@ -4,7 +4,14 @@
     <h2>Families</h2>
     <a class="button" href="{{ url_for('family.create_family') }}">Create Family</a>
   </div>
-  <form class="people-search search-shell" method="get" action="{{ url_for('family.families') }}">
+  <form
+    class="people-search search-shell"
+    method="get"
+    action="{{ url_for('family.families') }}"
+    data-remote-search
+    data-remote-search-url="{{ url_for('api.search_families') }}"
+    data-remote-search-type="families"
+  >
     <label class="search-input-wrap">
       <span aria-hidden="true">Search</span>
       <input
@@ -19,6 +26,7 @@
     </label>
     <button class="button secondary" type="submit">Search</button>
   </form>
+  <div class="search-suggestions" data-remote-search-results hidden></div>
   <p class="search-results-count" data-live-search-count>
     Showing {{ families|length }} {{ 'family' if families|length == 1 else 'families' }}
   </p>

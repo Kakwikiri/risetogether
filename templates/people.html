@@ -4,7 +4,14 @@
     <div class="panel-header">
       <h2>People</h2>
     </div>
-    <form class="people-search search-shell" method="get" action="{{ url_for('main.people') }}">
+    <form
+      class="people-search search-shell"
+      method="get"
+      action="{{ url_for('main.people') }}"
+      data-remote-search
+      data-remote-search-url="{{ url_for('api.search_users') }}"
+      data-remote-search-type="people"
+    >
       <label class="search-input-wrap">
         <span aria-hidden="true">Search</span>
         <input
@@ -19,6 +26,7 @@
       </label>
       <button class="button" type="submit">Search</button>
     </form>
+    <div class="search-suggestions" data-remote-search-results hidden></div>
     <p class="search-results-count" data-live-search-count>
       Showing {{ users|length }} {{ 'person' if users|length == 1 else 'people' }}
     </p>

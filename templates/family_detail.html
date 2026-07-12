@@ -639,9 +639,27 @@
   {% if can_invite_members %}
   <section id="family-invite" class="family-section" data-family-panel hidden>
     <h3>Invite someone</h3>
-    <form action="{{ url_for('family.invite_family_member', family_id=family.id) }}" method="post">
-      <label>Username</label>
-      <input type="text" name="username" required />
+    <form
+      action="{{ url_for('family.invite_family_member', family_id=family.id) }}"
+      method="post"
+      class="invite-search-form"
+      data-remote-search
+      data-remote-search-url="{{ url_for('api.search_users', family_id=family.id) }}"
+      data-remote-search-type="people"
+      data-remote-search-fill-input="1"
+    >
+      <label class="search-input-wrap">
+        <span aria-hidden="true">Search</span>
+        <input
+          type="search"
+          name="username"
+          required
+          autocomplete="off"
+          placeholder="Type a username or display name"
+          data-live-search-input
+        />
+      </label>
+      <div class="search-suggestions" data-remote-search-results hidden></div>
       <button class="button" type="submit">Send invite</button>
     </form>
   </section>

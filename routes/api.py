@@ -1,12 +1,13 @@
 import os
 from datetime import datetime
 
-from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory
+from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 from werkzeug.utils import safe_join
 
 from extensions import db
-from models import Family, MediaAsset, Message, PushSubscription
+from models import Family, FamilyMember, MediaAsset, Message, Profile, PushSubscription, User
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -48,6 +49,86 @@ def current_user_info():
             "privacy_posts": profile.privacy_posts,
             "notifications_enabled": profile.notifications_enabled,
             "notification_previews_enabled": profile.notification_previews_enabled,
+        }
+    )
+
+
+@api_bp.route("/users/search")
+@login_required
+def search_users():
+    query = request.args.get("q", "").strip()
+    family_id = request.args.get("family_id", type=int)
+    if len(query) < 1:
+        return jsonify({"results": []})
+
+    search = f"%{query}%"
+    users_query = (
+        User.query.outerjoin(Profile)
+        .filter(
+            User.id != current_user.id,
+            User.is_hidden_from_directory == False,
+            User.is_banned == False,
+            or_(
+                User.username.ilike(search),
+                User.email.ilike(search),
+                Profile.display_name.ilike(search),
+            ),
+        )
+        .order_by(User.username.asc())
+        .limit(10)
+    )
+    if family_id:
+        member_user_ids = db.session.query(FamilyMember.user_id).filter_by(family_id=family_id)
+        users_query = users_query.filter(~User.id.in_(member_user_ids))
+
+    results = []
+    for user in users_query.all():
+        display_name = user.profile.display_name if user.profile else user.username
+        results.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "display_name": display_name,
+                "label": f"{display_name} @{user.username}",
+                "url": url_for("main.profile", username=user.username),
+            }
+        )
+    return jsonify({"results": results})
+
+
+@api_bp.route("/families/search")
+@login_required
+def search_families():
+    query = request.args.get("q", "").strip()
+    if len(query) < 1:
+        return jsonify({"results": []})
+
+    search = f"%{query}%"
+    families = (
+        Family.query.filter(
+            or_(
+                Family.name.ilike(search),
+                Family.description.ilike(search),
+                Family.goal_title.ilike(search),
+                Family.category.ilike(search),
+            )
+        )
+        .order_by(Family.name.asc())
+        .limit(10)
+        .all()
+    )
+    return jsonify(
+        {
+            "results": [
+                {
+                    "id": family.id,
+                    "name": family.name,
+                    "label": family.name,
+                    "meta": f"{family.category.replace('_', ' ').title()} · {family.privacy.replace('_', ' ').title()}",
+                    "url": url_for("family.family_detail", family_id=family.id),
+                }
+                for family in families
+            ]
         }
     )
 

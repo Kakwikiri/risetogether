@@ -1353,7 +1353,7 @@ def invite_family_member(family_id):
         flash("Only Family owners and admins can invite members.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     username = request.form.get("username", "").strip()
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
     if not user:
         flash("No user found with that username.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
