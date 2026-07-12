@@ -65,6 +65,28 @@ def has_active_family_restriction(family_id, user_id, *restriction_types):
     return query.first() is not None
 
 
+def validate_profile_avatar_upload(file):
+    is_valid, message = validate_upload(file)
+    if not is_valid:
+        return False, message
+    if get_media_type(file.filename) != "image":
+        return False, "Profile picture must be an image."
+    try:
+        from PIL import Image
+    except ImportError:
+        file.stream.seek(0)
+        return True, ""
+    try:
+        file.stream.seek(0)
+        with Image.open(file.stream) as image:
+            image.verify()
+    except OSError:
+        file.stream.seek(0)
+        return False, "Profile picture file is not a valid image."
+    file.stream.seek(0)
+    return True, ""
+
+
 def add_notification(user_id, category, message, action_url=""):
     notification = Notification(
         user_id=user_id,
@@ -323,7 +345,7 @@ def edit_profile():
         reset_phrase = request.form.get("reset_phrase", "").strip()
         avatar_file = request.files.get("avatar")
         if avatar_file and avatar_file.filename:
-            is_valid, upload_message = validate_upload(avatar_file)
+            is_valid, upload_message = validate_profile_avatar_upload(avatar_file)
             if not is_valid:
                 flash(upload_message, "warning")
                 return redirect(url_for("main.edit_profile"))

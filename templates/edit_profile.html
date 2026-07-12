@@ -1,7 +1,27 @@
 {% extends 'base.html' %} {% block content %}
-<section class="card form-card">
-  <h2>Edit Profile</h2>
-  <form action="" method="post" enctype="multipart/form-data">
+<section class="card form-card modern-edit-card">
+  <header class="edit-form-hero">
+    <div>
+      <span class="eyebrow">Profile settings</span>
+      <h2>Edit Profile</h2>
+      <p class="muted-meta">Preview your public identity before saving it.</p>
+    </div>
+  </header>
+  <form class="modern-edit-form" action="" method="post" enctype="multipart/form-data" data-profile-edit-form>
+    {% set avatar_url = url_for('static', filename='images/default-avatar.png') if not profile.avatar else url_for('api.serve_upload', filename=profile.avatar) %}
+    <section class="settings-panel profile-avatar-editor">
+      <img class="avatar-large" src="{{ avatar_url }}" alt="Profile picture preview" data-profile-avatar-preview />
+      <div>
+        <label>Avatar image</label>
+        <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif" data-profile-avatar-input />
+        <div class="family-image-actions">
+          <button class="button secondary" type="button" data-profile-avatar-cancel hidden>Cancel</button>
+        </div>
+        <p class="form-status" data-profile-avatar-status hidden></p>
+      </div>
+    </section>
+    <section class="settings-panel">
+    <h3>Public profile</h3>
     <label>Display name</label>
     <input
       type="text"
@@ -18,9 +38,8 @@
       <option value="family" {% if profile.privacy_posts == "family" %}selected{% endif %}>Family only</option>
       <option value="private" {% if profile.privacy_posts == "private" %}selected{% endif %}>Private</option>
     </select>
-    <label>Avatar image</label>
-    <input type="file" name="avatar" accept="image/*" />
-    <hr />
+    </section>
+    <section class="settings-panel">
     <div class="form-section-header">
       <h3>Security</h3>
       <button class="button secondary" type="button" data-toggle-password-fields>
@@ -36,10 +55,12 @@
       <label>Confirm new password</label>
       <input type="password" name="confirm_password" autocomplete="new-password" />
     </div>
-    <hr />
+    </section>
+    <section class="settings-panel">
     <h3>Reset word</h3>
     <label>Private reset word</label>
     <input type="password" name="reset_phrase" placeholder="Example: kyotya monica" autocomplete="off" />
+    </section>
     <button class="button" type="submit">Save Changes</button>
   </form>
 </section>

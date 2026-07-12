@@ -1405,8 +1405,90 @@ textarea:focus {
   font-weight: 700;
 }
 
+.modern-edit-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.edit-form-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.edit-form-hero h2,
+.settings-panel h3 {
+  margin: 0.2rem 0;
+}
+
+.modern-edit-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem;
+  background: #fbfefd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.profile-avatar-editor {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
 .family-tabbar {
-  margin: 1rem 0;
+  position: sticky;
+  top: 0.35rem;
+  z-index: 12;
+  margin: 1rem 0 0.6rem;
+  padding: 0.35rem;
+  background: rgba(251, 254, 253, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.family-tabbar a.active,
+.family-action-dock a.active {
+  color: white;
+  background: var(--brand);
+}
+
+.family-action-dock {
+  position: sticky;
+  bottom: 0.6rem;
+  z-index: 20;
+  display: flex;
+  gap: 0.45rem;
+  justify-content: center;
+  width: min(100%, 680px);
+  padding: 0.45rem;
+  margin: 0.65rem auto 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(21, 33, 31, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.family-action-dock a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  color: var(--ink);
+  background: var(--soft);
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 850;
 }
 
 .family-section {
@@ -1414,6 +1496,10 @@ textarea:focus {
   gap: 0.65rem;
   padding: 1rem 0;
   border-top: 1px solid var(--line);
+}
+
+.family-section[hidden] {
+  display: none;
 }
 
 .family-goal-summary {

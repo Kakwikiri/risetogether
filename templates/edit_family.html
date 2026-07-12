@@ -1,6 +1,12 @@
 {% extends 'base.html' %} {% block content %}
-<section class="card form-card family-form-card">
-  <h2>Edit Family</h2>
+<section class="card form-card family-form-card modern-edit-card">
+  <header class="edit-form-hero">
+    <div>
+      <span class="eyebrow">Family settings</span>
+      <h2>Edit {{ family.name }}</h2>
+      <p class="muted-meta">Keep the Family identity, goal, privacy and member capacity clear for everyone.</p>
+    </div>
+  </header>
   {% set family_image_url = url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') %}
   {% if can_change_family_image %}
   <form class="family-image-form" action="{{ url_for('family.update_family_image', family_id=family.id) }}" method="post" enctype="multipart/form-data" data-family-image-form>
@@ -22,62 +28,71 @@
   {% endif %}
 
   {% if can_edit_family_details %}
-  <form action="" method="post">
-    <label>Family name</label>
-    <input type="text" name="name" value="{{ family.name }}" required />
+  <form class="modern-edit-form" action="" method="post">
+    <section class="settings-panel">
+      <h3>Identity</h3>
+      <label>Family name</label>
+      <input type="text" name="name" value="{{ family.name }}" required />
 
-    <label>Family type</label>
-    <select name="category">
-      {% for key,label in categories.items() %}
-      <option value="{{ key }}" {% if family.category == key %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+      <label>Family type</label>
+      <select name="category">
+        {% for key,label in categories.items() %}
+        <option value="{{ key }}" {% if family.category == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
 
-    <label>Custom Family type</label>
-    <input type="text" name="custom_category" value="{{ family.custom_category or '' }}" placeholder="Only needed when type is Custom" />
+      <label>Custom Family type</label>
+      <input type="text" name="custom_category" value="{{ family.custom_category or '' }}" placeholder="Only needed when type is Custom" />
+    </section>
 
-    <label>Shared goal</label>
-    <input type="text" name="goal_title" value="{{ family.goal_title or '' }}" required />
+    <section class="settings-panel">
+      <h3>Goal</h3>
+      <label>Shared goal</label>
+      <input type="text" name="goal_title" value="{{ family.goal_title or '' }}" required />
 
-    <label>What should members achieve?</label>
-    <textarea name="goal_description" rows="4">{{ family.goal_description or '' }}</textarea>
+      <label>What should members achieve?</label>
+      <textarea name="goal_description" rows="4">{{ family.goal_description or '' }}</textarea>
 
-    <label>Description</label>
-    <textarea name="description" rows="3">{{ family.description or '' }}</textarea>
+      <label>Description</label>
+      <textarea name="description" rows="3">{{ family.description or '' }}</textarea>
+    </section>
 
-    <div class="form-grid two-column">
+    <section class="settings-panel">
+      <h3>Access</h3>
+      <div class="form-grid two-column">
+        <label>
+          Start date
+          <input type="date" name="start_date" value="{{ family.start_date.strftime('%Y-%m-%d') if family.start_date else '' }}" />
+        </label>
+        <label>
+          Target date
+          <input type="date" name="target_date" value="{{ family.target_date.strftime('%Y-%m-%d') if family.target_date else '' }}" />
+        </label>
+      </div>
+
+      <div class="form-grid two-column">
+        <label>
+          Privacy
+          <select name="privacy">
+            <option value="public" {% if family.privacy == 'public' %}selected{% endif %}>Public</option>
+            <option value="private" {% if family.privacy == 'private' %}selected{% endif %}>Private</option>
+            <option value="invite_only" {% if family.privacy == 'invite_only' %}selected{% endif %}>Invitation-only</option>
+          </select>
+        </label>
+        <label>
+          Member limit
+          <input type="number" name="member_limit" min="2" value="{{ family.member_limit or '' }}" placeholder="Optional" />
+        </label>
+      </div>
+
       <label>
-        Start date
-        <input type="date" name="start_date" value="{{ family.start_date.strftime('%Y-%m-%d') if family.start_date else '' }}" />
-      </label>
-      <label>
-        Target date
-        <input type="date" name="target_date" value="{{ family.target_date.strftime('%Y-%m-%d') if family.target_date else '' }}" />
-      </label>
-    </div>
-
-    <div class="form-grid two-column">
-      <label>
-        Privacy
-        <select name="privacy">
-          <option value="public" {% if family.privacy == 'public' %}selected{% endif %}>Public</option>
-          <option value="private" {% if family.privacy == 'private' %}selected{% endif %}>Private</option>
-          <option value="invite_only" {% if family.privacy == 'invite_only' %}selected{% endif %}>Invitation-only</option>
+        Status
+        <select name="is_active">
+          <option value="1" {% if family.is_active %}selected{% endif %}>Active</option>
+          <option value="0" {% if not family.is_active %}selected{% endif %}>Paused</option>
         </select>
       </label>
-      <label>
-        Member limit
-        <input type="number" name="member_limit" min="2" value="{{ family.member_limit or '' }}" placeholder="Optional" />
-      </label>
-    </div>
-
-    <label>
-      Status
-      <select name="is_active">
-        <option value="1" {% if family.is_active %}selected{% endif %}>Active</option>
-        <option value="0" {% if not family.is_active %}selected{% endif %}>Paused</option>
-      </select>
-    </label>
+    </section>
 
     <button class="button" type="submit">Save family</button>
   </form>

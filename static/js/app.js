@@ -356,6 +356,82 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelectorAll("[data-profile-edit-form]").forEach((form) => {
+    const input = form.querySelector("[data-profile-avatar-input]");
+    const preview = form.querySelector("[data-profile-avatar-preview]");
+    const cancel = form.querySelector("[data-profile-avatar-cancel]");
+    const status = form.querySelector("[data-profile-avatar-status]");
+    if (!input || !preview || !cancel || !status) return;
+    const originalSrc = preview.src;
+    let objectUrl = "";
+    const clearObjectUrl = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = "";
+    };
+    input.addEventListener("change", () => {
+      clearObjectUrl();
+      const file = input.files && input.files[0];
+      if (!file) {
+        preview.src = originalSrc;
+        cancel.hidden = true;
+        status.hidden = true;
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        input.value = "";
+        preview.src = originalSrc;
+        cancel.hidden = true;
+        status.textContent = "Choose an image file.";
+        status.hidden = false;
+        return;
+      }
+      objectUrl = URL.createObjectURL(file);
+      preview.src = objectUrl;
+      cancel.hidden = false;
+      status.textContent = file.name;
+      status.hidden = false;
+    });
+    cancel.addEventListener("click", () => {
+      input.value = "";
+      clearObjectUrl();
+      preview.src = originalSrc;
+      cancel.hidden = true;
+      status.hidden = true;
+      status.textContent = "";
+    });
+    form.addEventListener("submit", () => {
+      status.textContent = "Saving profile...";
+      status.hidden = false;
+    });
+  });
+
+  const familyPanels = Array.from(document.querySelectorAll("[data-family-panel]"));
+  const familyTabs = Array.from(document.querySelectorAll("[data-family-tab]"));
+  if (familyPanels.length && familyTabs.length) {
+    const showFamilyPanel = (id, updateHash = true) => {
+      const target = familyPanels.find((panel) => panel.id === id) || familyPanels[0];
+      familyPanels.forEach((panel) => {
+        panel.hidden = panel !== target;
+      });
+      familyTabs.forEach((tab) => {
+        tab.classList.toggle("active", tab.getAttribute("href") === `#${target.id}`);
+      });
+      if (updateHash && window.location.hash !== `#${target.id}`) {
+        window.history.replaceState(null, "", `#${target.id}`);
+      }
+    };
+    familyTabs.forEach((tab) => {
+      tab.addEventListener("click", (event) => {
+        const href = tab.getAttribute("href") || "";
+        if (!href.startsWith("#")) return;
+        event.preventDefault();
+        showFamilyPanel(href.slice(1));
+      });
+    });
+    const initialId = window.location.hash ? window.location.hash.slice(1) : "family-home";
+    showFamilyPanel(initialId, Boolean(window.location.hash));
+  }
+
   const liveStartForm = document.querySelector("[data-live-start-form]");
   if (liveStartForm) {
     const liveStartStatus = liveStartForm.querySelector("[data-live-start-status]");

@@ -38,18 +38,27 @@
     </div>
   </header>
 
-  <nav class="profile-tabbar family-tabbar" aria-label="Family sections">
-    <a href="#family-home">Home</a>
+  <nav class="profile-tabbar family-tabbar" aria-label="Family sections" data-family-tabs>
+    <a href="#family-home" data-family-tab>Home</a>
     <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
-    <a href="#family-posts">Posts</a>
-    <a href="#family-goal">Goal</a>
-    <a href="#family-polls">Polls</a>
-    <a href="#family-challenges">Challenges</a>
-    <a href="#family-quizzes">Quizzes</a>
-    <a href="#family-members">Members</a>
+    <a href="#family-posts" data-family-tab>Posts</a>
+    <a href="#family-goal" data-family-tab>Goal</a>
+    <a href="#family-polls" data-family-tab>Polls</a>
+    <a href="#family-challenges" data-family-tab>Challenges</a>
+    <a href="#family-quizzes" data-family-tab>Quizzes</a>
+    <a href="#family-members" data-family-tab>Members</a>
+    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
   </nav>
 
-  <section id="family-home" class="family-section">
+  <div class="family-action-dock" data-family-tabs aria-label="Family quick actions">
+    <a href="#family-posts" data-family-tab>Post</a>
+    <a href="#family-polls" data-family-tab>Poll</a>
+    <a href="#family-challenges" data-family-tab>Challenge</a>
+    <a href="#family-quizzes" data-family-tab>Quiz</a>
+    <a href="#family-members" data-family-tab>Members</a>
+  </div>
+
+  <section id="family-home" class="family-section" data-family-panel>
     <h3>Family Home</h3>
     <div class="family-dashboard-grid">
       <section class="family-dashboard-panel family-dashboard-goal">
@@ -177,7 +186,7 @@
     </section>
   </section>
 
-  <section id="family-goal" class="family-section">
+  <section id="family-goal" class="family-section" data-family-panel hidden>
     <h3>Goal</h3>
     <p>{{ family.goal_description or family.description or 'This Family is preparing its shared goal.' }}</p>
     {% if family.target_date %}
@@ -185,7 +194,7 @@
     {% endif %}
   </section>
 
-  <section id="family-polls" class="family-section">
+  <section id="family-polls" class="family-section" data-family-panel hidden>
     <h3>Polls</h3>
     {% if can_create_polls %}
     <form class="poll-form compact-composer" action="{{ url_for('family.create_poll', family_id=family.id) }}" method="post">
@@ -287,7 +296,7 @@
     </div>
   </section>
 
-  <section id="family-challenges" class="family-section">
+  <section id="family-challenges" class="family-section" data-family-panel hidden>
     <h3>Challenges</h3>
     {% if family_progress is not none %}
     <div class="family-goal-summary">
@@ -371,7 +380,7 @@
     </div>
   </section>
 
-  <section id="family-members" class="family-section">
+  <section id="family-members" class="family-section" data-family-panel hidden>
     <h3>Members</h3>
     <ul>
       {% for membership in members %}
@@ -430,7 +439,7 @@
     </ul>
   </section>
 
-  <section id="family-quizzes" class="family-section">
+  <section id="family-quizzes" class="family-section" data-family-panel hidden>
     <h3>Quizzes</h3>
     {% if not supports_quizzes %}
     <p class="muted-meta">This Family category does not use quizzes by default.</p>
@@ -539,7 +548,7 @@
     </div>
   </section>
 
-  <section id="family-posts" class="family-section">
+  <section id="family-posts" class="family-section" data-family-panel hidden>
     <h3>Family posts</h3>
     {% if member %}
     <form
@@ -595,7 +604,7 @@
   </section>
 
   {% if can_invite_members %}
-  <section class="family-section">
+  <section id="family-invite" class="family-section" data-family-panel hidden>
     <h3>Invite someone</h3>
     <form action="{{ url_for('family.invite_family_member', family_id=family.id) }}" method="post">
       <label>Username</label>
