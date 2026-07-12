@@ -85,6 +85,15 @@ socketio.init_app(
 )
 
 
+@app.route("/service-worker.js")
+def service_worker():
+    response = app.send_static_file("service-worker.js")
+    response.headers["Content-Type"] = "application/javascript; charset=utf-8"
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 def ensure_schema_compatibility():
     db.create_all()
     from models import (

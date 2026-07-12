@@ -173,6 +173,11 @@ def home():
     return render_template("landing.html")
 
 
+@main_bp.route("/offline")
+def offline():
+    return render_template("offline.html")
+
+
 def get_reaction_counts(post):
     return {
         key: Reaction.query.filter_by(post_id=post.id, type=key).count()

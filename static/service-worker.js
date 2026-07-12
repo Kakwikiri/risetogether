@@ -1,5 +1,6 @@
-const CACHE_NAME = "risetogether-cache-v12";
+const CACHE_NAME = "risetogether-cache-v13";
 const ASSETS = [
+  "/offline",
   "/static/manifest.json",
   "/static/css/styles.css",
   "/static/js/app.js",
@@ -17,8 +18,12 @@ const NETWORK_ONLY_PREFIXES = [
   "/api/",
   "/messages",
   "/chat/",
+  "/chat/upload",
   "/notifications",
   "/admin/",
+  "/account/",
+  "/profile/edit",
+  "/uploads/",
 ];
 
 self.addEventListener("install", (event) => {
@@ -50,12 +55,7 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(
-        () =>
-          new Response("RiseTogether is offline. Please reconnect and try again.", {
-            headers: { "Content-Type": "text/plain" },
-          }),
-      ),
+      fetch(event.request).catch(() => caches.match("/offline")),
     );
     return;
   }

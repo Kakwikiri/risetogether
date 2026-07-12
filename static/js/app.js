@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const existing = await navigator.serviceWorker.getRegistration();
     if (existing) return existing;
-    return navigator.serviceWorker.register("/static/service-worker.js?v=20260712-stage5-push");
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-pwa", { scope: "/" });
   };
 
   if (pushEnable) {
@@ -142,11 +142,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const isStandalone = () =>
     window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+  const isSecureInstallContext = () =>
+    window.isSecureContext || ["localhost", "127.0.0.1"].includes(location.hostname);
+  const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isFirefox = () => navigator.userAgent.toLowerCase().includes("firefox");
+  const canShowManualInstall = () => isSecureInstallContext() && (isIos() || isFirefox());
 
   const openInstallPanel = (message) => {
     if (installMessage) installMessage.textContent = message;
     if (installPanel) installPanel.hidden = false;
   };
+
+  const showManualInstallButton = () => {
+    if (!installButton || isStandalone() || deferredPrompt || !canShowManualInstall()) return;
+    installButton.hidden = false;
+    installButton.classList.remove("ready");
+    installButton.textContent = "Install";
+  };
+
+  if (installButton) {
+    installButton.hidden = true;
+  }
 
   if (installClose && installPanel) {
     installClose.addEventListener("click", () => {
@@ -165,22 +181,18 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   if (installButton) {
-    installButton.hidden = false;
     installButton.addEventListener("click", async () => {
       if (isStandalone()) {
         showToast("RiseTogether is already installed.");
         return;
       }
       if (!deferredPrompt) {
-        const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(location.hostname);
-        const isFirefox = navigator.userAgent.toLowerCase().includes("firefox");
-        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
         openInstallPanel(
-          !secure
+          !isSecureInstallContext()
             ? "Install needs HTTPS or localhost. Open the secure site, then use Add to Home Screen."
-            : isIos
+            : isIos()
               ? "On iPhone or iPad, tap Share, then Add to Home Screen."
-              : isFirefox
+              : isFirefox()
                 ? "Firefox installs web apps from the browser menu on supported devices. Choose Install or Add to Home screen."
                 : "Use the browser menu and choose Install app or Add to Home screen.",
         );
@@ -206,6 +218,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (installPanel) installPanel.hidden = true;
     showToast("RiseTogether installed successfully.");
   });
+
+  showManualInstallButton();
 
   document.querySelectorAll(".password-toggle").forEach((button) => {
     button.addEventListener("click", () => {
