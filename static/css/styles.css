@@ -84,6 +84,35 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+:root[data-theme="dark"] .family-dashboard-panel,
+:root[data-theme="dark"] .poll-card,
+:root[data-theme="dark"] .poll-option,
+:root[data-theme="dark"] .challenge-card,
+:root[data-theme="dark"] .challenge-complete-form,
+:root[data-theme="dark"] .quiz-question-builder,
+:root[data-theme="dark"] .quiz-question-card,
+:root[data-theme="dark"] .member-progress-card,
+:root[data-theme="dark"] .achievement-badge,
+:root[data-theme="dark"] .settings-panel,
+:root[data-theme="dark"] .search-suggestion-item {
+  color: var(--ink);
+  background: var(--soft);
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] .family-dashboard-panel a,
+:root[data-theme="dark"] .challenge-complete-form strong,
+:root[data-theme="dark"] .family-action-dock a,
+:root[data-theme="dark"] .family-action-dock button,
+:root[data-theme="dark"] .message-row strong {
+  color: var(--brand-dark);
+}
+
+:root[data-theme="dark"] .poll-meter,
+:root[data-theme="dark"] .progress-meter {
+  background: #263833;
+}
+
 .panel:has(.data-table) {
   overflow-x: auto;
 }

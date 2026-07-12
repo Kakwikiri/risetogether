@@ -58,41 +58,66 @@ def current_user_info():
 def search_users():
     query = request.args.get("q", "").strip()
     family_id = request.args.get("family_id", type=int)
+    target = request.args.get("target", "").strip()
     if len(query) < 1:
         return jsonify({"results": []})
 
     search = f"%{query}%"
-    users_query = (
-        User.query.outerjoin(Profile)
-        .filter(
-            User.id != current_user.id,
-            User.is_hidden_from_directory == False,
-            User.is_banned == False,
-            or_(
-                User.username.ilike(search),
-                User.email.ilike(search),
-                Profile.display_name.ilike(search),
-            ),
-        )
-        .order_by(User.username.asc())
-        .limit(10)
-    )
+    users_query = User.query.filter(
+        User.id != current_user.id,
+        User.is_hidden_from_directory == False,
+        User.is_banned == False,
+        or_(User.username.ilike(search), User.email.ilike(search)),
+    ).order_by(User.username.asc())
     if family_id:
         member_user_ids = db.session.query(FamilyMember.user_id).filter_by(family_id=family_id)
         users_query = users_query.filter(~User.id.in_(member_user_ids))
 
+    users = users_query.limit(20).all()
+    try:
+        profile_matches = (
+            User.query.join(Profile)
+            .filter(
+                User.id != current_user.id,
+                User.is_hidden_from_directory == False,
+                User.is_banned == False,
+                Profile.display_name.ilike(search),
+            )
+            .order_by(User.username.asc())
+            .limit(20)
+            .all()
+        )
+    except Exception as error:
+        current_app.logger.warning("User display-name search failed: %s", error)
+        profile_matches = []
+    if family_id:
+        member_user_ids = db.session.query(FamilyMember.user_id).filter_by(family_id=family_id)
+        member_ids = {row[0] for row in member_user_ids.all()}
+        profile_matches = [user for user in profile_matches if user.id not in member_ids]
+
     results = []
-    for user in users_query.all():
+    seen_user_ids = set()
+    for user in users + profile_matches:
+        if user.id in seen_user_ids:
+            continue
+        seen_user_ids.add(user.id)
         display_name = user.profile.display_name if user.profile else user.username
+        result_url = (
+            url_for("chat.direct_chat", user_id=user.id)
+            if target == "chat"
+            else url_for("main.profile", username=user.username)
+        )
         results.append(
             {
                 "id": user.id,
                 "username": user.username,
                 "display_name": display_name,
                 "label": f"{display_name} @{user.username}",
-                "url": url_for("main.profile", username=user.username),
+                "url": result_url,
             }
         )
+        if len(results) >= 10:
+            break
     return jsonify({"results": results})
 
 
