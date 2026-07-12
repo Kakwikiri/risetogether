@@ -3,7 +3,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user, fresh_login_required, login_required
 
 from extensions import db
 from models import Block, HelpRequest, Post, Report, SiteSetting, User
@@ -137,7 +137,7 @@ def manage_help_request(request_id, action):
 
 
 @mod_bp.route("/admin/settings", methods=["GET", "POST"])
-@login_required
+@fresh_login_required
 def admin_settings():
     if not current_user.is_admin:
         flash("Admin access required.", "danger")

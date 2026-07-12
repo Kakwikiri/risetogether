@@ -1,7 +1,7 @@
 import re
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user, fresh_login_required, login_required
 from sqlalchemy import or_
 from markupsafe import Markup, escape
 
@@ -900,11 +900,10 @@ def settings():
 
 
 @main_bp.route("/account/delete", methods=["POST"])
-@login_required
+@fresh_login_required
 def delete_account():
     if request.form.get("confirm") == "DELETE":
         user = current_user
-        logout = request.form.get("logout")
         db.session.delete(user)
         db.session.commit()
         flash("Your account has been deleted.", "info")

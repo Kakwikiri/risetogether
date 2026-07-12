@@ -1,0 +1,30 @@
+{% extends 'base.html' %} {% block content %}
+<section class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-intro">
+      <span class="eyebrow">RiseTogether</span>
+      <h1>Confirm it is you</h1>
+      <p>Enter your password before continuing to this sensitive action.</p>
+    </div>
+    <form action="{{ url_for('auth.reauthenticate', next=next_url) }}" method="post" class="stacked-form">
+      <label for="password">Password</label>
+      <div class="password-field">
+        <input
+          id="password"
+          type="password"
+          name="password"
+          required
+          autocomplete="current-password"
+        />
+        <button type="button" class="password-toggle" aria-label="Show password">
+          Show
+        </button>
+      </div>
+      <button class="button full-width" type="submit">Continue</button>
+    </form>
+    <p class="auth-switch">
+      <a href="{{ url_for('auth.logout') }}">Use a different account</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from html import escape
 from pathlib import Path
 
@@ -27,6 +28,23 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "rise-together-secret")
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["PREFERRED_URL_SCHEME"] = "https"
+is_production = (
+    os.getenv("FLASK_ENV", "").lower() == "production"
+    or os.getenv("RENDER", "").lower() == "true"
+    or bool(os.getenv("RENDER_EXTERNAL_HOSTNAME"))
+)
+app.config["SESSION_COOKIE_SECURE"] = is_production
+app.config["REMEMBER_COOKIE_SECURE"] = is_production
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
+app.config["REMEMBER_COOKIE_SAMESITE"] = os.getenv("REMEMBER_COOKIE_SAMESITE", "Lax")
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(
+    days=int(os.getenv("REMEMBER_COOKIE_DAYS", "30"))
+)
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    days=int(os.getenv("SESSION_COOKIE_DAYS", "7"))
+)
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 280,
@@ -53,7 +71,10 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "auth.login"
+login_manager.refresh_view = "auth.reauthenticate"
 login_manager.login_message_category = "info"
+login_manager.needs_refresh_message = "Please confirm your password to continue."
+login_manager.needs_refresh_message_category = "warning"
 socketio.init_app(
     app,
     async_mode="threading",

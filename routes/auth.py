@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
-from flask_login import current_user, login_required, login_user, logout_user
+from flask_login import confirm_login, current_user, login_required, login_user, logout_user
 
 from extensions import db
 from models import PasswordResetToken, Profile, SiteSetting, User
@@ -142,11 +142,26 @@ def login():
             if user.is_banned:
                 flash("This account has been banned. Please contact an admin.", "danger")
                 return render_template("login.html")
-            login_user(user)
+            remember = request.form.get("remember") == "1"
+            login_user(user, remember=remember)
             flash("Logged in successfully.", "success")
             return redirect(url_for("main.home"))
         flash("Invalid email or password.", "danger")
     return render_template("login.html")
+
+
+@auth_bp.route("/reauthenticate", methods=["GET", "POST"])
+@login_required
+def reauthenticate():
+    next_url = request.args.get("next") or url_for("main.home")
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if current_user.check_password(password):
+            confirm_login()
+            flash("Session confirmed.", "success")
+            return redirect(next_url)
+        flash("Password confirmation failed.", "danger")
+    return render_template("reauthenticate.html", next_url=next_url)
 
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
