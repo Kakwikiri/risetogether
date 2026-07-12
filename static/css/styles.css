@@ -3073,6 +3073,32 @@ textarea:focus {
     height: 21px;
   }
 
+  .chat-selection-toolbar {
+    width: 100%;
+    min-height: 48px;
+    gap: 0.35rem;
+    padding: 0.1rem 0;
+    overflow-x: visible;
+  }
+
+  .chat-selection-toolbar strong {
+    flex: 1 1 auto;
+    min-width: 88px;
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  .chat-selection-toolbar .icon-button {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    font-size: 1.15rem;
+  }
+
+  .chat-selection-toolbar .icon-button:first-child {
+    margin-right: 0.1rem;
+  }
+
   .chat-log {
     padding: 0.62rem;
   }
@@ -3177,6 +3203,24 @@ textarea:focus {
   .local-video {
     width: 96px;
     height: 132px;
+  }
+}
+
+@media (max-width: 380px) {
+  .chat-selection-toolbar {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chat-selection-toolbar strong {
+    min-width: 76px;
+    font-size: 0.86rem;
+  }
+
+  .chat-selection-toolbar .icon-button {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
   }
 }
 
@@ -3516,7 +3560,22 @@ textarea:focus {
   }
 
   .panel-sidebar {
-    display: none;
+    order: 2;
+    gap: 0.65rem;
+  }
+
+  .panel-sidebar .card {
+    padding: 0.75rem;
+  }
+
+  .panel-sidebar .card h3 {
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+  }
+
+  .panel-sidebar .card p,
+  .panel-sidebar .card li {
+    font-size: 0.9rem;
   }
 
   .composer-card {

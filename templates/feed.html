@@ -14,7 +14,10 @@
     <nav class="mobile-feed-tabs" aria-label="Feed filters">
       <a class="{{ 'active' if not video_only else '' }}" href="{{ url_for('main.home') }}">All</a>
       <a class="{{ 'active' if video_only else '' }}" href="{{ url_for('main.home', type='videos') }}">Videos</a>
-      <a href="{{ url_for('family.families') }}">Families</a>
+      <a href="#available-families">Families</a>
+      <a href="#community-highlights">Highlights</a>
+      <a href="#kindness-challenge">Kindness</a>
+      <a href="#trending-videos">Trending</a>
     </nav>
     {% if video_only %}
     <div class="video-quick-actions">
