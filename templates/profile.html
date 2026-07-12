@@ -24,8 +24,12 @@
       {% if current_user.is_authenticated and current_user.id == user.id %}
       <a class="button" href="{{ url_for('main.edit_profile') }}">Edit Profile</a>
       {% elif current_user.is_authenticated %}
+        {% if can_message_user %}
+        <a class="button profile-message-button" href="{{ url_for('chat.direct_chat', user_id=user.id) }}">
+          <span aria-hidden="true">✉</span> Message
+        </a>
+        {% endif %}
         {% if friend_status == 'accepted' %}
-        <a class="button" href="{{ url_for('chat.direct_chat', user_id=user.id) }}">Message</a>
         {% if realtime_media_enabled %}
         <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='audio', start='1') }}">Audio call</a>
         <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='video', start='1') }}">Video call</a>

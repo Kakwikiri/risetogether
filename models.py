@@ -116,6 +116,7 @@ class Profile(db.Model):
     avatar = db.Column(db.String(255), default="")
     privacy_posts = db.Column(db.String(20), default="public")
     notifications_enabled = db.Column(db.Boolean, default=True)
+    notification_previews_enabled = db.Column(db.Boolean, default=True)
 
 
 class Post(db.Model):

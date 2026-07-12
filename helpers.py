@@ -258,9 +258,15 @@ def get_ice_servers():
 def device_push_body(notification):
     private_categories = {"message", "family_chat"}
     media_categories = {"voice_note", "video_note"}
+    profile = getattr(notification.recipient, "profile", None)
+    previews_enabled = getattr(profile, "notification_previews_enabled", True)
     if notification.category in private_categories:
+        if previews_enabled:
+            return notification.message
         return "You received a new message."
     if notification.category in media_categories:
+        if previews_enabled:
+            return notification.message
         return f"You received a new {notification.category.replace('_', ' ')}."
     return notification.message
 

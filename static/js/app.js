@@ -30,6 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const toast = document.querySelector("[data-toast]");
+  const updateNotice = document.querySelector("[data-update-notice]");
+  const updateNow = document.querySelector("[data-update-now]");
+  const updateLater = document.querySelector("[data-update-later]");
+  let waitingServiceWorker = null;
   const showToast = (message) => {
     if (!toast) return;
     toast.textContent = message;
@@ -63,10 +67,56 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    const existing = await navigator.serviceWorker.getRegistration();
-    if (existing) return existing;
     return navigator.serviceWorker.register("/service-worker.js?v=20260712-logo-chat", { scope: "/" });
   };
+
+  const showUpdateNotice = (worker) => {
+    waitingServiceWorker = worker;
+    if (updateNotice) updateNotice.hidden = false;
+  };
+
+  if (updateNow) {
+    updateNow.addEventListener("click", () => {
+      if (waitingServiceWorker) {
+        waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
+      }
+    });
+  }
+
+  if (updateLater && updateNotice) {
+    updateLater.addEventListener("click", () => {
+      updateNotice.hidden = true;
+    });
+  }
+
+  const observeServiceWorkerRegistration = (registration) => {
+    if (!registration) return;
+    if (registration.waiting) showUpdateNotice(registration.waiting);
+    registration.addEventListener("updatefound", () => {
+      const newWorker = registration.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          showUpdateNotice(newWorker);
+        }
+      });
+    });
+  };
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (window.__riseTogetherReloading) return;
+      window.__riseTogetherReloading = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.getRegistration().then(observeServiceWorkerRegistration);
+    getServiceWorkerRegistration()
+      .then((registration) => {
+        observeServiceWorkerRegistration(registration);
+        return registration.update();
+      })
+      .catch(() => {});
+  }
 
   if (pushEnable) {
     pushEnable.addEventListener("click", async () => {
@@ -129,8 +179,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const navLinks = document.querySelector(".nav-links");
   if (navToggle && navLinks) {
     navToggle.addEventListener("click", () => {
-      navLinks.classList.toggle("open");
-      navToggle.classList.toggle("active");
+      const isOpen = navLinks.classList.toggle("open");
+      navToggle.classList.toggle("active", isOpen);
+      navToggle.setAttribute("aria-expanded", String(isOpen));
     });
   }
 
@@ -247,6 +298,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  document.querySelectorAll("[data-mobile-composer]").forEach((composer) => {
+    const open = composer.querySelector("[data-composer-open]");
+    const cancel = composer.querySelector("[data-composer-cancel]");
+    const textArea = composer.querySelector("textarea");
+    const setExpanded = (expanded) => {
+      composer.classList.toggle("is-expanded", expanded);
+      if (expanded && textArea) textArea.focus();
+    };
+    if (open) open.addEventListener("click", () => setExpanded(true));
+    if (cancel) cancel.addEventListener("click", () => setExpanded(false));
+  });
 
   document.querySelectorAll(".password-toggle").forEach((button) => {
     button.addEventListener("click", () => {

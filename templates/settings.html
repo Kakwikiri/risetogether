@@ -15,6 +15,19 @@
       />
       Enable notifications
     </label>
+    <label>
+      <input
+        type="checkbox"
+        name="notification_previews_enabled"
+        {%
+        if
+        current_user.profile.notification_previews_enabled
+        %}checked{%
+        endif
+        %}
+      />
+      Show message preview in phone notifications
+    </label>
     <button class="button" type="submit">Save settings</button>
   </form>
   <section class="device-notification-panel">

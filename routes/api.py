@@ -47,6 +47,7 @@ def current_user_info():
             "bio": profile.bio,
             "privacy_posts": profile.privacy_posts,
             "notifications_enabled": profile.notifications_enabled,
+            "notification_previews_enabled": profile.notification_previews_enabled,
         }
     )
 

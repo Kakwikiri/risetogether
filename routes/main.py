@@ -314,6 +314,14 @@ def profile(username):
         .all()
     ]
     live_session = LiveSession.query.filter_by(user_id=user.id, status="live").first()
+    can_message_user = False
+    if current_user.is_authenticated and current_user.id != user.id:
+        can_message_user = (
+            not current_user.is_banned
+            and not user.is_banned
+            and Block.query.filter_by(blocker_id=current_user.id, blocked_id=user.id).first() is None
+            and Block.query.filter_by(blocker_id=user.id, blocked_id=current_user.id).first() is None
+        )
     return render_template(
         "profile.html",
         user=user,
@@ -327,6 +335,7 @@ def profile(username):
         following_count=Follow.query.filter_by(follower_id=user.id).count(),
         following=following,
         live_session=live_session,
+        can_message_user=can_message_user,
     )
 
 
@@ -938,6 +947,9 @@ def settings():
     if request.method == "POST":
         current_user.profile.notifications_enabled = (
             request.form.get("notifications_enabled") == "on"
+        )
+        current_user.profile.notification_previews_enabled = (
+            request.form.get("notification_previews_enabled") == "on"
         )
         db.session.commit()
         flash("Settings saved.", "success")

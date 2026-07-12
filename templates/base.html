@@ -35,25 +35,25 @@
     <link
       rel="apple-touch-icon"
       sizes="180x180"
-      href="{{ url_for('static', filename='images/apple-touch-icon.png') }}"
+      href="{{ url_for('static', filename='images/apple-touch-icon-v2.png') }}"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="{{ url_for('static', filename='images/favicon.png') }}"
+      href="{{ url_for('static', filename='images/favicon-v2.png') }}"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="192x192"
-      href="{{ url_for('static', filename='images/icon-192.png') }}"
+      href="{{ url_for('static', filename='images/icon-192-v2.png') }}"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="512x512"
-      href="{{ url_for('static', filename='images/icon-512.png') }}"
+      href="{{ url_for('static', filename='images/icon-512-v2.png') }}"
     />
     <link
       rel="stylesheet"
@@ -77,10 +77,12 @@
           <span>RiseTogether</span>
         </a>
       </div>
-      <button class="nav-toggle" aria-label="Toggle navigation">
-        <span></span>
-        <span></span>
-        <span></span>
+      <button class="nav-toggle" type="button" aria-label="Open menu" title="Menu" aria-expanded="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 6h16"></path>
+          <path d="M4 12h16"></path>
+          <path d="M4 18h16"></path>
+        </svg>
       </button>
       <nav class="nav-links">
         {% if current_user.is_authenticated %}
@@ -126,10 +128,15 @@
       </nav>
     </header>
     <div class="toast" data-toast hidden></div>
+    <div class="app-update-notice" data-update-notice hidden>
+      <span>A new version of RiseTogether is available.</span>
+      <button class="button" type="button" data-update-now>Update now</button>
+      <button class="button secondary" type="button" data-update-later>Later</button>
+    </div>
     <div class="install-panel" data-install-panel hidden>
       <div class="install-card">
         <button class="install-close" type="button" data-install-close aria-label="Close install help">×</button>
-        <img src="{{ url_for('static', filename='images/icon-192.png') }}" alt="" />
+        <img src="{{ url_for('static', filename='images/icon-192-v2.png') }}" alt="" />
         <div>
           <h2>Install RiseTogether</h2>
           <p data-install-message>
@@ -164,7 +171,7 @@
     <script>
       if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
-              navigator.serviceWorker.register('/service-worker.js?v=20260712-pwa', { scope: '/' })
+              navigator.serviceWorker.register('/service-worker.js?v=20260712-logo-chat', { scope: '/' })
               .catch(err => console.warn('SW registration failed:', err));
           });
       }

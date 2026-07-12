@@ -349,6 +349,15 @@ if (typeof chatConfig !== "undefined") {
     const videoRecordAgainButton = videoPanel ? videoPanel.querySelector("[data-video-record-again]") : null;
     const videoSendButton = videoPanel ? videoPanel.querySelector("[data-video-send]") : null;
     const videoCancelButton = videoPanel ? videoPanel.querySelector("[data-video-cancel]") : null;
+    const selectionToolbar = document.querySelector("[data-chat-selection-toolbar]");
+    const selectionCount = document.querySelector("[data-selection-count]");
+    const selectionCancel = document.querySelector("[data-selection-cancel]");
+    const selectionReply = document.querySelector("[data-selection-reply]");
+    const selectionPin = document.querySelector("[data-selection-pin]");
+    const selectionDelete = document.querySelector("[data-selection-delete]");
+    const selectionForward = document.querySelector("[data-selection-forward]");
+    const selectionMore = document.querySelector("[data-selection-more]");
+    const normalHeaderParts = document.querySelectorAll("[data-chat-normal-header]");
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
@@ -373,14 +382,6 @@ if (typeof chatConfig !== "undefined") {
     let videoCancelled = false;
     let videoFacingMode = "user";
     const selectedMessages = new Map();
-    const actionMenu = document.createElement("div");
-    actionMenu.className = "message-action-menu";
-    actionMenu.hidden = true;
-    document.body.appendChild(actionMenu);
-    const selectionBar = document.createElement("div");
-    selectionBar.className = "message-selection-bar";
-    selectionBar.hidden = true;
-    document.body.appendChild(selectionBar);
 
     const sendTextMessage = (content) => {
       if (chatConfig.familyId) {
@@ -451,9 +452,13 @@ if (typeof chatConfig !== "undefined") {
     const clearMessageSelection = () => {
       selectedMessages.forEach((message) => message.classList.remove("is-selected"));
       selectedMessages.clear();
-      selectionBar.hidden = true;
-      selectionBar.innerHTML = "";
+      if (selectionToolbar) selectionToolbar.hidden = true;
+      normalHeaderParts.forEach((part) => {
+        part.hidden = false;
+      });
     };
+
+    const selectedMessageList = () => Array.from(selectedMessages.values());
 
     const deleteSelectedMessages = async (scope) => {
       const messages = Array.from(selectedMessages.values());
@@ -486,33 +491,19 @@ if (typeof chatConfig !== "undefined") {
       const allOwn = Array.from(selectedMessages.values()).every(
         (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
       );
-      selectionBar.innerHTML = "";
-      const label = document.createElement("strong");
-      label.textContent = `${count} selected`;
-      const deleteMe = document.createElement("button");
-      deleteMe.type = "button";
-      deleteMe.textContent = "Delete for me";
-      deleteMe.addEventListener("click", () => deleteSelectedMessages("me"));
-      selectionBar.append(label, deleteMe);
-      if (allOwn) {
-        const deleteEveryone = document.createElement("button");
-        deleteEveryone.type = "button";
-        deleteEveryone.textContent = "Delete for everyone";
-        deleteEveryone.addEventListener("click", () => deleteSelectedMessages("everyone"));
-        selectionBar.appendChild(deleteEveryone);
-      }
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", clearMessageSelection);
-      selectionBar.appendChild(cancel);
-      selectionBar.hidden = false;
+      normalHeaderParts.forEach((part) => {
+        part.hidden = true;
+      });
+      if (selectionToolbar) selectionToolbar.hidden = false;
+      if (selectionCount) selectionCount.textContent = `${count} selected`;
+      if (selectionReply) selectionReply.disabled = count !== 1;
+      if (selectionPin) selectionPin.disabled = count !== 1;
+      if (selectionDelete) selectionDelete.dataset.scope = allOwn ? "everyone" : "me";
     };
 
     const toggleMessageSelection = (message) => {
       const messageId = message.dataset.messageId;
       if (!messageId) return;
-      actionMenu.hidden = true;
       if (selectedMessages.has(messageId)) {
         selectedMessages.delete(messageId);
         message.classList.remove("is-selected");
@@ -523,36 +514,17 @@ if (typeof chatConfig !== "undefined") {
       updateSelectionBar();
     };
 
-    const showMessageActions = (message) => {
-      const messageId = message.dataset.messageId;
-      if (!messageId) return;
-      const rect = message.getBoundingClientRect();
-      actionMenu.innerHTML = "";
-      const actions = [
-        ["reply", "Reply"],
-        ["forward", "Forward"],
-        ["pin", "Pin 24h"],
-        ["select", "Select"],
-        ["delete_me", "Delete for me"],
-      ];
-      if (Number(message.dataset.senderId) === chatConfig.currentUserId) {
-        actions.push(["delete_everyone", "Delete for everyone"]);
-      }
-      actions.forEach(([value, label]) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = label;
-        button.addEventListener("click", () => runMessageAction(value, message));
-        actionMenu.appendChild(button);
-      });
-      actionMenu.style.left = `${Math.min(rect.left, window.innerWidth - 250)}px`;
-      actionMenu.style.top = `${Math.max(70, rect.top - 48)}px`;
-      actionMenu.hidden = false;
+    const beginMessageSelection = (message) => {
+      if (!message || !message.dataset.messageId) return;
+      selectedMessages.forEach((selected) => selected.classList.remove("is-selected"));
+      selectedMessages.clear();
+      selectedMessages.set(message.dataset.messageId, message);
+      message.classList.add("is-selected");
+      updateSelectionBar();
     };
 
     const runMessageAction = (action, message) => {
       const messageId = message.dataset.messageId;
-      actionMenu.hidden = true;
       if (action === "reply") {
         clearMessageSelection();
         replyToId = messageId;
@@ -583,6 +555,7 @@ if (typeof chatConfig !== "undefined") {
           if (response.ok) {
             message.classList.add("is-pinned");
           }
+          clearMessageSelection();
         });
       } else if (action === "forward") {
         clearMessageSelection();
@@ -597,6 +570,26 @@ if (typeof chatConfig !== "undefined") {
         }).then((response) => {
           if (!response.ok) window.alert("Message could not be forwarded.");
         });
+      }
+    };
+
+    const runSelectionAction = (action) => {
+      const messages = selectedMessageList();
+      if (!messages.length) return;
+      if (action === "reply" || action === "pin") {
+        if (messages.length !== 1) return;
+        runMessageAction(action, messages[0]);
+      } else if (action === "delete") {
+        const allOwn = messages.every(
+          (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
+        );
+        const scope = allOwn && window.confirm("Delete selected messages for everyone? Press Cancel to delete only for you.")
+          ? "everyone"
+          : "me";
+        deleteSelectedMessages(scope);
+      } else if (action === "forward") {
+        messages.forEach((message) => runMessageAction("forward", message));
+        clearMessageSelection();
       }
     };
 
@@ -670,20 +663,17 @@ if (typeof chatConfig !== "undefined") {
         const message = event.target.closest(".chat-message");
         if (!message) return;
         event.preventDefault();
-        showMessageActions(message);
+        beginMessageSelection(message);
       });
       chatLog.addEventListener("touchstart", (event) => {
         const message = event.target.closest(".chat-message");
         if (!message) return;
-        longPressTimer = window.setTimeout(() => showMessageActions(message), 650);
+        longPressTimer = window.setTimeout(() => beginMessageSelection(message), 520);
       });
       chatLog.addEventListener("touchend", () => window.clearTimeout(longPressTimer));
-      document.addEventListener("click", (event) => {
-        if (!actionMenu.contains(event.target)) actionMenu.hidden = true;
-      });
       chatLog.addEventListener("click", (event) => {
         const message = event.target.closest(".chat-message");
-        if (message && selectedMessages.size && !event.target.closest(".message-action-menu")) {
+        if (message && selectedMessages.size) {
           toggleMessageSelection(message);
           return;
         }
@@ -698,6 +688,17 @@ if (typeof chatConfig !== "undefined") {
             fetch(`/chat/message/${messageId}/viewed`, { method: "POST" });
           }, 8000);
         }
+      });
+    }
+
+    if (selectionCancel) selectionCancel.addEventListener("click", clearMessageSelection);
+    if (selectionReply) selectionReply.addEventListener("click", () => runSelectionAction("reply"));
+    if (selectionPin) selectionPin.addEventListener("click", () => runSelectionAction("pin"));
+    if (selectionDelete) selectionDelete.addEventListener("click", () => runSelectionAction("delete"));
+    if (selectionForward) selectionForward.addEventListener("click", () => runSelectionAction("forward"));
+    if (selectionMore) {
+      selectionMore.addEventListener("click", () => {
+        window.alert("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");
       });
     }
 

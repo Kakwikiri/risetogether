@@ -111,8 +111,8 @@ class SecurityRegressionTests(unittest.TestCase):
             'property="og:image" content="{{ social_preview_image_url }}"',
             'property="og:url" content="{{ public_page_url }}"',
             'name="twitter:card" content="summary_large_image"',
-            "images/apple-touch-icon.png",
-            "images/favicon.png",
+            "images/apple-touch-icon-v2.png",
+            "images/favicon-v2.png",
         ]:
             self.assertIn(snippet, source)
 

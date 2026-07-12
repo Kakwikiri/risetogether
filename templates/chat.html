@@ -1,7 +1,7 @@
 {% extends 'base.html' %} {% block content %}
 <section class="chat-card">
   <header class="chat-header">
-    <div class="chat-title">
+    <div class="chat-title" data-chat-normal-header>
       <h2>
         {% if not family %}
         <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
@@ -12,7 +12,16 @@
         {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
       </span>
     </div>
-    <div class="chat-header-actions">
+    <div class="chat-selection-toolbar" data-chat-selection-toolbar hidden>
+      <button class="icon-button" type="button" data-selection-cancel aria-label="Cancel selection" title="Cancel selection">‹</button>
+      <strong data-selection-count>0 selected</strong>
+      <button class="icon-button" type="button" data-selection-reply aria-label="Reply" title="Reply">↩</button>
+      <button class="icon-button" type="button" data-selection-pin aria-label="Pin" title="Pin">⌖</button>
+      <button class="icon-button" type="button" data-selection-delete aria-label="Delete" title="Delete">⌫</button>
+      <button class="icon-button" type="button" data-selection-forward aria-label="Forward" title="Forward">↗</button>
+      <button class="icon-button" type="button" data-selection-more aria-label="More actions" title="More actions">⋯</button>
+    </div>
+    <div class="chat-header-actions" data-chat-normal-header>
       {% if not family %}
       {% if realtime_media_enabled %}
       <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='audio', start='1') }}" aria-label="Audio call" title="Audio call">☎</a>

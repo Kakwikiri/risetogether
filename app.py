@@ -190,6 +190,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(80) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_hidden_from_directory BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS notification_previews_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'open'",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS privacy VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'friendship_and_support'",

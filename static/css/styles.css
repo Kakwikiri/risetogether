@@ -472,33 +472,47 @@ a {
 
 .nav-toggle {
   display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
-  padding: 0.45rem;
 }
 
-.nav-toggle span {
-  display: block;
-  width: 23px;
-  height: 2px;
-  margin: 5px 0;
-  background: var(--ink);
+.nav-toggle svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+
+.nav-toggle:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.32);
+  outline-offset: 2px;
+}
+
+.nav-toggle svg path {
   transition:
     transform 0.2s ease,
     opacity 0.2s ease;
+  transform-origin: center;
 }
 
-.nav-toggle.active span:nth-child(1) {
-  transform: translateY(7px) rotate(45deg);
+.nav-toggle.active svg path:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
 }
 
-.nav-toggle.active span:nth-child(2) {
+.nav-toggle.active svg path:nth-child(2) {
   opacity: 0;
 }
 
-.nav-toggle.active span:nth-child(3) {
-  transform: translateY(-7px) rotate(-45deg);
+.nav-toggle.active svg path:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 .content {
@@ -526,6 +540,32 @@ a {
   background: #17201e;
   border-radius: 8px;
   box-shadow: var(--shadow);
+}
+
+.app-update-notice {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: min(92vw, 520px);
+  padding: 0.65rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.app-update-notice[hidden] {
+  display: none;
+}
+
+.mobile-feed-tabs,
+.mobile-composer-trigger,
+.mobile-composer-cancel {
+  display: none;
 }
 
 .install-panel {
@@ -2454,8 +2494,24 @@ textarea:focus {
 }
 
 .chat-message.is-selected {
+  background: #c8f2ea;
   outline: 3px solid var(--brand);
   outline-offset: 2px;
+}
+
+.chat-message.is-selected::after {
+  content: "✓";
+  display: inline-grid;
+  place-items: center;
+  float: left;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.1rem 0.4rem 0 0;
+  color: white;
+  background: var(--brand);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 900;
 }
 
 .chat-message.own small {
@@ -2719,58 +2775,26 @@ textarea:focus {
   font-weight: 900;
 }
 
-.message-action-menu {
-  position: fixed;
-  z-index: 80;
-  display: flex;
-  gap: 0.35rem;
-  padding: 0.4rem;
-  background: rgba(15, 23, 20, 0.94);
-  border-radius: 999px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
-  max-width: calc(100vw - 1rem);
-  overflow-x: auto;
-}
-
-.message-action-menu button {
-  min-height: 34px;
-  padding: 0 0.65rem;
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.message-selection-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 5.25rem;
-  z-index: 85;
+.chat-selection-toolbar {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  max-width: calc(100vw - 1rem);
-  padding: 0.45rem;
-  color: white;
-  background: rgba(15, 23, 20, 0.95);
-  border-radius: 999px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
-  transform: translateX(-50%);
   overflow-x: auto;
 }
 
-.message-selection-bar button {
+.chat-selection-toolbar[hidden] {
+  display: none;
+}
+
+.chat-selection-toolbar strong {
   flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 0.65rem;
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 800;
+  color: var(--brand-dark);
+}
+
+.chat-selection-toolbar .icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .is-pinned,
@@ -3445,5 +3469,123 @@ textarea:focus {
 
   .live-chat-panel {
     min-height: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .panel-feed > .panel-header {
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .panel-feed > .panel-header .feed-tabs {
+    display: none;
+  }
+
+  .mobile-feed-tabs {
+    display: flex;
+    gap: 0.45rem;
+    margin: 0 0 0.75rem;
+    padding: 0.2rem 0 0.45rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .mobile-feed-tabs a {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.75rem;
+    color: var(--muted);
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 850;
+  }
+
+  .mobile-feed-tabs a.active {
+    color: white;
+    background: var(--brand);
+    border-color: var(--brand);
+  }
+
+  .composer-card {
+    padding: 0.65rem;
+  }
+
+  .composer-card h3 {
+    display: none;
+  }
+
+  .mobile-composer-trigger {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    min-height: 48px;
+    padding: 0.4rem;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .mobile-composer-trigger span {
+    padding: 0.7rem 0.85rem;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-composer-trigger strong {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    color: var(--brand-dark);
+    background: var(--soft);
+    border-radius: 999px;
+  }
+
+  .composer-card:not(.is-expanded) .post-composer {
+    display: none;
+  }
+
+  .composer-card.is-expanded .mobile-composer-trigger {
+    display: none;
+  }
+
+  .composer-card.is-expanded .post-composer {
+    animation: composer-open 0.18s ease-out;
+  }
+
+  .mobile-composer-cancel {
+    display: inline-flex;
+  }
+
+  .panel-sidebar {
+    order: 2;
+  }
+}
+
+@keyframes composer-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

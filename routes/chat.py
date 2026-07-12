@@ -8,7 +8,7 @@ from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
 from helpers import get_ice_servers, get_media_type, save_media, send_device_push, validate_upload
-from models import Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
+from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -73,6 +73,21 @@ def user_is_online(user_id):
 
 def user_room(user_id):
     return f"user-{user_id}"
+
+
+def users_can_message(sender_id, recipient_id):
+    if sender_id == recipient_id:
+        return False
+    recipient = User.query.get(recipient_id)
+    sender = User.query.get(sender_id)
+    if not sender or not recipient or sender.is_banned or recipient.is_banned:
+        return False
+    return (
+        Block.query.filter_by(blocker_id=sender_id, blocked_id=recipient_id).first()
+        is None
+        and Block.query.filter_by(blocker_id=recipient_id, blocked_id=sender_id).first()
+        is None
+    )
 
 
 def call_id_for_users(user_id, other_id):
@@ -309,6 +324,9 @@ def direct_chat(user_id):
     other = User.query.get_or_404(user_id)
     if other.id == current_user.id:
         return redirect(url_for("main.home"))
+    if not users_can_message(current_user.id, other.id):
+        flash("Messaging is not available with this account.", "warning")
+        return redirect(url_for("main.profile", username=other.username))
     messages = (
         visible_message_filter(
             Message.query.filter(
@@ -706,6 +724,8 @@ def private_message(data):
         return
     recipient = User.query.get(recipient_id)
     if not recipient:
+        return
+    if not users_can_message(current_user.id, recipient_id):
         return
     room = room_for_private_chat(current_user.id, recipient_id)
     message = Message(

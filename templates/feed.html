@@ -11,6 +11,14 @@
         {% endif %}
       </div>
     </div>
+    <nav class="mobile-feed-tabs" aria-label="Feed filters">
+      <a class="{{ 'active' if not video_only else '' }}" href="{{ url_for('main.home') }}">All</a>
+      <a class="{{ 'active' if video_only else '' }}" href="{{ url_for('main.home', type='videos') }}">Videos</a>
+      <a href="#community-highlights">Highlights</a>
+      <a href="#available-families">Families</a>
+      <a href="#trending-videos">Trending</a>
+      <a href="#kindness-challenge">Challenge</a>
+    </nav>
     {% if video_only %}
     <div class="video-quick-actions">
       <form action="{{ url_for('main.home') }}" method="get" class="video-search">
@@ -36,13 +44,23 @@
     </section>
     {% endif %}
     {% if not video_only %}
-    <section class="composer-card">
+    <section class="composer-card" data-mobile-composer>
       <h3>Share your story</h3>
+      <button class="mobile-composer-trigger" type="button" data-composer-open>
+        <img
+          class="avatar"
+          src="{{ url_for('static', filename='images/default-avatar.png') if not current_user.profile.avatar else url_for('api.serve_upload', filename=current_user.profile.avatar) }}"
+          alt=""
+        />
+        <span>Share something uplifting or honest...</span>
+        <strong aria-label="Add media">＋</strong>
+      </button>
       <form
         action="{{ url_for('main.create_post') }}"
         method="post"
         enctype="multipart/form-data"
         class="post-composer"
+        data-composer-form
       >
         <textarea
           name="content"
@@ -68,6 +86,7 @@
             {% endfor %}
           </select>
           <button class="button" type="submit">Post</button>
+          <button class="button secondary mobile-composer-cancel" type="button" data-composer-cancel>Cancel</button>
         </div>
       </form>
     </section>
@@ -182,15 +201,15 @@
   </section>
   {% if not video_only %}
   <aside class="panel panel-sidebar">
-    <div class="card" id="trending-videos">
+    <div class="card" id="community-highlights">
       <h3>Community highlights</h3>
       <p>Join families, send supportive reactions, and connect in real time.</p>
     </div>
-    <div class="card">
+    <div class="card" id="kindness-challenge">
       <h3>Kindness challenge</h3>
       <p>React to one post, leave one thoughtful comment, and check in on one person today.</p>
     </div>
-    <div class="card">
+    <div class="card" id="available-families">
       <h3>Available families</h3>
       <ul>
         {% for family in available_families %}
@@ -203,7 +222,7 @@
         {% endfor %}
       </ul>
     </div>
-    <div class="card">
+    <div class="card" id="trending-videos">
       <h3>Trending now</h3>
       <ul>
         {% for post in trending_posts %}

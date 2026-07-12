@@ -1,16 +1,15 @@
-const CACHE_NAME = "risetogether-cache-v16";
+const CACHE_NAME = "risetogether-cache-v17";
 const ASSETS = [
   "/offline",
-  "/static/manifest.json",
   "/static/css/styles.css",
   "/static/js/app.js",
   "/static/js/socket.js",
   "/static/images/default-avatar.png",
-  "/static/images/icon-192.png",
-  "/static/images/icon-512.png",
-  "/static/images/icon-maskable-512.png",
-  "/static/images/apple-touch-icon.png",
-  "/static/images/favicon.png",
+  "/static/images/icon-192-v2.png",
+  "/static/images/icon-512-v2.png",
+  "/static/images/icon-maskable-512-v2.png",
+  "/static/images/apple-touch-icon-v2.png",
+  "/static/images/favicon-v2.png",
   "/static/images/social-preview.png",
   "/static/images/risetogether-logo.png",
 ];
@@ -34,7 +33,12 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)),
   );
-  self.skipWaiting();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -61,6 +65,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request).catch(() => caches.match("/offline")),
     );
+    return;
+  }
+
+  if (url.pathname === "/static/manifest.json") {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
     return;
   }
 
@@ -95,8 +104,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "RiseTogether";
   const options = {
     body: data.body || "You have a new notification.",
-    icon: "/static/images/icon-192.png",
-    badge: "/static/images/icon-192.png",
+    icon: "/static/images/icon-192-v2.png",
+    badge: "/static/images/icon-192-v2.png",
     tag: data.tag || `risetogether-${Date.now()}`,
     data: {
       url: data.url || "/notifications",
