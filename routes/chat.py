@@ -609,9 +609,26 @@ def pin_message(message_id):
     message = Message.query.get_or_404(message_id)
     if not can_access_message(message):
         return jsonify({"error": "Not allowed."}), 403
+    if message.pinned_until and message.pinned_until > datetime.utcnow():
+        message.pinned_until = None
+        db.session.commit()
+        return jsonify({"ok": True, "pinned": False})
+    if message.family_id:
+        Message.query.filter(
+            Message.family_id == message.family_id,
+            Message.id != message.id,
+        ).update({"pinned_until": None}, synchronize_session=False)
+    else:
+        Message.query.filter(
+            Message.id != message.id,
+            (
+                ((Message.sender_id == message.sender_id) & (Message.recipient_id == message.recipient_id))
+                | ((Message.sender_id == message.recipient_id) & (Message.recipient_id == message.sender_id))
+            ),
+        ).update({"pinned_until": None}, synchronize_session=False)
     message.pinned_until = datetime.utcnow() + timedelta(hours=24)
     db.session.commit()
-    return jsonify({"ok": True, "pinned_until": message.pinned_until.isoformat()})
+    return jsonify({"ok": True, "pinned": True, "pinned_until": message.pinned_until.isoformat()})
 
 
 @socketio.on("connect")

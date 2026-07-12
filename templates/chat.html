@@ -41,18 +41,18 @@
       {% endif %}
     </div>
   </header>
-  <div class="pinned-chat-strip" data-pinned-strip {% if not messages|selectattr('pinned_until')|list %}hidden{% endif %}>
+  <button class="pinned-chat-strip" type="button" data-pinned-strip {% if not messages|selectattr('pinned_until')|list %}hidden{% endif %}>
     {% for pinned in messages|selectattr('pinned_until')|list %}
     {% if loop.last %}
     <span>Pinned for 24h</span>
-    <strong>{{ pinned.content or pinned.media_type|title }}</strong>
+    <strong data-pinned-text data-pinned-message-id="{{ pinned.id }}">{{ pinned.content or pinned.media_type|title }}</strong>
     {% endif %}
     {% endfor %}
-  </div>
+  </button>
   <div id="chat-log" class="chat-log">
     {% for message in messages %}
     <div
-      class="chat-message {% if message.sender_id == current_user.id %}own{% endif %}"
+      class="chat-message {% if message.sender_id == current_user.id %}own{% endif %}{% if message.pinned_until %} is-pinned{% endif %}"
       data-message-id="{{ message.id }}"
       data-sender-id="{{ message.sender_id }}"
       data-message-text="{{ message.content }}"
@@ -91,14 +91,17 @@
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% elif message.media_type == 'audio' %}
-        <div class="voice-note-player">
+        <div class="voice-note-player {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
           <audio controls src="{{ url_for('api.serve_upload', filename=message.media_url) }}"></audio>
           <div class="voice-note-tools">
             <button type="button" data-audio-speed="1">1x</button>
             <button type="button" data-audio-speed="1.5">1.5x</button>
             <button type="button" data-audio-speed="2">2x</button>
+            {% if not message.view_once %}
             <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download>Download audio</a>
+            {% endif %}
           </div>
+          {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% else %}
         <a class="chat-file" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" target="_blank" rel="noopener" download>Download file</a>
@@ -154,12 +157,11 @@
     </div>
     <audio data-voice-preview controls hidden></audio>
     <div class="voice-note-actions">
-      <button class="button secondary" type="button" data-voice-pause hidden>Pause</button>
-      <button class="button secondary" type="button" data-voice-resume hidden>Resume</button>
-      <button class="button" type="button" data-voice-stop hidden>Stop</button>
-      <button class="button secondary" type="button" data-voice-record-again hidden>Record again</button>
-      <button class="button" type="button" data-voice-send hidden>Send</button>
-      <button class="button secondary" type="button" data-voice-cancel>Cancel</button>
+      <button class="recorder-icon-button" type="button" data-voice-pause hidden aria-label="Pause" title="Pause">Ⅱ</button>
+      <button class="recorder-icon-button" type="button" data-voice-resume hidden aria-label="Resume" title="Resume">▶</button>
+      <button class="recorder-icon-button primary" type="button" data-voice-stop hidden aria-label="Stop" title="Stop">■</button>
+      <button class="recorder-icon-button" type="button" data-voice-record-again hidden aria-label="Record again" title="Record again">↺</button>
+      <button class="recorder-icon-button" type="button" data-voice-cancel aria-label="Cancel" title="Cancel">×</button>
     </div>
   </section>
   <section id="video-note-panel" class="video-note-panel" hidden>
@@ -175,12 +177,11 @@
       <span data-video-mic-status>Microphone: preparing</span>
     </div>
     <div class="voice-note-actions">
-      <button class="button" type="button" data-video-record hidden>Record</button>
-      <button class="button" type="button" data-video-stop hidden>Stop</button>
-      <button class="button secondary" type="button" data-video-switch hidden>Switch camera</button>
-      <button class="button secondary" type="button" data-video-record-again hidden>Record again</button>
-      <button class="button" type="button" data-video-send hidden>Send</button>
-      <button class="button secondary" type="button" data-video-cancel>Cancel</button>
+      <button class="recorder-icon-button danger" type="button" data-video-record hidden aria-label="Record" title="Record">●</button>
+      <button class="recorder-icon-button primary" type="button" data-video-stop hidden aria-label="Stop" title="Stop">■</button>
+      <button class="recorder-icon-button" type="button" data-video-switch hidden aria-label="Switch camera" title="Switch camera">⇄</button>
+      <button class="recorder-icon-button" type="button" data-video-record-again hidden aria-label="Record again" title="Record again">↺</button>
+      <button class="recorder-icon-button" type="button" data-video-cancel aria-label="Cancel" title="Cancel">×</button>
     </div>
   </section>
 </section>

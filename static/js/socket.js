@@ -44,11 +44,14 @@ const enhanceVoiceNotePlayer = (container) => {
   });
 };
 
-const createVoiceNoteElement = (url) => {
+const createVoiceNoteElement = (url, options = {}) => {
   const wrapper = document.createElement("div");
-  wrapper.className = "voice-note-player";
+  wrapper.className = `voice-note-player${options.viewOnce ? " view-once-media" : ""}`;
+  if (options.messageId) wrapper.dataset.messageId = options.messageId;
+  if (options.viewOnce) wrapper.dataset.viewOnce = "1";
   const audio = document.createElement("audio");
   audio.controls = true;
+  if (options.viewOnce) audio.setAttribute("controlsList", "nodownload");
   audio.src = url;
   const tools = document.createElement("div");
   tools.className = "voice-note-tools";
@@ -59,13 +62,22 @@ const createVoiceNoteElement = (url) => {
     button.textContent = `${speed}x`;
     tools.appendChild(button);
   });
-  const download = document.createElement("a");
-  download.className = "chat-file";
-  download.href = url;
-  download.download = "";
-  download.textContent = "Download audio";
-  tools.appendChild(download);
+  if (!options.viewOnce) {
+    const download = document.createElement("a");
+    download.className = "chat-file";
+    download.href = url;
+    download.download = "";
+    download.textContent = "Download audio";
+    tools.appendChild(download);
+  }
   wrapper.append(audio, tools);
+  if (options.viewOnce && !options.isOwn) {
+    const viewButton = document.createElement("button");
+    viewButton.className = "view-once-button";
+    viewButton.type = "button";
+    viewButton.textContent = "View once";
+    wrapper.appendChild(viewButton);
+  }
   enhanceVoiceNotePlayer(wrapper);
   return wrapper;
 };
@@ -173,7 +185,11 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       video.src = data.media_url;
       media.appendChild(video);
     } else if (data.media_type === "audio") {
-      media = createVoiceNoteElement(data.media_url);
+      media = createVoiceNoteElement(data.media_url, {
+        viewOnce: Boolean(data.view_once),
+        isOwn,
+        messageId: data.message_id || "",
+      });
     } else {
       media = document.createElement("a");
       media.className = "chat-file";
@@ -417,6 +433,23 @@ if (typeof chatConfig !== "undefined") {
       }
     };
 
+    const setPinnedStrip = (message = null) => {
+      if (!pinnedStrip) return;
+      pinnedStrip.innerHTML = "";
+      if (!message) {
+        pinnedStrip.hidden = true;
+        return;
+      }
+      const prefix = document.createElement("span");
+      prefix.textContent = "Pinned for 24h";
+      const text = document.createElement("strong");
+      text.dataset.pinnedText = "1";
+      text.dataset.pinnedMessageId = message.dataset.messageId || "";
+      text.textContent = message.dataset.messageText || "Pinned message";
+      pinnedStrip.append(prefix, text);
+      pinnedStrip.hidden = false;
+    };
+
     const sendTextMessage = (content) => {
       if (chatConfig.familyId) {
         socket.emit("family_message", {
@@ -586,20 +619,22 @@ if (typeof chatConfig !== "undefined") {
       } else if (action === "pin") {
         clearMessageSelection();
         fetch(`/chat/message/${messageId}/pin`, { method: "POST" }).then((response) => {
-          if (response.ok) {
+          if (response.ok) return response.json();
+          throw new Error("Pin failed");
+        }).then((payload) => {
+          document.querySelectorAll(".chat-message.is-pinned").forEach((item) => {
+            if (item !== message) item.classList.remove("is-pinned");
+          });
+          if (payload.pinned) {
             message.classList.add("is-pinned");
-            if (pinnedStrip) {
-              const label = message.dataset.messageText || "Pinned message";
-              pinnedStrip.innerHTML = "";
-              const prefix = document.createElement("span");
-              prefix.textContent = "Pinned for 24h";
-              const text = document.createElement("strong");
-              text.textContent = label;
-              pinnedStrip.append(prefix, text);
-              pinnedStrip.hidden = false;
-            }
+            setPinnedStrip(message);
+          } else {
+            message.classList.remove("is-pinned");
+            setPinnedStrip(null);
           }
           clearMessageSelection();
+        }).catch(() => {
+          window.alert("Message could not be pinned.");
         });
       } else if (action === "forward") {
         clearMessageSelection();
@@ -741,7 +776,8 @@ if (typeof chatConfig !== "undefined") {
         }
         const viewButton = event.target.closest(".view-once-button");
         if (!viewButton) return;
-        const frame = viewButton.closest(".media-frame");
+        const frame = viewButton.closest(".media-frame, .voice-note-player");
+        if (!frame) return;
         const messageId = frame && frame.dataset.messageId;
         frame.classList.add("revealed");
         viewButton.remove();
@@ -761,6 +797,20 @@ if (typeof chatConfig !== "undefined") {
     if (selectionMore) {
       selectionMore.addEventListener("click", () => {
         window.alert("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");
+      });
+    }
+
+    if (pinnedStrip) {
+      pinnedStrip.addEventListener("click", () => {
+        const pinnedText = pinnedStrip.querySelector("[data-pinned-message-id]");
+        const messageId = pinnedText && pinnedText.dataset.pinnedMessageId;
+        const message = messageId && chatLog
+          ? chatLog.querySelector(`[data-message-id="${messageId}"]`)
+          : null;
+        if (!message) return;
+        message.scrollIntoView({ behavior: "smooth", block: "center" });
+        message.classList.add("is-selected");
+        window.setTimeout(() => message.classList.remove("is-selected"), 900);
       });
     }
 
@@ -929,7 +979,10 @@ if (typeof chatConfig !== "undefined") {
       }
       const mimeType = getRecorderMimeType("audio");
       try {
-        voiceRecorder = new MediaRecorder(voiceStream, mimeType ? { mimeType } : undefined);
+        voiceRecorder = new MediaRecorder(voiceStream, {
+          ...(mimeType ? { mimeType } : {}),
+          audioBitsPerSecond: 48000,
+        });
       } catch (error) {
         stopVoiceTracks();
         setVoiceStatus("Recording failed");
@@ -1106,7 +1159,12 @@ if (typeof chatConfig !== "undefined") {
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: { facingMode: videoFacingMode },
+          video: {
+            facingMode: videoFacingMode,
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 24, max: 30 },
+          },
         });
       } catch (error) {
         setVideoStatus("Permission denied");
@@ -1167,7 +1225,11 @@ if (typeof chatConfig !== "undefined") {
       if (!videoStream || (videoRecorder && videoRecorder.state !== "inactive")) return;
       const mimeType = getRecorderMimeType("video");
       try {
-        videoRecorder = new MediaRecorder(videoStream, mimeType ? { mimeType } : undefined);
+        videoRecorder = new MediaRecorder(videoStream, {
+          ...(mimeType ? { mimeType } : {}),
+          videoBitsPerSecond: 700000,
+          audioBitsPerSecond: 64000,
+        });
       } catch (error) {
         setVideoStatus("Recording failed");
         window.alert("Video recording could not start.");
@@ -1207,6 +1269,7 @@ if (typeof chatConfig !== "undefined") {
         return;
       }
       await prepareVideoNote();
+      if (videoStream) startVideoRecording();
     };
 
     const cancelVideoNote = () => {

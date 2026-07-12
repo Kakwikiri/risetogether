@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const APP_VERSION = "20260712-recorder-pin";
+  const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     const offsetTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
@@ -78,10 +80,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat500-family-feed", { scope: "/" });
+    return navigator.serviceWorker.register(`/service-worker.js?v=${APP_VERSION}`, { scope: "/" });
   };
 
   const showUpdateNotice = (worker) => {
+    if (localStorage.getItem(dismissedUpdateKey) === APP_VERSION) return;
     waitingServiceWorker = worker;
     if (updateNotice) updateNotice.hidden = false;
   };
@@ -89,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (updateNow) {
     updateNow.addEventListener("click", () => {
       if (waitingServiceWorker) {
+        localStorage.setItem(dismissedUpdateKey, APP_VERSION);
         waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
       }
     });
@@ -96,13 +100,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (updateLater && updateNotice) {
     updateLater.addEventListener("click", () => {
+      localStorage.setItem(dismissedUpdateKey, APP_VERSION);
       updateNotice.hidden = true;
     });
   }
 
   const observeServiceWorkerRegistration = (registration) => {
     if (!registration) return;
-    if (registration.waiting) showUpdateNotice(registration.waiting);
     registration.addEventListener("updatefound", () => {
       const newWorker = registration.installing;
       if (!newWorker) return;
