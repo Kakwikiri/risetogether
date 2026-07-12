@@ -268,6 +268,18 @@ def admin_setup_token_is_valid(token):
     return bool(expected) and token and token == expected
 
 
+def admin_setup_is_enabled():
+    if not os.getenv("ADMIN_SETUP_TOKEN", "").strip():
+        return False
+    if os.getenv("ADMIN_SETUP_ALLOW_EXISTING", "").strip().lower() in {"1", "true", "yes"}:
+        return True
+    return User.query.filter(
+        User.is_admin == True,
+        User.admin_role == "super_admin",
+        User.is_banned == False,
+    ).count() == 0
+
+
 @app.errorhandler(RequestEntityTooLarge)
 def handle_upload_too_large(error):
     limit_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
@@ -313,7 +325,7 @@ def admin_setup_form(token="", message="", status=200):
 @app.route("/setup/admin", methods=["GET", "POST"])
 def admin_setup_web():
     token = request.values.get("token", "").strip()
-    if not os.getenv("ADMIN_SETUP_TOKEN", "").strip():
+    if not admin_setup_is_enabled():
         return Response("Admin setup is disabled.", status=404, mimetype="text/plain")
     if not admin_setup_token_is_valid(token):
         return admin_setup_form(token="", message="Invalid or missing setup token.", status=403)

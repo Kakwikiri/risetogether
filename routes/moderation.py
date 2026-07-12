@@ -216,7 +216,7 @@ def admin_settings():
 
 
 @mod_bp.route("/admin/users/<int:user_id>/toggle-admin", methods=["POST"])
-@login_required
+@fresh_login_required
 def toggle_admin(user_id):
     if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
@@ -231,7 +231,7 @@ def toggle_admin(user_id):
 
 
 @mod_bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
-@login_required
+@fresh_login_required
 def set_website_role(user_id):
     if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
@@ -276,7 +276,7 @@ def toggle_ban_user(user_id):
 
 
 @mod_bp.route("/admin/users/<int:user_id>/<action>", methods=["POST"])
-@login_required
+@fresh_login_required
 def admin_user_action(user_id, action):
     minimum_role = "moderator" if action == "warn" else "super_admin" if action == "reset_password" else "admin"
     if not require_admin_role(minimum_role):
@@ -324,7 +324,7 @@ def admin_user_action(user_id, action):
 
 
 @mod_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
-@login_required
+@fresh_login_required
 def admin_delete_user(user_id):
     if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
