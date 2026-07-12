@@ -154,6 +154,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS start_date TIMESTAMP",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS target_date TIMESTAMP",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS member_limit INTEGER",
+        "ALTER TABLE families ADD COLUMN IF NOT EXISTS profile_image VARCHAR(255) DEFAULT ''",
+        "ALTER TABLE families ADD COLUMN IF NOT EXISTS profile_image_public_id VARCHAR(255) DEFAULT ''",
         f"UPDATE families SET member_limit = {default_family_member_limit} WHERE member_limit IS NULL",
         f"ALTER TABLE families ALTER COLUMN member_limit SET DEFAULT {default_family_member_limit}",
         "ALTER TABLE families ALTER COLUMN member_limit SET NOT NULL",

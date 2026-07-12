@@ -11,6 +11,11 @@
   <div class="family-list">
     {% for family in families %}
     <article class="card family-card">
+      <img
+        class="family-card-image"
+        src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
+        alt="{{ family.name }} picture"
+      />
       <h3>
         <a href="{{ url_for('family.family_detail', family_id=family.id) }}"
           >{{ family.name }}</a

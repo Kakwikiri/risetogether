@@ -1,6 +1,27 @@
 {% extends 'base.html' %} {% block content %}
 <section class="card form-card family-form-card">
   <h2>Edit Family</h2>
+  {% set family_image_url = url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') %}
+  {% if can_change_family_image %}
+  <form class="family-image-form" action="{{ url_for('family.update_family_image', family_id=family.id) }}" method="post" enctype="multipart/form-data" data-family-image-form>
+    <div class="family-image-editor">
+      <img class="family-image-preview" src="{{ family_image_url }}" alt="{{ family.name }} picture" data-family-image-preview />
+      <div>
+        <label>
+          Family picture
+          <input type="file" name="profile_image" accept="image/png,image/jpeg,image/gif" data-family-image-input />
+        </label>
+        <div class="family-image-actions">
+          <button class="button" type="submit" data-family-image-save disabled>Save picture</button>
+          <button class="button secondary" type="button" data-family-image-cancel hidden>Cancel</button>
+        </div>
+        <p class="form-status" data-family-image-status hidden></p>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if can_edit_family_details %}
   <form action="" method="post">
     <label>Family name</label>
     <input type="text" name="name" value="{{ family.name }}" required />
@@ -60,5 +81,6 @@
 
     <button class="button" type="submit">Save family</button>
   </form>
+  {% endif %}
 </section>
 {% endblock %}

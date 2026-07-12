@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -6,7 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
-from helpers import save_media, send_device_push
+from helpers import get_media_type, save_media, send_device_push, validate_upload
 from models import (
     ChallengeCompletion,
     Block,
@@ -15,9 +16,11 @@ from models import (
     FamilyMember,
     FamilyMemberRestriction,
     FamilyModerationLog,
+    MediaAsset,
     Message,
     Notification,
     Post,
+    Profile,
     Quiz,
     QuizAnswer,
     QuizAttempt,
@@ -79,6 +82,7 @@ FAMILY_ROLE_RANK = {
 }
 FAMILY_PERMISSIONS = {
     "edit_family": {"owner"},
+    "change_family_image": {"owner", "admin"},
     "manage_roles": {"owner"},
     "manage_members": {"owner", "admin"},
     "warn_members": {"owner", "admin", "moderator"},
@@ -126,6 +130,60 @@ def family_capacity_status(family):
         "remaining_slots": max(0, limit - count),
         "is_full": count >= limit,
     }
+
+
+def validate_family_image_upload(file):
+    is_valid, message = validate_upload(file)
+    if not is_valid:
+        return False, message
+    if get_media_type(file.filename) != "image":
+        return False, "Family picture must be an image."
+    try:
+        from PIL import Image
+    except ImportError:
+        file.stream.seek(0)
+        return True, ""
+    try:
+        position = file.stream.tell()
+        file.stream.seek(0)
+        with Image.open(file.stream) as image:
+            image.verify()
+        file.stream.seek(position)
+    except OSError:
+        file.stream.seek(0)
+        return False, "Family picture file is not a valid image."
+    file.stream.seek(0)
+    return True, ""
+
+
+def media_filename_is_referenced(filename):
+    if not filename:
+        return False
+    if Family.query.filter_by(profile_image=filename).first():
+        return True
+    if Profile.query.filter_by(avatar=filename).first():
+        return True
+    if Post.query.filter_by(media_url=filename).first():
+        return True
+    if Message.query.filter_by(media_url=filename).first():
+        return True
+    return False
+
+
+def cleanup_family_image(filename):
+    if not filename or media_filename_is_referenced(filename):
+        return
+    safe_filename = os.path.basename(filename)
+    path = os.path.join(current_app.config["UPLOAD_FOLDER"], safe_filename)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            current_app.logger.warning("family_image_cleanup_failed filename=%s", safe_filename)
+    asset = MediaAsset.query.filter_by(filename=safe_filename).first()
+    if asset:
+        db.session.delete(asset)
+        db.session.commit()
 
 
 def add_family_notification(user_id, category, message, action_url):
@@ -638,6 +696,7 @@ def family_detail(family_id):
         challenge_types=CHALLENGE_TYPES,
         role_labels=FAMILY_ROLE_LABELS,
         can_edit_family=family_has_permission(member, "edit_family"),
+        can_change_family_image=family_has_permission(member, "change_family_image"),
         can_manage_roles=family_has_permission(member, "manage_roles"),
         can_manage_members=family_has_permission(member, "manage_members"),
         can_warn_members=family_has_permission(member, "warn_members"),
@@ -658,10 +717,15 @@ def family_detail(family_id):
 def edit_family(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    if not family_has_permission(member, "edit_family"):
-        flash("Only the Family owner can edit these Family details.", "danger")
+    can_edit_details = family_has_permission(member, "edit_family")
+    can_change_image = family_has_permission(member, "change_family_image")
+    if not can_edit_details and not can_change_image:
+        flash("You do not have permission to edit this Family.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     if request.method == "POST":
+        if not can_edit_details:
+            flash("Only the Family owner can edit these Family details.", "danger")
+            return redirect(url_for("family.edit_family", family_id=family.id))
         payload, error = validate_family_payload(request.form)
         if error:
             flash(error, "warning")
@@ -679,7 +743,50 @@ def edit_family(family_id):
         db.session.commit()
         flash("Family updated.", "success")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    return render_template("edit_family.html", family=family, **family_form_context())
+    return render_template(
+        "edit_family.html",
+        family=family,
+        can_edit_family_details=can_edit_details,
+        can_change_family_image=can_change_image,
+        **family_form_context(),
+    )
+
+
+@family_bp.route("/family/<int:family_id>/image", methods=["POST"])
+@login_required
+def update_family_image(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "change_family_image"):
+        flash("You do not have permission to change this Family picture.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    image_file = request.files.get("profile_image")
+    if not image_file or not image_file.filename:
+        flash("Choose a Family picture before saving.", "warning")
+        return redirect(url_for("family.edit_family", family_id=family.id))
+    is_valid, message = validate_family_image_upload(image_file)
+    if not is_valid:
+        flash(message, "warning")
+        return redirect(url_for("family.edit_family", family_id=family.id))
+    filename = save_media(image_file)
+    if not filename:
+        flash("Family picture could not be saved. Try a smaller image.", "danger")
+        return redirect(url_for("family.edit_family", family_id=family.id))
+    previous_image = family.profile_image
+    family.profile_image = filename
+    family.profile_image_public_id = filename
+    log_family_action(
+        family,
+        "family_image_changed",
+        previous_role="",
+        new_role="",
+        reason="Family profile picture updated.",
+    )
+    db.session.commit()
+    if previous_image and previous_image != filename:
+        cleanup_family_image(previous_image)
+    flash("Family picture updated.", "success")
+    return redirect(url_for("family.edit_family", family_id=family.id))
 
 
 @family_bp.route("/family/<int:family_id>/join", methods=["POST"])

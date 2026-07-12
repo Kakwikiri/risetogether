@@ -298,6 +298,64 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelectorAll("[data-family-image-form]").forEach((form) => {
+    const input = form.querySelector("[data-family-image-input]");
+    const preview = form.querySelector("[data-family-image-preview]");
+    const cancel = form.querySelector("[data-family-image-cancel]");
+    const save = form.querySelector("[data-family-image-save]");
+    const status = form.querySelector("[data-family-image-status]");
+    if (!input || !preview || !cancel || !save || !status) return;
+    const originalSrc = preview.src;
+    let objectUrl = "";
+    const clearObjectUrl = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = "";
+    };
+    input.addEventListener("change", () => {
+      clearObjectUrl();
+      const file = input.files && input.files[0];
+      if (!file) {
+        preview.src = originalSrc;
+        save.disabled = true;
+        cancel.hidden = true;
+        status.hidden = true;
+        status.textContent = "";
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        input.value = "";
+        preview.src = originalSrc;
+        save.disabled = true;
+        cancel.hidden = true;
+        status.textContent = "Choose an image file.";
+        status.hidden = false;
+        return;
+      }
+      objectUrl = URL.createObjectURL(file);
+      preview.src = objectUrl;
+      save.disabled = false;
+      cancel.hidden = false;
+      status.textContent = file.name;
+      status.hidden = false;
+    });
+    cancel.addEventListener("click", () => {
+      input.value = "";
+      clearObjectUrl();
+      preview.src = originalSrc;
+      save.disabled = true;
+      cancel.hidden = true;
+      status.hidden = true;
+      status.textContent = "";
+    });
+    form.addEventListener("submit", () => {
+      save.disabled = true;
+      save.textContent = "Saving...";
+      cancel.hidden = true;
+      status.textContent = "Saving picture...";
+      status.hidden = false;
+    });
+  });
+
   const liveStartForm = document.querySelector("[data-live-start-form]");
   if (liveStartForm) {
     const liveStartStatus = liveStartForm.querySelector("[data-live-start-status]");
