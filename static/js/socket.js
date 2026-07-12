@@ -393,7 +393,6 @@ if (typeof chatConfig !== "undefined") {
     const selectionPin = document.querySelector("[data-selection-pin]");
     const selectionDelete = document.querySelector("[data-selection-delete]");
     const selectionForward = document.querySelector("[data-selection-forward]");
-    const selectionMore = document.querySelector("[data-selection-more]");
     const normalHeaderParts = document.querySelectorAll("[data-chat-normal-header]");
     const pinnedStrip = document.querySelector("[data-pinned-strip]");
     const deleteSheet = document.querySelector("[data-delete-sheet]");
@@ -453,13 +452,13 @@ if (typeof chatConfig !== "undefined") {
         pinnedStrip.hidden = true;
         return;
       }
-      const prefix = document.createElement("span");
-      prefix.textContent = "Pinned for 24h";
       const text = document.createElement("strong");
       text.dataset.pinnedText = "1";
       text.dataset.pinnedMessageId = message.dataset.messageId || "";
       text.textContent = message.dataset.messageText || "Pinned message";
-      pinnedStrip.append(prefix, text);
+      const label = document.createElement("span");
+      label.textContent = "Pinned";
+      pinnedStrip.append(text, label);
       pinnedStrip.hidden = false;
     };
 
@@ -851,12 +850,6 @@ if (typeof chatConfig !== "undefined") {
         if (event.target === deleteSheet) closeDeleteSheet();
       });
     }
-    if (selectionMore) {
-      selectionMore.addEventListener("click", () => {
-        notifyChat("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");
-      });
-    }
-
     if (pinnedStrip) {
       pinnedStrip.addEventListener("click", () => {
         const pinnedText = pinnedStrip.querySelector("[data-pinned-message-id]");

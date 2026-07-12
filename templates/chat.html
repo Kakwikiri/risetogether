@@ -35,7 +35,6 @@
       <button class="icon-button" type="button" data-selection-forward aria-label="Forward" title="Forward">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 17 5-5-5-5"></path><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
       </button>
-      <button class="icon-button" type="button" data-selection-more aria-label="More actions" title="More actions">⋯</button>
     </div>
     <div class="chat-header-actions" data-chat-normal-header>
       {% if not family %}
@@ -51,8 +50,8 @@
   <button class="pinned-chat-strip" type="button" data-pinned-strip {% if not messages|selectattr('pinned_until')|list %}hidden{% endif %}>
     {% for pinned in messages|selectattr('pinned_until')|list %}
     {% if loop.last %}
-    <span>Pinned for 24h</span>
     <strong data-pinned-text data-pinned-message-id="{{ pinned.id }}">{{ pinned.content or pinned.media_type|title }}</strong>
+    <span>Pinned</span>
     {% endif %}
     {% endfor %}
   </button>
