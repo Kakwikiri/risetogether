@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-note-alert-push";
+  const APP_VERSION = "20260713-final-search-media";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -631,6 +631,67 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("focus", () => {
       if (input.value.trim()) runSearch();
     });
+  });
+
+  const getOrCreateMediaViewer = () => {
+    let viewer = document.querySelector("[data-media-viewer]");
+    if (viewer) return viewer;
+    viewer = document.createElement("div");
+    viewer.className = "media-viewer";
+    viewer.dataset.mediaViewer = "1";
+    viewer.hidden = true;
+    viewer.innerHTML = `
+      <button class="media-viewer-close" type="button" data-media-viewer-close aria-label="Close full view">×</button>
+      <div class="media-viewer-content" data-media-viewer-content></div>
+    `;
+    document.body.appendChild(viewer);
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer || event.target.closest("[data-media-viewer-close]")) {
+        viewer.hidden = true;
+        const content = viewer.querySelector("[data-media-viewer-content]");
+        if (content) content.innerHTML = "";
+        document.body.classList.remove("media-viewer-open");
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !viewer.hidden) {
+        viewer.hidden = true;
+        const content = viewer.querySelector("[data-media-viewer-content]");
+        if (content) content.innerHTML = "";
+        document.body.classList.remove("media-viewer-open");
+      }
+    });
+    return viewer;
+  };
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".media-download, .view-once-button, a, button")) return;
+    const frame = event.target.closest(".media-frame");
+    if (!frame || !frame.closest(".chat-log, .post-card, .post-detail, .family-section")) return;
+    if (frame.classList.contains("view-once-media") && !frame.classList.contains("revealed")) return;
+    const image = event.target.closest("img");
+    const video = event.target.closest("video");
+    if (!image && !video) return;
+
+    const viewer = getOrCreateMediaViewer();
+    const content = viewer.querySelector("[data-media-viewer-content]");
+    if (!content) return;
+    content.innerHTML = "";
+    if (image) {
+      const fullImage = document.createElement("img");
+      fullImage.src = image.currentSrc || image.src;
+      fullImage.alt = image.alt || "Full view image";
+      content.appendChild(fullImage);
+    } else if (video) {
+      const fullVideo = document.createElement("video");
+      fullVideo.controls = true;
+      fullVideo.autoplay = true;
+      fullVideo.playsInline = true;
+      fullVideo.src = video.currentSrc || video.src || video.querySelector("source")?.src || "";
+      content.appendChild(fullVideo);
+    }
+    viewer.hidden = false;
+    document.body.classList.add("media-viewer-open");
   });
 
   const familyPanels = Array.from(document.querySelectorAll("[data-family-panel]"));

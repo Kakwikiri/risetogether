@@ -8,8 +8,14 @@
     <a class="button secondary" href="{{ url_for('moderation.admin_dashboard') }}">Overview</a>
   </div>
 
-  <form class="admin-filter-bar" method="get">
-    <input type="search" name="q" value="{{ query_text }}" placeholder="Search name, category or owner" />
+  <form
+    class="admin-filter-bar"
+    method="get"
+    data-remote-search
+    data-remote-search-url="{{ url_for('api.search_families') }}"
+    data-remote-search-type="families"
+  >
+    <input type="search" name="q" value="{{ query_text }}" placeholder="Search name, category or owner" data-live-search-input />
     <select name="status">
       <option value="all" {% if status == 'all' %}selected{% endif %}>All Families</option>
       <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
@@ -17,6 +23,7 @@
     </select>
     <button class="button secondary" type="submit">Search</button>
   </form>
+  <div class="search-suggestions" data-remote-search-results hidden></div>
 
   <table class="data-table">
     <thead>

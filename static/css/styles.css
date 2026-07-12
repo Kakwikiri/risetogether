@@ -1372,6 +1372,7 @@ textarea:focus {
   overflow: hidden;
   margin-top: 0.45rem;
   border-radius: 8px;
+  cursor: zoom-in;
 }
 
 .media-frame img,
@@ -1399,6 +1400,58 @@ textarea:focus {
   text-decoration: none;
   font-weight: 900;
   backdrop-filter: blur(10px);
+}
+
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.media-viewer[hidden] {
+  display: none;
+}
+
+.media-viewer-content {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.media-viewer-content img,
+.media-viewer-content video {
+  max-width: min(100%, 1080px);
+  max-height: 88vh;
+  border-radius: 8px;
+  object-fit: contain;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+}
+
+.media-viewer-close {
+  position: fixed;
+  top: max(0.85rem, env(safe-area-inset-top));
+  right: 0.9rem;
+  z-index: 1001;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: white;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+body.media-viewer-open {
+  overflow: hidden;
 }
 
 .video-fallback {
@@ -2916,7 +2969,9 @@ textarea:focus {
 }
 
 .chat-message:has(.voice-note-player) {
-  width: min(74%, 430px);
+  width: min(86%, 640px);
+  max-width: min(86%, 640px);
+  padding-bottom: 0.26rem;
 }
 
 .call-history-pill {
@@ -2986,8 +3041,14 @@ textarea:focus {
   color: rgba(21, 33, 31, 0.55);
 }
 
+.chat-message:has(.voice-note-player) .message-meta {
+  margin-top: 0.18rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
 .message-ticks {
-  color: var(--brand-dark);
+  color: #1d9bf0;
   letter-spacing: -0.08rem;
 }
 
@@ -3285,7 +3346,7 @@ textarea:focus {
 .voice-note-panel audio,
 .voice-note-player audio {
   width: 100%;
-  height: 42px;
+  height: 46px;
 }
 
 .voice-note-player {
@@ -3293,10 +3354,10 @@ textarea:focus {
   gap: 0.46rem;
   min-width: 0;
   width: 100%;
-  max-width: min(410px, 78vw);
-  padding: 0.45rem 0.55rem;
+  max-width: 100%;
+  padding: 0.5rem 0.55rem 0.42rem;
   background: rgba(255, 255, 255, 0.45);
-  border-radius: 10px;
+  border-radius: 18px;
 }
 
 .voice-note-tools {
@@ -3860,12 +3921,12 @@ textarea:focus {
 
 .chat-log .media-frame,
 .chat-log .voice-note-player {
-  max-width: min(410px, 78vw);
+  max-width: 100%;
 }
 
 .chat-log .chat-message:has(.voice-note-player) {
-  width: min(82%, 430px);
-  max-width: min(82%, 430px);
+  width: min(88%, 640px);
+  max-width: min(88%, 640px);
 }
 
 .chat-log .media-frame img,

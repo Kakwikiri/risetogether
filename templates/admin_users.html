@@ -16,13 +16,20 @@
     <span>No users yet</span>
     {% endfor %}
   </div>
-  <form class="admin-filter-bar" method="get">
-    <input type="search" name="q" value="{{ query_text }}" placeholder="Search username, email or user ID" />
+  <form
+    class="admin-filter-bar"
+    method="get"
+    data-remote-search
+    data-remote-search-url="{{ url_for('api.search_users') }}"
+    data-remote-search-type="people"
+  >
+    <input type="search" name="q" value="{{ query_text }}" placeholder="Search username, email or user ID" data-live-search-input />
     <button class="button secondary" type="submit">Search</button>
     {% if query_text %}
     <a class="button ghost" href="{{ url_for('moderation.admin_users') }}">Clear</a>
     {% endif %}
   </form>
+  <div class="search-suggestions" data-remote-search-results hidden></div>
   <table class="data-table">
     <thead>
       <tr>
