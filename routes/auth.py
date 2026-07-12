@@ -56,10 +56,7 @@ def setting_value(key, default=""):
 
 
 def should_make_admin(email):
-    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
-    return User.query.filter_by(is_admin=True).count() == 0 or (
-        admin_email and email == admin_email
-    )
+    return False
 
 
 def send_password_reset_email(user, reset_url):

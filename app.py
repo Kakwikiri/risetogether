@@ -137,6 +137,8 @@ def ensure_schema_compatibility():
     QuizAttempt.__table__.create(db.engine, checkfirst=True)
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
+    platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
+    platform_owner_literal = platform_owner_username.replace("'", "''")
     updates = [
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",
@@ -179,8 +181,11 @@ def ensure_schema_compatibility():
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_polls_family_status') THEN CREATE INDEX ix_family_polls_family_status ON family_polls (family_id, status); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_poll_votes_poll_user') THEN CREATE INDEX ix_family_poll_votes_poll_user ON family_poll_votes (poll_id, user_id); END IF; END $$",
         "UPDATE users SET admin_role = 'admin' WHERE is_admin = TRUE AND COALESCE(admin_role, '') = ''",
-        "WITH first_admin AS (SELECT id FROM users WHERE is_admin = TRUE ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET admin_role = 'super_admin' WHERE id IN (SELECT id FROM first_admin) AND NOT EXISTS (SELECT 1 FROM users WHERE admin_role = 'super_admin')",
+        f"UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin' AND LOWER(username) != LOWER('{platform_owner_literal}')",
+        f"UPDATE users SET is_admin = TRUE, admin_role = 'super_admin', is_banned = FALSE, ban_until = NULL WHERE LOWER(username) = LOWER('{platform_owner_literal}')",
+        f"WITH first_admin AS (SELECT id FROM users WHERE is_admin = TRUE ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET admin_role = 'super_admin' WHERE id IN (SELECT id FROM first_admin) AND NOT EXISTS (SELECT 1 FROM users WHERE admin_role = 'super_admin') AND NOT EXISTS (SELECT 1 FROM users WHERE LOWER(username) = LOWER('{platform_owner_literal}'))",
         "UPDATE users SET is_admin = TRUE WHERE admin_role IN ('super_admin', 'admin', 'moderator')",
+        "UPDATE users SET is_admin = FALSE WHERE COALESCE(admin_role, '') = ''",
     ]
     for statement in updates:
         db.session.execute(text(statement))

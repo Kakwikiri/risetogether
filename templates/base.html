@@ -69,9 +69,11 @@
         >
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         {% if current_user.is_admin %}
+        <a href="{{ url_for('moderation.admin_dashboard') }}" data-icon="▣"><span>Admin</span></a>
         <a href="{{ url_for('moderation.admin_reports') }}" data-icon="!"><span>Reports</span></a>
         {% if current_user.admin_role in ['super_admin', 'admin'] %}
-        <a href="{{ url_for('moderation.admin_users') }}" data-icon="⚙"><span>Admin</span></a>
+        <a href="{{ url_for('moderation.admin_users') }}" data-icon="⚙"><span>Users</span></a>
+        <a href="{{ url_for('moderation.admin_families') }}" data-icon="⌂"><span>Families</span></a>
         <a href="{{ url_for('moderation.admin_help_requests') }}" data-icon="?"><span>Requests</span></a>
         {% endif %}
         {% if current_user.admin_role == 'super_admin' %}

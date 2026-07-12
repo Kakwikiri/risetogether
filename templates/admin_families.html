@@ -1,0 +1,67 @@
+{% extends 'base.html' %} {% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Website administration</p>
+      <h2>Families</h2>
+    </div>
+    <a class="button secondary" href="{{ url_for('moderation.admin_dashboard') }}">Overview</a>
+  </div>
+
+  <form class="admin-filter-bar" method="get">
+    <input type="search" name="q" value="{{ query_text }}" placeholder="Search name, category or owner" />
+    <select name="status">
+      <option value="all" {% if status == 'all' %}selected{% endif %}>All Families</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+      <option value="suspended" {% if status == 'suspended' %}selected{% endif %}>Suspended</option>
+    </select>
+    <button class="button secondary" type="submit">Search</button>
+  </form>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Family</th>
+        <th>Category</th>
+        <th>Owner</th>
+        <th>Members</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for family in families %}
+      <tr>
+        <td>{{ family.id }}</td>
+        <td>{{ family.name }}</td>
+        <td>{{ family.category.replace('_', ' ')|title }}</td>
+        <td>
+          {% set owner = owners.get(family.owner_id) %}
+          {{ owner.username if owner else 'Unknown' }}
+        </td>
+        <td>{{ member_counts.get(family.id, 0) }} / {{ family.member_limit }}</td>
+        <td>{{ 'Active' if family.is_active else 'Suspended' }}</td>
+        <td>{{ family.created_at.strftime('%Y-%m-%d') }}</td>
+        <td class="admin-actions">
+          {% if family.is_active %}
+          <form action="{{ url_for('moderation.admin_family_action', family_id=family.id, action='suspend') }}" method="post">
+            <button class="button danger" type="submit">Suspend</button>
+          </form>
+          {% else %}
+          <form action="{{ url_for('moderation.admin_family_action', family_id=family.id, action='restore') }}" method="post">
+            <button class="button secondary" type="submit">Restore</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8">No Families found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

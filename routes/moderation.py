@@ -6,7 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
 
 from extensions import db
-from models import Block, HelpRequest, Post, Report, SiteSetting, User
+from models import Block, Family, HelpRequest, Post, Report, SiteSetting, User
 
 mod_bp = Blueprint("moderation", __name__)
 
@@ -66,6 +66,47 @@ def can_act_on(target, action="manage"):
         flash("You cannot manage an account with an equal or higher website role.", "danger")
         return False
     return True
+
+
+@mod_bp.route("/admin")
+@login_required
+def admin_dashboard():
+    if not require_admin_role("moderator"):
+        return redirect(url_for("main.home"))
+    now = datetime.utcnow()
+    seven_days_ago = now - timedelta(days=7)
+    current_role = website_role(current_user)
+    stats = {
+        "total_users": User.query.count(),
+        "active_users": User.query.filter(User.is_banned == False).count(),
+        "suspended_users": User.query.filter(
+            User.is_banned == True,
+            User.ban_until != None,
+        ).count(),
+        "banned_users": User.query.filter(
+            User.is_banned == True,
+            User.ban_until == None,
+        ).count(),
+        "total_families": Family.query.count(),
+        "active_families": Family.query.filter(Family.is_active == True).count(),
+        "suspended_families": Family.query.filter(Family.is_active == False).count(),
+        "pending_reports": Report.query.filter_by(status="open").count(),
+        "new_registrations": User.query.filter(User.created_at >= seven_days_ago).count(),
+        "open_help_requests": HelpRequest.query.filter_by(status="open").count(),
+    }
+    if current_role == "super_admin":
+        stats["website_admins"] = User.query.filter(
+            User.admin_role.in_(["super_admin", "admin", "moderator"])
+        ).count()
+    recent_reports = Report.query.order_by(Report.created_at.desc()).limit(5).all()
+    recent_help_requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).limit(5).all()
+    return render_template(
+        "admin_dashboard.html",
+        stats=stats,
+        current_admin_role=current_role,
+        recent_reports=recent_reports,
+        recent_help_requests=recent_help_requests,
+    )
 
 
 @mod_bp.route("/report/user/<int:user_id>", methods=["POST"])
@@ -136,7 +177,20 @@ def admin_reports():
 def admin_users():
     if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
-    users = User.query.order_by(User.created_at.desc()).all()
+    query_text = request.args.get("q", "").strip()
+    users_query = User.query
+    if website_role(current_user) != "super_admin":
+        users_query = users_query.filter(
+            (User.admin_role == None) | (User.admin_role == ""),
+            User.is_admin == False,
+        )
+    if query_text:
+        like = f"%{query_text}%"
+        search_filter = (User.username.ilike(like)) | (User.email.ilike(like))
+        if query_text.isdigit():
+            search_filter = search_filter | (User.id == int(query_text))
+        users_query = users_query.filter(search_filter)
+    users = users_query.order_by(User.created_at.desc()).all()
     location_counts = Counter(user.country or "Unknown" for user in users)
     temp_password = request.args.get("temp_password", "")
     temp_user = request.args.get("temp_user", "")
@@ -146,9 +200,73 @@ def admin_users():
         location_counts=location_counts.most_common(),
         temp_password=temp_password,
         temp_user=temp_user,
+        query_text=query_text,
         role_labels=ADMIN_ROLE_LABELS,
         current_admin_role=website_role(current_user),
     )
+
+
+@mod_bp.route("/admin/families")
+@login_required
+def admin_families():
+    if not require_admin_role("admin"):
+        return redirect(url_for("main.home"))
+    query_text = request.args.get("q", "").strip()
+    status = request.args.get("status", "all").strip()
+    families_query = Family.query
+    if query_text:
+        like = f"%{query_text}%"
+        owner_ids = [
+            user.id
+            for user in User.query.filter(
+                (User.username.ilike(like)) | (User.email.ilike(like))
+            ).all()
+        ]
+        search_filter = (Family.name.ilike(like)) | (Family.category.ilike(like))
+        if owner_ids:
+            search_filter = search_filter | Family.owner_id.in_(owner_ids)
+        families_query = families_query.filter(search_filter)
+    if status == "active":
+        families_query = families_query.filter(Family.is_active == True)
+    elif status == "suspended":
+        families_query = families_query.filter(Family.is_active == False)
+    families = families_query.order_by(Family.created_at.desc()).all()
+    owner_ids = {family.owner_id for family in families if family.owner_id}
+    owners = {
+        user.id: user
+        for user in User.query.filter(User.id.in_(owner_ids)).all()
+    } if owner_ids else {}
+    member_counts = {
+        family.id: family.members.count()
+        for family in families
+    }
+    return render_template(
+        "admin_families.html",
+        families=families,
+        owners=owners,
+        member_counts=member_counts,
+        query_text=query_text,
+        status=status,
+        current_admin_role=website_role(current_user),
+    )
+
+
+@mod_bp.route("/admin/families/<int:family_id>/<action>", methods=["POST"])
+@fresh_login_required
+def admin_family_action(family_id, action):
+    if not require_admin_role("admin"):
+        return redirect(url_for("main.home"))
+    family = Family.query.get_or_404(family_id)
+    if action == "suspend":
+        family.is_active = False
+        flash("Family suspended. Existing data has been preserved for review.", "success")
+    elif action == "restore":
+        family.is_active = True
+        flash("Family restored.", "success")
+    else:
+        flash("That Family action is unavailable.", "warning")
+    db.session.commit()
+    return redirect(url_for("moderation.admin_families"))
 
 
 @mod_bp.route("/help", methods=["GET", "POST"])

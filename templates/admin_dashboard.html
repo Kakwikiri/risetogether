@@ -1,0 +1,123 @@
+{% extends 'base.html' %} {% block content %}
+<section class="panel admin-dashboard">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Website administration</p>
+      <h2>Overview</h2>
+    </div>
+    <span class="status-pill">{{ current_admin_role.replace('_', ' ')|title }}</span>
+  </div>
+
+  <div class="admin-stat-grid">
+    <article>
+      <span>Total users</span>
+      <strong>{{ stats.total_users }}</strong>
+    </article>
+    <article>
+      <span>Active users</span>
+      <strong>{{ stats.active_users }}</strong>
+    </article>
+    <article>
+      <span>Suspended users</span>
+      <strong>{{ stats.suspended_users }}</strong>
+    </article>
+    <article>
+      <span>Banned users</span>
+      <strong>{{ stats.banned_users }}</strong>
+    </article>
+    <article>
+      <span>Total Families</span>
+      <strong>{{ stats.total_families }}</strong>
+    </article>
+    <article>
+      <span>Active Families</span>
+      <strong>{{ stats.active_families }}</strong>
+    </article>
+    <article>
+      <span>Suspended Families</span>
+      <strong>{{ stats.suspended_families }}</strong>
+    </article>
+    <article>
+      <span>Pending reports</span>
+      <strong>{{ stats.pending_reports }}</strong>
+    </article>
+    <article>
+      <span>New registrations</span>
+      <strong>{{ stats.new_registrations }}</strong>
+    </article>
+    <article>
+      <span>Open requests</span>
+      <strong>{{ stats.open_help_requests }}</strong>
+    </article>
+    {% if current_admin_role == 'super_admin' %}
+    <article>
+      <span>Website admins</span>
+      <strong>{{ stats.website_admins }}</strong>
+    </article>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel admin-sections">
+  <div class="panel-header">
+    <h3>Sections</h3>
+  </div>
+  <div class="admin-section-grid">
+    <a href="{{ url_for('moderation.admin_dashboard') }}">Overview</a>
+    {% if current_admin_role in ['super_admin', 'admin'] %}
+    <a href="{{ url_for('moderation.admin_users') }}">Users</a>
+    {% endif %}
+    {% if current_admin_role in ['super_admin', 'admin'] %}
+    <a href="{{ url_for('moderation.admin_families') }}">Families</a>
+    {% endif %}
+    <a href="{{ url_for('moderation.admin_reports') }}">Reports</a>
+    {% if current_admin_role in ['super_admin', 'admin'] %}
+    <a href="{{ url_for('moderation.admin_users') }}">Warnings</a>
+    <a href="{{ url_for('moderation.admin_users') }}">Suspensions</a>
+    <a href="{{ url_for('moderation.admin_users') }}">Bans</a>
+    {% endif %}
+    <a href="{{ url_for('moderation.admin_reports') }}">Content moderation</a>
+    {% if current_admin_role == 'super_admin' %}
+    <a href="{{ url_for('moderation.admin_users') }}">Website admins</a>
+    <span class="admin-section-disabled">Audit log</span>
+    <a href="{{ url_for('moderation.admin_settings') }}">Platform settings</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel admin-dashboard-list">
+  <div class="panel-header">
+    <h3>Recent reports</h3>
+    <a class="button secondary" href="{{ url_for('moderation.admin_reports') }}">Open reports</a>
+  </div>
+  <ul class="dashboard-list">
+    {% for report in recent_reports %}
+    <li>
+      <span>{{ report.reason[:120] }}{% if report.reason|length > 120 %}...{% endif %}</span>
+      <small>{{ report.status|title }} · {{ report.created_at.strftime('%Y-%m-%d') }}</small>
+    </li>
+    {% else %}
+    <li><span>No reports yet</span></li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if current_admin_role in ['super_admin', 'admin'] %}
+<section class="panel admin-dashboard-list">
+  <div class="panel-header">
+    <h3>Recent help requests</h3>
+    <a class="button secondary" href="{{ url_for('moderation.admin_help_requests') }}">Open requests</a>
+  </div>
+  <ul class="dashboard-list">
+    {% for item in recent_help_requests %}
+    <li>
+      <span>{{ item.subject }}</span>
+      <small>{{ item.status|title }} · {{ item.created_at.strftime('%Y-%m-%d') }}</small>
+    </li>
+    {% else %}
+    <li><span>No help requests yet</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}
