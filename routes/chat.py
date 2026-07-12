@@ -371,6 +371,10 @@ def upload_message_file():
         extension = media_file.filename.rsplit(".", 1)[1].lower() if media_file and "." in media_file.filename else ""
         if extension not in {"webm", "ogg", "mp3", "wav", "m4a"}:
             return jsonify({"error": "Voice notes must be uploaded as an audio recording."}), 400
+    if media_kind == "video":
+        extension = media_file.filename.rsplit(".", 1)[1].lower() if media_file and "." in media_file.filename else ""
+        if extension not in {"webm", "mp4", "mov", "m4v"}:
+            return jsonify({"error": "Video notes must be uploaded as a video recording."}), 400
     is_valid, upload_message = validate_upload(media_file)
     if not is_valid:
         return jsonify({"error": upload_message}), 400

@@ -2408,6 +2408,36 @@ textarea:focus {
   display: none;
 }
 
+.video-note-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  background: #fbfefd;
+  border-top: 1px solid var(--line);
+}
+
+.video-note-panel[hidden] {
+  display: none;
+}
+
+.video-note-preview {
+  width: min(100%, 420px);
+  aspect-ratio: 4 / 3;
+  background: #0f172a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.video-note-meta {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
 .voice-note-status-row,
 .voice-note-actions,
 .voice-note-tools {

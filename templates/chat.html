@@ -126,6 +126,27 @@
       <button class="button secondary" type="button" data-voice-cancel>Cancel</button>
     </div>
   </section>
+  <section id="video-note-panel" class="video-note-panel" hidden>
+    <div class="voice-note-status-row">
+      <span class="recording-dot" data-video-recording-dot></span>
+      <strong data-video-state>Preparing camera</strong>
+      <span data-video-timer>00:00</span>
+    </div>
+    <video class="video-note-preview" data-video-live autoplay muted playsinline hidden></video>
+    <video class="video-note-preview" data-video-preview controls playsinline hidden></video>
+    <div class="video-note-meta">
+      <span data-video-camera-status>Camera: preparing</span>
+      <span data-video-mic-status>Microphone: preparing</span>
+    </div>
+    <div class="voice-note-actions">
+      <button class="button" type="button" data-video-record hidden>Record</button>
+      <button class="button" type="button" data-video-stop hidden>Stop</button>
+      <button class="button secondary" type="button" data-video-switch hidden>Switch camera</button>
+      <button class="button secondary" type="button" data-video-record-again hidden>Record again</button>
+      <button class="button" type="button" data-video-send hidden>Send</button>
+      <button class="button secondary" type="button" data-video-cancel>Cancel</button>
+    </div>
+  </section>
 </section>
 <script>
   const chatConfig = {

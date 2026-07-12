@@ -336,6 +336,19 @@ if (typeof chatConfig !== "undefined") {
     const voiceRecordAgainButton = voicePanel ? voicePanel.querySelector("[data-voice-record-again]") : null;
     const voiceSendButton = voicePanel ? voicePanel.querySelector("[data-voice-send]") : null;
     const voiceCancelButton = voicePanel ? voicePanel.querySelector("[data-voice-cancel]") : null;
+    const videoPanel = document.getElementById("video-note-panel");
+    const videoState = videoPanel ? videoPanel.querySelector("[data-video-state]") : null;
+    const videoTimer = videoPanel ? videoPanel.querySelector("[data-video-timer]") : null;
+    const videoLive = videoPanel ? videoPanel.querySelector("[data-video-live]") : null;
+    const videoPreview = videoPanel ? videoPanel.querySelector("[data-video-preview]") : null;
+    const videoCameraStatus = videoPanel ? videoPanel.querySelector("[data-video-camera-status]") : null;
+    const videoMicStatus = videoPanel ? videoPanel.querySelector("[data-video-mic-status]") : null;
+    const videoRecordButton = videoPanel ? videoPanel.querySelector("[data-video-record]") : null;
+    const videoStopButton = videoPanel ? videoPanel.querySelector("[data-video-stop]") : null;
+    const videoSwitchButton = videoPanel ? videoPanel.querySelector("[data-video-switch]") : null;
+    const videoRecordAgainButton = videoPanel ? videoPanel.querySelector("[data-video-record-again]") : null;
+    const videoSendButton = videoPanel ? videoPanel.querySelector("[data-video-send]") : null;
+    const videoCancelButton = videoPanel ? videoPanel.querySelector("[data-video-cancel]") : null;
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
@@ -352,6 +365,15 @@ if (typeof chatConfig !== "undefined") {
     let voiceElapsedBeforePause = 0;
     let voiceTimerId = null;
     let voiceCancelled = false;
+    let videoStream = null;
+    let videoRecorder = null;
+    let videoChunks = [];
+    let videoBlob = null;
+    let videoObjectUrl = "";
+    let videoStartedAt = 0;
+    let videoTimerId = null;
+    let videoCancelled = false;
+    let videoFacingMode = "user";
     const selectedMessages = new Map();
     const actionMenu = document.createElement("div");
     actionMenu.className = "message-action-menu";
@@ -932,6 +954,224 @@ if (typeof chatConfig !== "undefined") {
       }
     };
 
+    const setVideoStatus = (status) => {
+      if (videoState) videoState.textContent = status;
+    };
+
+    const setVideoControls = (state) => {
+      if (!videoPanel) return;
+      if (videoRecordButton) videoRecordButton.hidden = state !== "ready";
+      if (videoStopButton) videoStopButton.hidden = state !== "recording";
+      if (videoSwitchButton) videoSwitchButton.hidden = !["ready", "preparing"].includes(state);
+      if (videoRecordAgainButton) videoRecordAgainButton.hidden = state !== "preview";
+      if (videoSendButton) videoSendButton.hidden = state !== "preview";
+      if (videoLive) videoLive.hidden = !["ready", "recording"].includes(state);
+      if (videoPreview) videoPreview.hidden = state !== "preview";
+    };
+
+    const stopVideoTimer = () => {
+      if (videoTimerId) window.clearInterval(videoTimerId);
+      videoTimerId = null;
+    };
+
+    const startVideoTimer = () => {
+      stopVideoTimer();
+      videoTimerId = window.setInterval(() => {
+        if (videoTimer) videoTimer.textContent = formatVoiceDuration(Date.now() - videoStartedAt);
+      }, 250);
+    };
+
+    const stopVideoTracks = () => {
+      if (videoStream) {
+        videoStream.getTracks().forEach((track) => track.stop());
+      }
+      videoStream = null;
+      if (videoLive) {
+        videoLive.pause();
+        videoLive.srcObject = null;
+      }
+    };
+
+    const clearVideoObjectUrl = () => {
+      if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+      videoObjectUrl = "";
+    };
+
+    const resetVideoPanel = (status = "Preparing camera") => {
+      stopVideoTimer();
+      stopVideoTracks();
+      clearVideoObjectUrl();
+      videoRecorder = null;
+      videoChunks = [];
+      videoBlob = null;
+      videoStartedAt = 0;
+      videoCancelled = false;
+      if (videoTimer) videoTimer.textContent = "00:00";
+      if (videoPreview) {
+        videoPreview.pause();
+        videoPreview.removeAttribute("src");
+        videoPreview.load();
+      }
+      if (videoCameraStatus) videoCameraStatus.textContent = "Camera: idle";
+      if (videoMicStatus) videoMicStatus.textContent = "Microphone: idle";
+      setVideoStatus(status);
+      setVideoControls("idle");
+      if (videoPanel) videoPanel.hidden = true;
+      if (videoNoteButton) {
+        videoNoteButton.classList.remove("recording");
+        videoNoteButton.textContent = "▣";
+      }
+    };
+
+    const prepareVideoNote = async () => {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        if (videoPanel) videoPanel.hidden = false;
+        setVideoStatus("Camera unavailable");
+        window.alert("Video recording is not supported by this browser.");
+        return;
+      }
+      resetVideoPanel("Preparing camera");
+      if (videoPanel) videoPanel.hidden = false;
+      setVideoControls("preparing");
+      if (videoCameraStatus) videoCameraStatus.textContent = "Camera: preparing";
+      if (videoMicStatus) videoMicStatus.textContent = "Microphone: preparing";
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { facingMode: videoFacingMode },
+        });
+      } catch (error) {
+        setVideoStatus("Permission denied");
+        if (videoCameraStatus) videoCameraStatus.textContent = "Camera: unavailable";
+        if (videoMicStatus) videoMicStatus.textContent = "Microphone: unavailable";
+        window.alert("Camera or microphone is blocked.");
+        return;
+      }
+      if (videoLive) {
+        videoLive.srcObject = videoStream;
+        try {
+          await videoLive.play();
+        } catch (error) {
+          // Some browsers require a second user tap; controls stay visible.
+        }
+      }
+      if (videoCameraStatus) {
+        videoCameraStatus.textContent = `Camera: ${videoStream.getVideoTracks().length ? "ready" : "unavailable"}`;
+      }
+      if (videoMicStatus) {
+        videoMicStatus.textContent = `Microphone: ${videoStream.getAudioTracks().length ? "ready" : "unavailable"}`;
+      }
+      setVideoStatus("Camera ready");
+      setVideoControls("ready");
+    };
+
+    const finishVideoRecording = async () => {
+      stopVideoTimer();
+      stopVideoTracks();
+      if (videoCancelled) {
+        resetVideoPanel("Preparing camera");
+        return;
+      }
+      setVideoStatus("Processing");
+      setVideoControls("processing");
+      const type = videoRecorder && videoRecorder.mimeType ? videoRecorder.mimeType : "video/webm";
+      videoBlob = new Blob(videoChunks, { type });
+      const duration = Date.now() - videoStartedAt;
+      if (!videoBlob.size || duration < 800) {
+        resetVideoPanel("Recording failed");
+        window.alert("Video note was too short to send.");
+        return;
+      }
+      clearVideoObjectUrl();
+      videoObjectUrl = URL.createObjectURL(videoBlob);
+      if (videoPreview) {
+        videoPreview.src = videoObjectUrl;
+        videoPreview.muted = false;
+        videoPreview.hidden = false;
+      }
+      setVideoStatus("Preview");
+      setVideoControls("preview");
+      if (videoTimer) videoTimer.textContent = formatVoiceDuration(duration);
+      if (videoNoteButton) {
+        videoNoteButton.classList.remove("recording");
+        videoNoteButton.textContent = "▣";
+      }
+    };
+
+    const startVideoRecording = () => {
+      if (!videoStream || (videoRecorder && videoRecorder.state !== "inactive")) return;
+      const mimeType = getRecorderMimeType("video");
+      try {
+        videoRecorder = new MediaRecorder(videoStream, mimeType ? { mimeType } : undefined);
+      } catch (error) {
+        setVideoStatus("Recording failed");
+        window.alert("Video recording could not start.");
+        return;
+      }
+      videoChunks = [];
+      videoCancelled = false;
+      videoStartedAt = Date.now();
+      videoRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) videoChunks.push(event.data);
+      };
+      videoRecorder.onstop = finishVideoRecording;
+      videoRecorder.start();
+      setVideoStatus("Recording");
+      setVideoControls("recording");
+      startVideoTimer();
+      if (videoNoteButton) {
+        videoNoteButton.classList.add("recording");
+        videoNoteButton.textContent = "■";
+      }
+      window.setTimeout(() => {
+        if (videoRecorder && videoRecorder.state !== "inactive") {
+          videoRecorder.stop();
+        }
+      }, 60000);
+    };
+
+    const stopVideoRecording = () => {
+      if (!videoRecorder || videoRecorder.state === "inactive") return;
+      videoRecorder.stop();
+    };
+
+    const cancelVideoNote = () => {
+      videoCancelled = true;
+      if (videoRecorder && videoRecorder.state !== "inactive") {
+        videoRecorder.stop();
+      } else {
+        resetVideoPanel("Preparing camera");
+      }
+    };
+
+    const switchVideoCamera = async () => {
+      videoFacingMode = videoFacingMode === "user" ? "environment" : "user";
+      await prepareVideoNote();
+    };
+
+    const sendVideoPreview = async () => {
+      if (!videoBlob) return;
+      setVideoStatus("Uploading");
+      setVideoControls("uploading");
+      const file = new File([videoBlob], `video-note-${Date.now()}.webm`, {
+        type: videoBlob.type || "video/webm",
+      });
+      try {
+        const sent = await uploadChatFile(file, "Video note", { mediaKind: "video" });
+        if (!sent) {
+          setVideoStatus("Upload failed");
+          setVideoControls("preview");
+          return;
+        }
+        clearComposerState();
+        setVideoStatus("Sent");
+        window.setTimeout(() => resetVideoPanel("Preparing camera"), 900);
+      } catch (error) {
+        setVideoStatus("Upload failed");
+        setVideoControls("preview");
+      }
+    };
+
     const stopActiveRecorder = () => {
       if (activeRecorder && activeRecorder.state !== "inactive") {
         activeRecorder.stop();
@@ -1022,7 +1262,31 @@ if (typeof chatConfig !== "undefined") {
     }
 
     if (videoNoteButton) {
-      videoNoteButton.addEventListener("click", () => toggleNoteRecording("video", videoNoteButton));
+      videoNoteButton.addEventListener("click", prepareVideoNote);
+    }
+
+    if (videoRecordButton) {
+      videoRecordButton.addEventListener("click", startVideoRecording);
+    }
+
+    if (videoStopButton) {
+      videoStopButton.addEventListener("click", stopVideoRecording);
+    }
+
+    if (videoCancelButton) {
+      videoCancelButton.addEventListener("click", cancelVideoNote);
+    }
+
+    if (videoRecordAgainButton) {
+      videoRecordAgainButton.addEventListener("click", prepareVideoNote);
+    }
+
+    if (videoSwitchButton) {
+      videoSwitchButton.addEventListener("click", switchVideoCamera);
+    }
+
+    if (videoSendButton) {
+      videoSendButton.addEventListener("click", sendVideoPreview);
     }
 
     window.addEventListener("beforeunload", () => {
@@ -1031,6 +1295,11 @@ if (typeof chatConfig !== "undefined") {
         voiceRecorder.stop();
       }
       stopVoiceTracks();
+      videoCancelled = true;
+      if (videoRecorder && videoRecorder.state !== "inactive") {
+        videoRecorder.stop();
+      }
+      stopVideoTracks();
     });
 
     document.querySelectorAll(".voice-note-player").forEach(enhanceVoiceNotePlayer);
