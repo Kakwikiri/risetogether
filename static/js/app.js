@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-chat-polish-dark";
+  const APP_VERSION = "20260713-note-alert-push";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;

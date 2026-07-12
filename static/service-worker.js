@@ -1,4 +1,4 @@
-const CACHE_NAME = "risetogether-cache-v25";
+const CACHE_NAME = "risetogether-cache-v26";
 const ASSETS = [
   "/offline",
   "/static/css/styles.css",
@@ -107,6 +107,8 @@ self.addEventListener("push", (event) => {
     icon: "/static/images/icon-192-v2.png",
     badge: "/static/images/icon-192-v2.png",
     tag: data.tag || `risetogether-${Date.now()}`,
+    renotify: true,
+    vibrate: [120, 60, 120],
     data: {
       url: data.url || "/notifications",
       notification_id: data.notification_id || null,

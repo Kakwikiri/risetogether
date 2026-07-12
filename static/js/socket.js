@@ -423,6 +423,10 @@ if (typeof chatConfig !== "undefined") {
     let sendVideoAfterStop = false;
     const selectedMessages = new Map();
 
+    const notifyChat = (message) => {
+      showRealtimeToast(message);
+    };
+
     const syncChatBottomSpace = () => {
       if (!chatForm) return;
       const formHeight = Math.ceil(chatForm.getBoundingClientRect().height);
@@ -495,7 +499,7 @@ if (typeof chatConfig !== "undefined") {
         } catch (error) {
           // Keep the generic message when the response is not JSON.
         }
-        window.alert(message);
+        notifyChat(message);
         return false;
       }
       const data = await response.json();
@@ -538,7 +542,7 @@ if (typeof chatConfig !== "undefined") {
         (message) => Number(message.dataset.senderId) === chatConfig.currentUserId,
       );
       if (!allowed) {
-        window.alert("Only your own messages can be deleted for everyone.");
+        notifyChat("Only your own messages can be deleted for everyone.");
         return;
       }
       await Promise.all(messages.map(async (message) => {
@@ -617,7 +621,7 @@ if (typeof chatConfig !== "undefined") {
           if (response.ok) {
             message.remove();
           } else {
-            window.alert("Message could not be deleted.");
+            notifyChat("Message could not be deleted.");
           }
         });
       } else if (action === "pin") {
@@ -638,7 +642,7 @@ if (typeof chatConfig !== "undefined") {
           }
           clearMessageSelection();
         }).catch(() => {
-          window.alert("Message could not be pinned.");
+          notifyChat("Message could not be pinned.");
         });
       } else if (action === "forward") {
         clearMessageSelection();
@@ -651,7 +655,7 @@ if (typeof chatConfig !== "undefined") {
           method: "POST",
           body: formData,
         }).then((response) => {
-          if (!response.ok) window.alert("Message could not be forwarded.");
+          if (!response.ok) notifyChat("Message could not be forwarded.");
         });
       }
     };
@@ -812,7 +816,7 @@ if (typeof chatConfig !== "undefined") {
     if (selectionForward) selectionForward.addEventListener("click", () => runSelectionAction("forward"));
     if (selectionMore) {
       selectionMore.addEventListener("click", () => {
-        window.alert("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");
+        notifyChat("Use Delete to choose delete scope, Reply for one message, or Forward for selected messages.");
       });
     }
 
@@ -833,7 +837,7 @@ if (typeof chatConfig !== "undefined") {
     if (locationButton) {
       locationButton.addEventListener("click", () => {
         if (!navigator.geolocation) {
-          window.alert("Location sharing is not supported by this browser.");
+          notifyChat("Location sharing is not supported by this browser.");
           return;
         }
         navigator.geolocation.getCurrentPosition(
@@ -843,7 +847,7 @@ if (typeof chatConfig !== "undefined") {
               `My location: https://www.google.com/maps?q=${latitude},${longitude}`,
             );
           },
-          () => window.alert("Could not get your location."),
+          () => notifyChat("Could not get your location."),
           { enableHighAccuracy: true, timeout: 10000 },
         );
       });
@@ -959,7 +963,7 @@ if (typeof chatConfig !== "undefined") {
       const duration = currentVoiceElapsed();
       if (!voiceBlob.size || duration < 800 || !keepVeryShortVoiceNote(duration)) {
         resetVoicePanel("Recording failed");
-        window.alert("Voice note was too short to send.");
+        notifyChat("Voice note was too short to send.");
         return;
       }
       clearVoiceObjectUrl();
@@ -985,7 +989,7 @@ if (typeof chatConfig !== "undefined") {
       if (!navigator.mediaDevices || !window.MediaRecorder) {
         if (voicePanel) voicePanel.hidden = false;
         setVoiceStatus("Recording failed");
-        window.alert("Recording is not supported by this browser.");
+        notifyChat("Recording is not supported by this browser.");
         return;
       }
       resetVoicePanel("Ready");
@@ -995,7 +999,7 @@ if (typeof chatConfig !== "undefined") {
         voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (error) {
         setVoiceStatus("Permission denied");
-        window.alert("Microphone is blocked.");
+        notifyChat("Microphone is blocked.");
         return;
       }
       const mimeType = getRecorderMimeType("audio");
@@ -1007,7 +1011,7 @@ if (typeof chatConfig !== "undefined") {
       } catch (error) {
         stopVoiceTracks();
         setVoiceStatus("Recording failed");
-        window.alert("Voice recording could not start.");
+        notifyChat("Voice recording could not start.");
         return;
       }
       voiceChunks = [];
@@ -1082,7 +1086,7 @@ if (typeof chatConfig !== "undefined") {
         type: voiceBlob.type || "audio/webm",
       });
       try {
-        const sent = await uploadChatFile(file, "Voice note", { mediaKind: "audio" });
+        const sent = await uploadChatFile(file, "", { mediaKind: "audio" });
         if (!sent) {
           setVoiceStatus("Upload failed");
           setVoiceControls("preview");
@@ -1173,7 +1177,7 @@ if (typeof chatConfig !== "undefined") {
       if (!navigator.mediaDevices || !window.MediaRecorder) {
         if (videoPanel) videoPanel.hidden = false;
         setVideoStatus("Camera unavailable");
-        window.alert("Video recording is not supported by this browser.");
+        notifyChat("Video recording is not supported by this browser.");
         return;
       }
       resetVideoPanel("Preparing camera");
@@ -1195,7 +1199,7 @@ if (typeof chatConfig !== "undefined") {
         setVideoStatus("Permission denied");
         if (videoCameraStatus) videoCameraStatus.textContent = "Camera: unavailable";
         if (videoMicStatus) videoMicStatus.textContent = "Microphone: unavailable";
-        window.alert("Camera or microphone is blocked.");
+        notifyChat("Camera or microphone is blocked.");
         return;
       }
       if (videoLive) {
@@ -1230,7 +1234,7 @@ if (typeof chatConfig !== "undefined") {
       const duration = Date.now() - videoStartedAt;
       if (!videoBlob.size || duration < 800) {
         resetVideoPanel("Recording failed");
-        window.alert("Video note was too short to send.");
+        notifyChat("Video note was too short to send.");
         return;
       }
       clearVideoObjectUrl();
@@ -1264,7 +1268,7 @@ if (typeof chatConfig !== "undefined") {
         });
       } catch (error) {
         setVideoStatus("Recording failed");
-        window.alert("Video recording could not start.");
+        notifyChat("Video recording could not start.");
         return;
       }
       videoChunks = [];
@@ -1326,7 +1330,7 @@ if (typeof chatConfig !== "undefined") {
         type: videoBlob.type || "video/webm",
       });
       try {
-        const sent = await uploadChatFile(file, "Video note", { mediaKind: "video" });
+        const sent = await uploadChatFile(file, "", { mediaKind: "video" });
         if (!sent) {
           setVideoStatus("Upload failed");
           setVideoControls("preview");

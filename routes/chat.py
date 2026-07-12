@@ -479,11 +479,17 @@ def upload_message_file():
         return jsonify({"error": "Choose a chat first."}), 400
     db.session.add(message)
     db.session.commit()
+    if media_type == "audio":
+        notification_message = f"New voice note from {current_user.username}"
+    elif media_type == "video":
+        notification_message = f"New video note from {current_user.username}"
+    else:
+        notification_message = f"New file from {current_user.username}"
     for user_id in recipients:
         notification = Notification(
             user_id=user_id,
             category="video_note" if media_type == "video" else "voice_note" if media_type == "audio" else "message",
-            message=f"New file from {current_user.username}",
+            message=notification_message,
             action_url=(
                 url_for("chat.family_chat", family_id=message.family_id)
                 if message.family_id
