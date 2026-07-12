@@ -2,16 +2,23 @@
 <section class="chat-card">
   <header class="chat-header">
     <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back">‹</a>
-    <div class="chat-title" data-chat-normal-header>
-      <h2>
-        {% if not family %}
-        <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
-        {% endif %}
-        {% if family %}{{ family.name }}{% else %}{{ other.username }}{% endif %}
-      </h2>
-      <span data-presence-label>
-        {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
-      </span>
+    <div class="chat-identity" data-chat-normal-header>
+      <img
+        class="chat-header-avatar"
+        src="{% if family %}{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}{% else %}{{ url_for('static', filename='images/default-avatar.png') if not other.profile.avatar else url_for('api.serve_upload', filename=other.profile.avatar) }}{% endif %}"
+        alt=""
+      />
+      <div class="chat-title">
+        <h2>
+          {% if not family %}
+          <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
+          {% endif %}
+          {% if family %}{{ family.name }}{% else %}{{ other.username }}{% endif %}
+        </h2>
+        <span data-presence-label>
+          {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
+        </span>
+      </div>
     </div>
     <div class="chat-selection-toolbar" data-chat-selection-toolbar hidden>
       <button class="icon-button" type="button" data-selection-cancel aria-label="Cancel selection" title="Cancel selection">‹</button>

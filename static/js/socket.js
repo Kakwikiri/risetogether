@@ -410,6 +410,7 @@ if (typeof chatConfig !== "undefined") {
     let voiceElapsedBeforePause = 0;
     let voiceTimerId = null;
     let voiceCancelled = false;
+    let sendVoiceAfterStop = false;
     let videoStream = null;
     let videoRecorder = null;
     let videoChunks = [];
@@ -419,6 +420,7 @@ if (typeof chatConfig !== "undefined") {
     let videoTimerId = null;
     let videoCancelled = false;
     let videoFacingMode = "user";
+    let sendVideoAfterStop = false;
     const selectedMessages = new Map();
 
     const syncChatBottomSpace = () => {
@@ -685,6 +687,18 @@ if (typeof chatConfig !== "undefined") {
 
       chatForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        if (voiceRecorder && voiceRecorder.state !== "inactive") {
+          sendVoiceAfterStop = true;
+          stopVoiceRecording();
+          syncChatBottomSpace();
+          return;
+        }
+        if (videoRecorder && videoRecorder.state !== "inactive") {
+          sendVideoAfterStop = true;
+          stopVideoRecording();
+          syncChatBottomSpace();
+          return;
+        }
         if (voiceBlob) {
           sendVoicePreview();
           syncChatBottomSpace();
@@ -912,6 +926,7 @@ if (typeof chatConfig !== "undefined") {
       voiceStartedAt = 0;
       voiceElapsedBeforePause = 0;
       voiceCancelled = false;
+      sendVoiceAfterStop = false;
       if (voiceTimer) voiceTimer.textContent = "00:00";
       if (voicePreview) {
         voicePreview.pause();
@@ -957,6 +972,10 @@ if (typeof chatConfig !== "undefined") {
       setVoiceControls("preview");
       if (voiceTimer) voiceTimer.textContent = formatVoiceDuration(duration);
       setRecorderButtonState(voiceNoteButton, false, "Record voice note", "Stop voice note");
+      if (sendVoiceAfterStop) {
+        sendVoiceAfterStop = false;
+        sendVoicePreview();
+      }
     };
 
     const startVoiceRecording = async () => {
@@ -1130,6 +1149,7 @@ if (typeof chatConfig !== "undefined") {
       videoBlob = null;
       videoStartedAt = 0;
       videoCancelled = false;
+      sendVideoAfterStop = false;
       if (videoTimer) videoTimer.textContent = "00:00";
       if (videoPreview) {
         videoPreview.pause();
@@ -1227,6 +1247,10 @@ if (typeof chatConfig !== "undefined") {
       setVideoControls("preview");
       if (videoTimer) videoTimer.textContent = formatVoiceDuration(duration);
       setRecorderButtonState(videoNoteButton, false, "Record video note", "Stop video note");
+      if (sendVideoAfterStop) {
+        sendVideoAfterStop = false;
+        sendVideoPreview();
+      }
     };
 
     const startVideoRecording = () => {
