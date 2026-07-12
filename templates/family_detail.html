@@ -43,6 +43,7 @@
     <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
     <a href="#family-posts">Posts</a>
     <a href="#family-goal">Goal</a>
+    <a href="#family-polls">Polls</a>
     <a href="#family-challenges">Challenges</a>
     <a href="#family-quizzes">Quizzes</a>
     <a href="#family-members">Members</a>
@@ -182,6 +183,108 @@
     {% if family.target_date %}
     <span class="status-pill">Target date {{ family.target_date.strftime('%b %d, %Y') }}</span>
     {% endif %}
+  </section>
+
+  <section id="family-polls" class="family-section">
+    <h3>Polls</h3>
+    {% if can_create_polls %}
+    <form class="poll-form compact-composer" action="{{ url_for('family.create_poll', family_id=family.id) }}" method="post">
+      <h4>Create official poll</h4>
+      <label>
+        Question
+        <input type="text" name="question" maxlength="240" placeholder="What should the Family decide?" required />
+      </label>
+      <div class="form-grid two-column">
+        <label>
+          Option 1
+          <input type="text" name="options" maxlength="180" required />
+        </label>
+        <label>
+          Option 2
+          <input type="text" name="options" maxlength="180" required />
+        </label>
+        <label>
+          Option 3
+          <input type="text" name="options" maxlength="180" />
+        </label>
+        <label>
+          Option 4
+          <input type="text" name="options" maxlength="180" />
+        </label>
+      </div>
+      <label>
+        Closes at
+        <input type="datetime-local" name="closes_at" />
+      </label>
+      <div class="inline-options">
+        <label><input type="checkbox" name="allows_multiple_choices" value="1" /> Allow multiple choices</label>
+        <label><input type="checkbox" name="anonymous_voting" value="1" /> Anonymous voting</label>
+        <label><input type="checkbox" name="allow_vote_changes" value="1" checked /> Allow vote changes</label>
+      </div>
+      <button class="button" type="submit">Create poll</button>
+    </form>
+    {% endif %}
+
+    <div class="poll-list">
+      {% for row in poll_rows %}
+      {% set poll = row.poll %}
+      <article class="poll-card" id="poll-{{ poll.id }}">
+        <header>
+          <div>
+            <span class="status-pill">{{ 'Open' if row.is_open else 'Closed' }}</span>
+            {% if poll.anonymous_voting %}<span class="status-pill">Anonymous</span>{% endif %}
+            {% if poll.allows_multiple_choices %}<span class="status-pill">Multiple choice</span>{% endif %}
+            <h4>{{ poll.question }}</h4>
+            <p class="muted-meta">
+              {{ row.total_voters }} voters
+              {% if poll.closes_at %} · Closes {{ poll.closes_at.strftime('%b %d, %Y %H:%M') }}{% endif %}
+            </p>
+          </div>
+          {% if row.can_close %}
+          <form action="{{ url_for('family.close_poll', family_id=family.id, poll_id=poll.id) }}" method="post" onsubmit="return confirm('Close this poll now?');">
+            <button class="text-button danger-text" type="submit">Close poll</button>
+          </form>
+          {% endif %}
+        </header>
+        {% if member and row.is_open %}
+        <form action="{{ url_for('family.vote_poll', family_id=family.id, poll_id=poll.id) }}" method="post">
+          <div class="poll-options">
+            {% for option_row in row.options %}
+            <label class="poll-option">
+              <span>
+                <input
+                  type="{{ 'checkbox' if poll.allows_multiple_choices else 'radio' }}"
+                  name="option_ids"
+                  value="{{ option_row.option.id }}"
+                  {% if option_row.selected %}checked{% endif %}
+                />
+                {{ option_row.option.option_text }}
+              </span>
+              <strong>{{ option_row.percentage }}%</strong>
+              <span class="poll-meter"><span style="width: {{ option_row.percentage }}%"></span></span>
+              <small>{{ option_row.votes }} votes</small>
+            </label>
+            {% endfor %}
+          </div>
+          <button class="button secondary" type="submit">{{ 'Change vote' if row.user_has_voted else 'Vote' }}</button>
+        </form>
+        {% else %}
+        <div class="poll-options">
+          {% for option_row in row.options %}
+          <div class="poll-option">
+            <span>{{ option_row.option.option_text }}</span>
+            <strong>{{ option_row.percentage }}%</strong>
+            <span class="poll-meter"><span style="width: {{ option_row.percentage }}%"></span></span>
+            <small>{{ option_row.votes }} votes</small>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="muted-meta">No polls yet.</p>
+      {% endfor %}
+    </div>
   </section>
 
   <section id="family-challenges" class="family-section">

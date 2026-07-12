@@ -16,6 +16,9 @@ from models import (
     FamilyMember,
     FamilyMemberRestriction,
     FamilyModerationLog,
+    FamilyPoll,
+    FamilyPollOption,
+    FamilyPollVote,
     MediaAsset,
     Message,
     Notification,
@@ -88,6 +91,7 @@ FAMILY_PERMISSIONS = {
     "warn_members": {"owner", "admin", "moderator"},
     "mute_members": {"owner", "admin", "moderator"},
     "suspend_members": {"owner", "admin"},
+    "create_poll": {"owner", "admin"},
     "create_challenge": {"owner", "admin"},
     "create_quiz": {"owner", "admin"},
     "invite_members": {"owner", "admin"},
@@ -282,6 +286,21 @@ def parse_family_date(value):
         return None
 
 
+def parse_family_datetime(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            if fmt == "%Y-%m-%d":
+                parsed = parsed.replace(hour=23, minute=59, second=59)
+            return parsed
+        except ValueError:
+            continue
+    return None
+
+
 def family_form_context(**extra):
     context = {
         "categories": FAMILY_CATEGORIES,
@@ -415,6 +434,75 @@ def quiz_dashboard(family, members, current_member):
         "can_create_quizzes": bool(
             family_has_permission(current_member, "create_quiz") and family_supports_quizzes(family)
         ),
+    }
+
+
+def close_expired_family_polls(family):
+    now = datetime.utcnow()
+    expired_polls = FamilyPoll.query.filter(
+        FamilyPoll.family_id == family.id,
+        FamilyPoll.status == "open",
+        FamilyPoll.closes_at.isnot(None),
+        FamilyPoll.closes_at <= now,
+    ).all()
+    for poll in expired_polls:
+        poll.status = "closed"
+    if expired_polls:
+        db.session.commit()
+
+
+def poll_dashboard(family, current_member):
+    close_expired_family_polls(family)
+    polls = (
+        FamilyPoll.query.filter_by(family_id=family.id)
+        .order_by(FamilyPoll.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    poll_rows = []
+    for poll in polls:
+        options = poll.options.order_by(FamilyPollOption.position.asc()).all()
+        votes = poll.votes.all()
+        option_totals = {}
+        for vote in votes:
+            option_totals[vote.option_id] = option_totals.get(vote.option_id, 0) + 1
+        voter_ids = {vote.user_id for vote in votes}
+        user_option_ids = {vote.option_id for vote in votes if current_member and vote.user_id == current_user.id}
+        total_voters = len(voter_ids)
+        option_rows = []
+        total_votes = sum(option_totals.values())
+        percentage_base = total_votes if poll.allows_multiple_choices else total_voters
+        for option in options:
+            count = option_totals.get(option.id, 0)
+            percentage = round((count / percentage_base) * 100) if percentage_base else 0
+            option_rows.append(
+                {
+                    "option": option,
+                    "votes": count,
+                    "percentage": percentage,
+                    "selected": option.id in user_option_ids,
+                }
+            )
+        poll_rows.append(
+            {
+                "poll": poll,
+                "options": option_rows,
+                "total_voters": total_voters,
+                "user_has_voted": bool(user_option_ids),
+                "is_open": poll.status == "open",
+                "can_close": bool(
+                    current_member
+                    and poll.status == "open"
+                    and (
+                        poll.creator_id == current_user.id
+                        or family_has_permission(current_member, "create_poll")
+                    )
+                ),
+            }
+        )
+    return {
+        "poll_rows": poll_rows,
+        "can_create_polls": family_has_permission(current_member, "create_poll"),
     }
 
 
@@ -707,6 +795,7 @@ def family_detail(family_id):
         family_is_full=capacity["is_full"],
         remaining_slots=capacity["remaining_slots"],
         **family_home_dashboard(family, members),
+        **poll_dashboard(family, member),
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
     )
@@ -822,6 +911,148 @@ def join_family(family_id):
         return redirect(url_for("family.family_detail", family_id=family.id))
     flash("You have joined the family.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/poll/create", methods=["POST"])
+@login_required
+def create_poll(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_poll"):
+        flash("Only Family owners and admins can create official polls.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    question = request.form.get("question", "").strip()
+    option_texts = []
+    for value in request.form.getlist("options"):
+        text_value = value.strip()
+        if text_value and text_value not in option_texts:
+            option_texts.append(text_value)
+    option_texts = option_texts[:8]
+    closes_at = parse_family_datetime(request.form.get("closes_at"))
+    if not question or len(question) > 240:
+        flash("Poll question must be between 1 and 240 characters.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    if len(option_texts) < 2:
+        flash("Add at least two poll options.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    if closes_at and closes_at <= datetime.utcnow():
+        flash("Poll closing time must be in the future.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    poll = FamilyPoll(
+        family_id=family.id,
+        creator_id=current_user.id,
+        question=question,
+        allows_multiple_choices=request.form.get("allows_multiple_choices") == "1",
+        anonymous_voting=request.form.get("anonymous_voting") == "1",
+        allow_vote_changes=request.form.get("allow_vote_changes") == "1",
+        closes_at=closes_at,
+        status="open",
+    )
+    db.session.add(poll)
+    db.session.flush()
+    for index, option_text in enumerate(option_texts, start=1):
+        db.session.add(
+            FamilyPollOption(
+                poll_id=poll.id,
+                option_text=option_text[:180],
+                position=index,
+            )
+        )
+    log_family_action(
+        family,
+        "poll_created",
+        reason=question,
+    )
+    for membership in family.members:
+        if membership.user_id == current_user.id:
+            continue
+        add_family_notification(
+            membership.user_id,
+            "family_poll",
+            f"New poll in {family.name}: {question}",
+            url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}",
+        )
+    db.session.commit()
+    flash("Poll created.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+
+
+@family_bp.route("/family/<int:family_id>/poll/<int:poll_id>/vote", methods=["POST"])
+@login_required
+def vote_poll(family_id, poll_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member:
+        flash("Join this Family before voting.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    poll = FamilyPoll.query.filter_by(id=poll_id, family_id=family.id).first_or_404()
+    close_expired_family_polls(family)
+    if poll.status != "open":
+        flash("This poll is closed.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    selected_ids = []
+    for raw_id in request.form.getlist("option_ids"):
+        try:
+            selected_ids.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    selected_ids = list(dict.fromkeys(selected_ids))
+    valid_options = poll.options.filter(FamilyPollOption.id.in_(selected_ids)).all() if selected_ids else []
+    valid_option_ids = [option.id for option in valid_options]
+    if not valid_option_ids:
+        flash("Choose an option before voting.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    if not poll.allows_multiple_choices and len(valid_option_ids) != 1:
+        flash("Choose one option for this poll.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    existing_votes = FamilyPollVote.query.filter_by(
+        poll_id=poll.id,
+        user_id=current_user.id,
+    ).all()
+    if existing_votes and not poll.allow_vote_changes:
+        flash("This poll does not allow vote changes.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    for vote in existing_votes:
+        db.session.delete(vote)
+    for option_id in valid_option_ids:
+        db.session.add(
+            FamilyPollVote(
+                poll_id=poll.id,
+                option_id=option_id,
+                user_id=current_user.id,
+            )
+        )
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Your vote was already recorded.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    flash("Vote saved.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+
+
+@family_bp.route("/family/<int:family_id>/poll/<int:poll_id>/close", methods=["POST"])
+@login_required
+def close_poll(family_id, poll_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    poll = FamilyPoll.query.filter_by(id=poll_id, family_id=family.id).first_or_404()
+    if not member or (
+        poll.creator_id != current_user.id and not family_has_permission(member, "create_poll")
+    ):
+        flash("You do not have permission to close this poll.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
+    if poll.status != "closed":
+        poll.status = "closed"
+        log_family_action(
+            family,
+            "poll_closed",
+            reason=poll.question,
+        )
+        db.session.commit()
+    flash("Poll closed.", "info")
+    return redirect(url_for("family.family_detail", family_id=family.id) + f"#poll-{poll.id}")
 
 
 @family_bp.route("/family/<int:family_id>/challenge/create", methods=["POST"])

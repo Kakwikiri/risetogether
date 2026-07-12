@@ -110,6 +110,9 @@ def ensure_schema_compatibility():
         FamilyMember,
         FamilyMemberRestriction,
         FamilyModerationLog,
+        FamilyPoll,
+        FamilyPollOption,
+        FamilyPollVote,
         Quiz,
         QuizAnswer,
         QuizAttempt,
@@ -123,6 +126,9 @@ def ensure_schema_compatibility():
     PushSubscription.__table__.create(db.engine, checkfirst=True)
     FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
     FamilyModerationLog.__table__.create(db.engine, checkfirst=True)
+    FamilyPoll.__table__.create(db.engine, checkfirst=True)
+    FamilyPollOption.__table__.create(db.engine, checkfirst=True)
+    FamilyPollVote.__table__.create(db.engine, checkfirst=True)
     FamilyChallenge.__table__.create(db.engine, checkfirst=True)
     ChallengeCompletion.__table__.create(db.engine, checkfirst=True)
     Quiz.__table__.create(db.engine, checkfirst=True)
@@ -168,6 +174,9 @@ def ensure_schema_compatibility():
         "UPDATE family_members SET role = 'owner' FROM families WHERE family_members.family_id = families.id AND family_members.user_id = families.owner_id AND family_members.role != 'owner'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_families_member_limit_min') THEN ALTER TABLE families ADD CONSTRAINT ck_families_member_limit_min CHECK (member_limit >= 2); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_family_member_user_idx') AND NOT EXISTS (SELECT 1 FROM (SELECT family_id, user_id FROM family_members GROUP BY family_id, user_id HAVING COUNT(*) > 1) duplicates) THEN CREATE UNIQUE INDEX uq_family_member_user_idx ON family_members (family_id, user_id); END IF; END $$",
+        "ALTER TABLE family_polls ADD COLUMN IF NOT EXISTS allow_vote_changes BOOLEAN NOT NULL DEFAULT TRUE",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_polls_family_status') THEN CREATE INDEX ix_family_polls_family_status ON family_polls (family_id, status); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_family_poll_votes_poll_user') THEN CREATE INDEX ix_family_poll_votes_poll_user ON family_poll_votes (poll_id, user_id); END IF; END $$",
     ]
     for statement in updates:
         db.session.execute(text(statement))

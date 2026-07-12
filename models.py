@@ -322,6 +322,58 @@ class FamilyMemberRestriction(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id], backref="created_family_restrictions")
 
 
+class FamilyPoll(db.Model):
+    __tablename__ = "family_polls"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False
+    )
+    creator_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    question = db.Column(db.String(240), nullable=False)
+    allows_multiple_choices = db.Column(db.Boolean, default=False, nullable=False)
+    anonymous_voting = db.Column(db.Boolean, default=False, nullable=False)
+    allow_vote_changes = db.Column(db.Boolean, default=True, nullable=False)
+    closes_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default="open", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    family = db.relationship("Family", backref=db.backref("polls", lazy="dynamic", cascade="all, delete-orphan"))
+    creator = db.relationship("User", foreign_keys=[creator_id], backref="created_family_polls")
+
+
+class FamilyPollOption(db.Model):
+    __tablename__ = "family_poll_options"
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(
+        db.Integer, db.ForeignKey("family_polls.id", ondelete="CASCADE"), nullable=False
+    )
+    option_text = db.Column(db.String(180), nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
+    poll = db.relationship("FamilyPoll", backref=db.backref("options", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class FamilyPollVote(db.Model):
+    __tablename__ = "family_poll_votes"
+    __table_args__ = (
+        db.UniqueConstraint("poll_id", "option_id", "user_id", name="uq_family_poll_option_user"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(
+        db.Integer, db.ForeignKey("family_polls.id", ondelete="CASCADE"), nullable=False
+    )
+    option_id = db.Column(
+        db.Integer, db.ForeignKey("family_poll_options.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    poll = db.relationship("FamilyPoll", backref=db.backref("votes", lazy="dynamic", cascade="all, delete-orphan"))
+    option = db.relationship("FamilyPollOption", backref=db.backref("votes", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("family_poll_votes", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class FamilyChallenge(db.Model):
     __tablename__ = "family_challenges"
     id = db.Column(db.Integer, primary_key=True)
