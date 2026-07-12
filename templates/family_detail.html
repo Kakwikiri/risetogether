@@ -43,11 +43,6 @@
     <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
     <a href="#family-goal" data-family-tab>Goal</a>
-    <a href="#family-polls" data-family-tab>Polls</a>
-    <a href="#family-challenges" data-family-tab>Challenges</a>
-    <a href="#family-quizzes" data-family-tab>Quizzes</a>
-    <a href="#family-members" data-family-tab>Members</a>
-    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
   </nav>
 
   <div class="family-action-dock" data-family-tabs aria-label="Family quick actions">
@@ -56,6 +51,7 @@
     <a href="#family-challenges" data-family-tab>Challenge</a>
     <a href="#family-quizzes" data-family-tab>Quiz</a>
     <a href="#family-members" data-family-tab>Members</a>
+    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
   </div>
 
   <section id="family-home" class="family-section" data-family-panel>
@@ -79,7 +75,7 @@
         <ul class="dashboard-list">
           {% for challenge in dashboard_active_challenges %}
           <li>
-            <span>{{ challenge.title }}</span>
+            <a href="#family-challenges" data-family-tab>{{ challenge.title }}</a>
             <small>{{ challenge.points }} pts{% if challenge.ends_at %} · ends {{ challenge.ends_at.strftime('%b %d') }}{% endif %}</small>
           </li>
           {% else %}
@@ -91,7 +87,7 @@
       <section class="family-dashboard-panel">
         <h4>Upcoming quiz</h4>
         {% if dashboard_upcoming_quiz %}
-        <p><strong>{{ dashboard_upcoming_quiz.title }}</strong></p>
+        <p><strong><a href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) }}">{{ dashboard_upcoming_quiz.title }}</a></strong></p>
         <p class="muted-meta">
           {{ dashboard_upcoming_quiz.questions.count() }} questions
           {% if dashboard_upcoming_quiz.opens_at %} · opens {{ dashboard_upcoming_quiz.opens_at.strftime('%b %d') }}{% endif %}
@@ -106,11 +102,11 @@
       </section>
 
       <section class="family-dashboard-panel">
-        <h4>Recent chat</h4>
+        <h4><a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Recent chat</a></h4>
         <ul class="dashboard-list">
           {% for message in dashboard_recent_messages %}
           <li>
-            <span>{{ message.sender.username }}</span>
+            <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">{{ message.sender.username }}</a>
             <small>
               {% if message.media_type in ['audio', 'video'] %}{{ message.media_type|title }} note{% else %}{{ message.content|truncate(48) }}{% endif %}
             </small>
@@ -126,7 +122,7 @@
         <ul class="dashboard-list">
           {% for post in dashboard_recent_posts %}
           <li>
-            <span>{{ post.author.username }}</span>
+            <a href="#family-posts" data-family-tab>{{ post.author.username }}</a>
             <small>{{ post.content|truncate(54) }}</small>
           </li>
           {% else %}
@@ -345,7 +341,7 @@
     <div class="challenge-list">
       {% for challenge in active_challenges %}
       <article class="challenge-card">
-        <div>
+        <div class="challenge-card-main">
           <span class="status-pill">{{ challenge.challenge_type|replace('_', ' ')|title }} · {{ challenge.points }} pts</span>
           <h4>{{ challenge.title }}</h4>
           <p>{{ challenge.description or 'No description.' }}</p>
@@ -364,6 +360,7 @@
             enctype="multipart/form-data"
             class="challenge-complete-form"
           >
+            <strong>Complete challenge</strong>
             <input type="text" name="evidence_text" placeholder="What did you do? Optional" />
             <label class="file-pill">
               Evidence

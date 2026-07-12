@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    return navigator.serviceWorker.register("/service-worker.js?v=20260712-feed-menu-chatbar", { scope: "/" });
+    return navigator.serviceWorker.register("/service-worker.js?v=20260712-chat-family-polish", { scope: "/" });
   };
 
   const showUpdateNotice = (worker) => {

@@ -70,6 +70,24 @@ const createVoiceNoteElement = (url) => {
   return wrapper;
 };
 
+const isLocationMessage = (content = "") => content.startsWith("My location: https://www.google.com/maps?q=");
+
+const createMessageTextElement = (content = "") => {
+  const body = document.createElement("p");
+  if (isLocationMessage(content)) {
+    const link = document.createElement("a");
+    link.className = "location-message-link";
+    link.href = content.replace("My location: ", "");
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Open shared location";
+    body.appendChild(link);
+    return body;
+  }
+  body.textContent = content;
+  return body;
+};
+
 const showRealtimeToast = (message) => {
   const toast = document.querySelector("[data-toast]");
   if (!toast) return;
@@ -125,8 +143,9 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   user.className = "chat-user";
   user.textContent = isOwn ? "You" : data.sender_name || `User ${data.sender_id}`;
 
-  const body = document.createElement("p");
-  body.textContent = data.media_type === "call" ? "" : data.content || "";
+  const body = data.media_type === "call" || !data.content
+    ? null
+    : createMessageTextElement(data.content);
 
   let media = null;
   let downloadLink = null;
@@ -191,7 +210,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   if (typeof chatConfig !== "undefined" && chatConfig.familyId && !isOwn) {
     message.appendChild(user);
   }
-  if (body.textContent) {
+  if (body) {
     message.appendChild(body);
   }
   if (media) message.appendChild(media);
@@ -358,6 +377,7 @@ if (typeof chatConfig !== "undefined") {
     const selectionForward = document.querySelector("[data-selection-forward]");
     const selectionMore = document.querySelector("[data-selection-more]");
     const normalHeaderParts = document.querySelectorAll("[data-chat-normal-header]");
+    const pinnedStrip = document.querySelector("[data-pinned-strip]");
     const replyPreview = document.getElementById("reply-preview");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
@@ -382,6 +402,20 @@ if (typeof chatConfig !== "undefined") {
     let videoCancelled = false;
     let videoFacingMode = "user";
     const selectedMessages = new Map();
+
+    const syncChatBottomSpace = () => {
+      if (!chatForm) return;
+      const formHeight = Math.ceil(chatForm.getBoundingClientRect().height);
+      const openPanel = [voicePanel, videoPanel].find((panel) => panel && !panel.hidden);
+      const panelHeight = openPanel ? Math.ceil(openPanel.getBoundingClientRect().height) : 0;
+      document.documentElement.style.setProperty("--chat-form-height", `${formHeight}px`);
+      document.documentElement.style.setProperty("--chat-panel-height", `${panelHeight}px`);
+      if (chatLog) {
+        window.requestAnimationFrame(() => {
+          chatLog.scrollTop = chatLog.scrollHeight;
+        });
+      }
+    };
 
     const sendTextMessage = (content) => {
       if (chatConfig.familyId) {
@@ -554,6 +588,16 @@ if (typeof chatConfig !== "undefined") {
         fetch(`/chat/message/${messageId}/pin`, { method: "POST" }).then((response) => {
           if (response.ok) {
             message.classList.add("is-pinned");
+            if (pinnedStrip) {
+              const label = message.dataset.messageText || "Pinned message";
+              pinnedStrip.innerHTML = "";
+              const prefix = document.createElement("span");
+              prefix.textContent = "Pinned for 24h";
+              const text = document.createElement("strong");
+              text.textContent = label;
+              pinnedStrip.append(prefix, text);
+              pinnedStrip.hidden = false;
+            }
           }
           clearMessageSelection();
         });
@@ -604,6 +648,16 @@ if (typeof chatConfig !== "undefined") {
 
       chatForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        if (voiceBlob) {
+          sendVoicePreview();
+          syncChatBottomSpace();
+          return;
+        }
+        if (videoBlob) {
+          sendVideoPreview();
+          syncChatBottomSpace();
+          return;
+        }
         const content = chatInput.value.trim();
         if (chatFile && chatFile.files && chatFile.files[0]) {
           uploadChatFile(chatFile.files[0], content);
@@ -625,6 +679,14 @@ if (typeof chatConfig !== "undefined") {
           chatLog.scrollTop = chatLog.scrollHeight;
         }, 250);
       });
+      chatInput.addEventListener("input", syncChatBottomSpace);
+    }
+
+    if (chatForm && "ResizeObserver" in window) {
+      new ResizeObserver(syncChatBottomSpace).observe(chatForm);
+      syncChatBottomSpace();
+    } else {
+      syncChatBottomSpace();
     }
 
     if (chatFile && filePreview) {
@@ -754,6 +816,7 @@ if (typeof chatConfig !== "undefined") {
       if (voiceSendButton) voiceSendButton.hidden = state !== "preview";
       if (voiceWaveform) voiceWaveform.classList.toggle("active", state === "recording");
       if (voicePreview) voicePreview.hidden = state !== "preview";
+      syncChatBottomSpace();
     };
 
     const stopVoiceTimer = () => {
@@ -807,6 +870,7 @@ if (typeof chatConfig !== "undefined") {
       setVoiceControls("ready");
       if (voicePanel) voicePanel.hidden = true;
       setRecorderButtonState(voiceNoteButton, false, "Record voice note", "Stop voice note");
+      syncChatBottomSpace();
     };
 
     const keepVeryShortVoiceNote = (duration) => {
@@ -972,6 +1036,7 @@ if (typeof chatConfig !== "undefined") {
       if (videoSendButton) videoSendButton.hidden = state !== "preview";
       if (videoLive) videoLive.hidden = !["ready", "recording"].includes(state);
       if (videoPreview) videoPreview.hidden = state !== "preview";
+      syncChatBottomSpace();
     };
 
     const stopVideoTimer = () => {
@@ -1023,6 +1088,7 @@ if (typeof chatConfig !== "undefined") {
       setVideoControls("idle");
       if (videoPanel) videoPanel.hidden = true;
       setRecorderButtonState(videoNoteButton, false, "Record video note", "Stop video note");
+      syncChatBottomSpace();
     };
 
     const prepareVideoNote = async () => {
