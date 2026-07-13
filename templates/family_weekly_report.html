@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% from 'components/ui.html' import progress_bar, status_chip, point_badge %}{% block content %}
+<section class="card panel weekly-report">
+  <div class="split-header"><div><p class="eyebrow">{{ family.name }} · Growing together</p><h2>Weekly Family Report</h2><p>{{ report.week_start.strftime('%b %d') }}–{{ report.week_end.strftime('%b %d, %Y') }}</p></div><a class="button secondary" href="{{ url_for('family.family_detail', family_id=family.id) }}">Back to Family</a></div>
+  <div class="weekly-report__hero"><span aria-hidden="true">☀</span><div><h3>{{ data.milestone }}</h3><p>This report celebrates participation without comparing or shaming anyone. Quiet contributions matter too.</p></div></div>
+  <div class="weekly-report__stats">
+    <article><strong>{{ data.active_members }}</strong><span>Active members</span></article><article><strong>{{ data.new_members }}</strong><span>New members</span></article>
+    <article><strong>{{ data.challenges_joined }}</strong><span>Challenges joined</span></article><article><strong>{{ data.challenges_completed }}</strong><span>Challenges completed</span></article>
+    <article><strong>{{ data.goal_progress }}</strong><span>Goal progress added</span></article><article><strong>{{ data.poll_participants }}</strong><span>Poll participants</span></article>
+    <article><strong>{{ data.quiz_participants }}</strong><span>Quiz participants</span></article><article><strong>{{ data.encouragement_activity }}</strong><span>Encouraging moments</span></article>
+    {% if feature_enabled('personal_points') %}<article>{{ point_badge(data.personal_points, 'Personal Points earned') }}</article>{% endif %}
+    {% if feature_enabled('family_points') %}<article>{{ point_badge(data.family_points, 'Family Points earned') }}</article>{% endif %}
+  </div>
+  {% if data.upgrade %}<section class="weekly-report__section"><h3>Upgrade progress</h3><div class="split-header"><strong>{{ data.upgrade.name }}</strong><span>{{ data.upgrade.current }} of {{ data.upgrade.required }} points</span></div>{{ progress_bar(data.upgrade.percentage, data.upgrade.name ~ ' progress') }}</section>{% endif %}
+  <section class="weekly-report__section"><h3>Warm recognitions</h3><div class="weekly-recognitions">{% for recognition in data.recognitions %}<article><span>✦</span><div><strong>{{ recognition.title }}</strong><p>@{{ recognition.username }}</p></div></article>{% else %}<div class="empty-state-card"><h4>Every contribution counted</h4><p>This was a quieter week, and that is okay. The next week is a fresh start.</p></div>{% endfor %}</div></section>
+  <footer class="weekly-report__footer"><p>Generated once from verified Family activity. Private until a Family owner or admin chooses to share it.</p>{% if report.published_post_id %}<a class="button secondary" href="{{ url_for('main.post_detail', post_id=report.published_post_id) }}">View published report</a>{% elif can_publish %}<form method="post" action="{{ url_for('family.publish_weekly_family_report', family_id=family.id, report_id=report.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button" type="submit" data-confirm="Publish this report to the private Family feed?">Publish to Family feed</button></form>{% endif %}</footer>
+</section>
+{% endblock %}

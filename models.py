@@ -407,6 +407,34 @@ class FamilyMember(db.Model):
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class FamilyWeeklyReport(db.Model):
+    __tablename__ = "family_weekly_reports"
+    __table_args__ = (
+        db.UniqueConstraint("family_id", "week_start", name="uq_family_weekly_report"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    week_start = db.Column(db.Date, nullable=False, index=True)
+    week_end = db.Column(db.Date, nullable=False)
+    snapshot = db.Column(db.JSON, nullable=False, default=dict)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    notified_at = db.Column(db.DateTime, nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    published_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    published_post_id = db.Column(
+        db.Integer, db.ForeignKey("posts.id", ondelete="SET NULL"), nullable=True, unique=True
+    )
+    family = db.relationship(
+        "Family", backref=db.backref("weekly_reports", lazy="dynamic", cascade="all, delete-orphan")
+    )
+    published_by = db.relationship("User", foreign_keys=[published_by_id])
+    published_post = db.relationship("Post", foreign_keys=[published_post_id])
+
+
 class PointTransaction(db.Model):
     __tablename__ = "point_transactions"
     __table_args__ = (

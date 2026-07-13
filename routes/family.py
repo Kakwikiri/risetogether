@@ -23,11 +23,13 @@ from models import (
     EncouragementRequest,
     EncouragementRequestReport,
     EncouragementResponse,
+    CheckInResponse,
     AuditLog,
     Block,
     Family,
     FamilyChallenge,
     FamilyMember,
+    FamilyWeeklyReport,
     FamilyMemberRestriction,
     FamilyModerationLog,
     FamilyGalleryItem,
@@ -60,6 +62,7 @@ from points import (
     spend_personal_points,
 )
 from streaks import record_challenge_streaks, record_streak_activity
+from weekly_reports import get_or_create_weekly_report, report_post_content
 
 family_bp = Blueprint("family", __name__)
 
@@ -1249,10 +1252,102 @@ def family_detail(family_id):
         .order_by(Post.created_at.desc())
         .all()
     )
+    if family.is_active and is_feature_enabled("weekly_reports") and (member or is_super_admin):
+        ensure_weekly_report_ready(family)
     return render_family_detail_page(
         family, member, members, capacity, posts, is_super_admin,
         encouragement_checkin_count,
     )
+
+
+def ensure_weekly_report_ready(family):
+    try:
+        report, _ = get_or_create_weekly_report(family)
+        if report.notified_at is None:
+            report_url = url_for("family.weekly_family_report", family_id=family.id, report_id=report.id)
+            for membership in family.members:
+                add_family_notification(
+                    membership.user_id, "weekly_family_report",
+                    f"Your weekly growth report for {family.name} is ready.", report_url,
+                )
+            report.notified_at = datetime.utcnow()
+        db.session.commit()
+        return report
+    except IntegrityError:
+        db.session.rollback()
+        return FamilyWeeklyReport.query.filter_by(
+            family_id=family.id,
+        ).order_by(FamilyWeeklyReport.week_start.desc()).first()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("weekly_family_report_generation_failed family_id=%s", family.id)
+        return None
+
+
+@family_bp.route("/family/<int:family_id>/weekly-report")
+@login_required
+@feature_required("weekly_reports")
+def latest_weekly_family_report(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    if not member and not is_super_admin:
+        flash("Weekly reports are private to Family members.", "warning")
+        return redirect(url_for("family.families"))
+    report = ensure_weekly_report_ready(family)
+    if not report:
+        flash("The weekly report could not be prepared yet. Please try again shortly.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    return redirect(url_for("family.weekly_family_report", family_id=family.id, report_id=report.id))
+
+
+@family_bp.route("/family/<int:family_id>/weekly-report/<int:report_id>")
+@login_required
+@feature_required("weekly_reports")
+def weekly_family_report(family_id, report_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    if not member and not is_super_admin:
+        flash("Weekly reports are private to Family members.", "warning")
+        return redirect(url_for("family.families"))
+    report = FamilyWeeklyReport.query.filter_by(id=report_id, family_id=family.id).first_or_404()
+    return render_template(
+        "family_weekly_report.html", family=family, report=report,
+        data=report.snapshot, can_publish=family_has_permission(member, "create_poll"),
+    )
+
+
+@family_bp.route("/family/<int:family_id>/weekly-report/<int:report_id>/publish", methods=["POST"])
+@login_required
+@feature_required("weekly_reports")
+def publish_weekly_family_report(family_id, report_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_poll"):
+        flash("Only Family owners and admins can publish weekly reports.", "danger")
+        return redirect(url_for("family.weekly_family_report", family_id=family.id, report_id=report_id))
+    report = FamilyWeeklyReport.query.filter_by(
+        id=report_id, family_id=family.id
+    ).with_for_update().first_or_404()
+    if report.published_post_id:
+        flash("This weekly report is already in the Family feed.", "info")
+        return redirect(url_for("main.post_detail", post_id=report.published_post_id))
+    post = Post(
+        user_id=current_user.id, family_id=family.id,
+        content=report_post_content(family, report), media_type="text",
+        audience="family", post_type="weekly_report",
+        encouraging_message="Every contribution mattered this week.",
+    )
+    db.session.add(post)
+    db.session.flush()
+    report.published_post_id = post.id
+    report.published_by_id = current_user.id
+    report.published_at = datetime.utcnow()
+    log_family_action(family, "weekly_report_published", reason=f"Week of {report.week_start.isoformat()}")
+    db.session.commit()
+    flash("The weekly report was shared with the Family.", "success")
+    return redirect(url_for("main.post_detail", post_id=post.id))
 
 
 def encouragement_request_visible(item, member):

@@ -888,6 +888,32 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("dashboard_quiz_highlight", routes + family_template)
         self.assertIn("data-quiz-progress", quiz_template)
 
+    def test_stage_twenty_six_reports_are_weekly_idempotent_snapshots(self):
+        models = (ROOT / "models.py").read_text()
+        service = (ROOT / "weekly_reports.py").read_text()
+        migration = (ROOT / "migrations" / "20260713_stage26_weekly_family_reports.sql").read_text()
+        self.assertIn("class FamilyWeeklyReport", models)
+        self.assertIn('db.UniqueConstraint("family_id", "week_start"', models)
+        self.assertIn("snapshot = db.Column(db.JSON", models)
+        self.assertIn("completed_week_bounds", service)
+        self.assertIn("migration_stage26_weekly_family_reports", migration)
+
+    def test_stage_twenty_six_notifications_and_publication_cannot_duplicate(self):
+        routes = (ROOT / "routes" / "family.py").read_text()
+        self.assertIn('report.notified_at is None', routes)
+        self.assertIn('report.published_post_id', routes)
+        self.assertIn('.with_for_update()', routes)
+        self.assertIn('@feature_required("weekly_reports")', routes)
+        self.assertIn('family_has_permission(member, "create_poll")', routes)
+
+    def test_stage_twenty_six_is_warm_and_does_not_shame_inactive_members(self):
+        template = (ROOT / "templates" / "family_weekly_report.html").read_text()
+        service = (ROOT / "weekly_reports.py").read_text()
+        for title in ["Supporter of the Week", "Most Improved", "Learning Champion"]:
+            self.assertIn(title, service)
+        self.assertIn("without comparing or shaming anyone", template)
+        self.assertNotIn("inactive member ranking", (service + template).lower())
+
 
 if __name__ == "__main__":
     unittest.main()

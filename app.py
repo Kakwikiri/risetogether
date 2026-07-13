@@ -147,6 +147,7 @@ def ensure_schema_compatibility():
         PushSubscription,
         AuditLog,
         FamilyMember,
+        FamilyWeeklyReport,
         FamilyMemberRestriction,
         FamilyModerationLog,
         FamilyGalleryItem,
@@ -171,6 +172,7 @@ def ensure_schema_compatibility():
     PushSubscription.__table__.create(db.engine, checkfirst=True)
     AuditLog.__table__.create(db.engine, checkfirst=True)
     FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
+    FamilyWeeklyReport.__table__.create(db.engine, checkfirst=True)
     FamilyModerationLog.__table__.create(db.engine, checkfirst=True)
     FamilyUpgradePurchase.__table__.create(db.engine, checkfirst=True)
     FamilyGalleryItem.__table__.create(db.engine, checkfirst=True)
