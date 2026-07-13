@@ -12,6 +12,7 @@ from feature_flags import (
     get_feature_flags,
     is_feature_enabled,
 )
+from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
     AuditLog, Block, ChallengeCompletion, Family, HelpRequest, Notification,
     PointSecurityEvent, PointTransaction, Post, Report, SiteSetting, User,
@@ -441,8 +442,31 @@ def admin_settings():
         "smtp_username",
         "smtp_password",
         "smtp_use_ssl",
+        "family_level_2_xp",
+        "family_level_3_xp",
+        "family_level_4_xp",
+        "family_level_5_xp",
+        "family_level_6_xp",
+        "family_level_7_xp",
+        "family_level_rising_interval",
     ]
     if request.method == "POST":
+        try:
+            configured_thresholds = [0] + [
+                int(request.form.get(f"family_level_{level}_xp", ""))
+                for level in range(2, 8)
+            ]
+            rising_interval = int(request.form.get("family_level_rising_interval", ""))
+        except (TypeError, ValueError):
+            flash("Family level thresholds must be whole numbers.", "warning")
+            return redirect(url_for("moderation.admin_settings"))
+        if (
+            any(configured_thresholds[index] <= configured_thresholds[index - 1] for index in range(1, 7))
+            or configured_thresholds[-1] > 10_000_000
+            or not 100 <= rising_interval <= 10_000_000
+        ):
+            flash("Family level thresholds must increase at every level, and the rising interval must be at least 100 XP.", "warning")
+            return redirect(url_for("moderation.admin_settings"))
         for key in keys:
             if key == "smtp_use_ssl":
                 value = "true" if request.form.get(key) == "1" else ""
@@ -455,8 +479,8 @@ def admin_settings():
             db.session.merge(setting)
         record_admin_audit(
             "settings_change",
-            reason="Updated Google/SMTP admin settings",
-            metadata_text="Sensitive values are not recorded.",
+            reason="Updated platform and Family level settings",
+            metadata_text="Sensitive values are not recorded. Family XP thresholds were validated as increasing.",
         )
         db.session.commit()
         flash("Admin settings saved.", "success")
@@ -465,6 +489,9 @@ def admin_settings():
     for key in keys:
         setting = SiteSetting.query.get(key)
         settings[key] = setting.value if setting else ""
+    for level in range(2, 8):
+        settings[f"family_level_{level}_xp"] = settings[f"family_level_{level}_xp"] or str(DEFAULT_FAMILY_LEVELS[level][1])
+    settings["family_level_rising_interval"] = settings["family_level_rising_interval"] or str(DEFAULT_RISING_INTERVAL)
     return render_template(
         "admin_settings.html",
         settings=settings,

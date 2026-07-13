@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack, family_level_badge, point_badge %} {% block content %}
 <section class="card family-detail-card">
   <header class="family-hero">
     <div class="family-identity-row">
@@ -73,6 +73,14 @@
 
   <section id="family-home" class="family-section" data-family-panel>
     <h3>Family Home</h3>
+    {% if feature_enabled('family_levels') %}
+    <section class="family-level-card" aria-label="{{ family.name }} Family level">
+      <div class="family-level-card__heading"><div><p class="eyebrow">Growing together</p><h4>{{ family_level_badge(family_level.level, family_level.name) }}</h4></div><div class="family-level-card__balances">{{ point_badge(family_level.lifetime_xp, 'lifetime XP') }}{% if feature_enabled('family_points') %}{{ point_badge(family_level.available_points, 'available Family Points') }}{% endif %}</div></div>
+      {{ progress_bar(family_level.progress_percent, family.name ~ ' progress to level ' ~ (family_level.level + 1)) }}
+      <p class="muted-meta">{{ family_level.xp_to_next }} XP until Level {{ family_level.level + 1 }}. Spending Family Points never reduces this level.</p>
+      <div class="family-level-stats"><div><strong>{{ family_level.challenges_completed }}</strong><span>Challenges completed</span></div><div><strong>{{ family_level.goals_achieved }}</strong><span>Goals achieved</span></div><div><strong>{{ family_level.encouragement_milestones }}</strong><span>Encouragement milestones</span></div><div><strong>{{ family_level.age_days }}</strong><span>Days growing together</span></div></div>
+    </section>
+    {% endif %}
     <div class="family-dashboard-grid">
       <section class="family-dashboard-panel family-dashboard-goal">
         <span class="eyebrow">

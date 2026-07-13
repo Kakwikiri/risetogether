@@ -5903,6 +5903,32 @@ body.nav-menu-open {
 }
 
 .point-balance-card p { margin: 0; color: var(--muted); }
+.family-level-card {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+  padding: clamp(1rem, 3vw, 1.4rem);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--accent) 10%, var(--soft)));
+  box-shadow: var(--shadow-sm);
+}
+.family-level-card__heading,
+.family-level-card__balances,
+.family-level-stats { display: flex; align-items: center; gap: 0.65rem; }
+.family-level-card__heading { justify-content: space-between; align-items: flex-start; }
+.family-level-card__heading h4 { margin: 0.2rem 0 0; }
+.family-level-card__balances { flex-wrap: wrap; justify-content: flex-end; }
+.family-level-card > p { margin: 0; }
+.family-level-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.family-level-stats div { display: grid; gap: 0.15rem; padding: 0.65rem; border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 82%, transparent); }
+.family-level-stats strong { color: var(--accent-strong); font-size: 1.15rem; }
+.family-level-stats span { color: var(--muted); font-size: 0.78rem; }
+@media (max-width: 620px) {
+  .family-level-card__heading { display: grid; }
+  .family-level-card__balances { justify-content: flex-start; }
+  .family-level-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .point-history-card { margin-top: 1rem; }
 .point-history-list { display: grid; }
 .point-history-row {

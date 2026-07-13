@@ -315,6 +315,10 @@ class PointTransaction(db.Model):
             name="ck_point_transaction_single_recipient",
         ),
         db.CheckConstraint("amount > 0", name="ck_point_transaction_positive_amount"),
+        db.CheckConstraint(
+            "transaction_kind IN ('award', 'spend')",
+            name="ck_point_transaction_kind",
+        ),
     )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
@@ -327,6 +331,7 @@ class PointTransaction(db.Model):
     reason = db.Column(db.String(240), nullable=False)
     source_type = db.Column(db.String(64), nullable=False, index=True)
     source_id = db.Column(db.Integer, nullable=True)
+    transaction_kind = db.Column(db.String(16), default="award", nullable=False)
     unique_reward_key = db.Column(db.String(180), unique=True, nullable=False)
     reversed = db.Column(db.Boolean, default=False, nullable=False)
     reversed_at = db.Column(db.DateTime, nullable=True)

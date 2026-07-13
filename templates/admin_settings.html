@@ -33,6 +33,15 @@
       Use SSL, usually port 465. Leave off for Gmail port 587.
     </label>
 
+    <h3>Family level thresholds</h3>
+    <p class="muted-meta">Lifetime Family XP unlocks levels. These values must increase from one level to the next. Spending available Family Points does not reduce XP.</p>
+    {% for level, name in [(2, 'Sprout'), (3, 'Growing'), (4, 'Strong'), (5, 'Flourishing'), (6, 'Inspiring'), (7, 'Rising Family')] %}
+    <label>Level {{ level }} · {{ name }} XP</label>
+    <input type="number" name="family_level_{{ level }}_xp" min="1" max="10000000" required value="{{ settings['family_level_' ~ level ~ '_xp'] }}" />
+    {% endfor %}
+    <label>XP between Rising Family levels</label>
+    <input type="number" name="family_level_rising_interval" min="100" max="10000000" required value="{{ settings.family_level_rising_interval }}" />
+
     <button class="button" type="submit">Save settings</button>
   </form>
 </section>

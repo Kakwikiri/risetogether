@@ -45,7 +45,7 @@
           <span>{{ 'Personal Points' if transaction.user_id else transaction.family.name ~ ' Family Points' }} · {{ transaction.created_at.strftime('%b %d, %Y at %H:%M') }}</span>
           <small>{{ transaction.source_type|replace('_', ' ')|title }} · Awarded by {{ transaction.awarded_by.username if transaction.awarded_by else 'RiseTogether' }}{% if transaction.reversed %} · Reversed: {{ transaction.reversal_reason }}{% endif %}</small>
         </div>
-        {{ point_badge(('-' if transaction.reversed else '+') ~ transaction.amount, 'pts') }}
+        {% set point_sign = ('+' if transaction.reversed else '-') if transaction.transaction_kind == 'spend' else ('-' if transaction.reversed else '+') %}{{ point_badge(point_sign ~ transaction.amount, 'pts') }}
       </article>
       {% endfor %}
     </div>

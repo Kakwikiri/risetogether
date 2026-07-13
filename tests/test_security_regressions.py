@@ -30,12 +30,42 @@ from feature_flags import (
     feature_flag_key,
     get_feature_flags,
 )
+from family_levels import family_level_for_xp
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_stage_sixteen_family_levels_use_lifetime_xp_thresholds(self):
+        thresholds = {1: 0, 2: 100, 3: 300, 4: 750, 5: 1500, 6: 3000, 7: 5000}
+        with patch("family_levels.family_level_thresholds", return_value=(thresholds, 2500)):
+            self.assertEqual(family_level_for_xp(0)["name"], "Seed")
+            self.assertEqual(family_level_for_xp(300)["level"], 3)
+            self.assertEqual(family_level_for_xp(5000)["name"], "Rising Family")
+            self.assertEqual(family_level_for_xp(7500)["level"], 8)
+            self.assertEqual(family_level_for_xp(1499)["xp_to_next"], 1)
+
+    def test_stage_sixteen_spending_does_not_reduce_family_xp(self):
+        point_source = (ROOT / "points.py").read_text()
+        model_source = (ROOT / "models.py").read_text()
+        migration = (ROOT / "migrations/20260713_stage16_family_levels.sql").read_text()
+        self.assertIn('transaction_kind == "spend"', point_source)
+        self.assertIn('transaction_kind == "award"', point_source)
+        self.assertIn("def family_lifetime_xp", point_source)
+        self.assertIn("ck_point_transaction_kind", model_source)
+        self.assertIn("family_level_rising_interval", migration)
+
+    def test_stage_sixteen_family_level_ui_and_settings_are_complete(self):
+        family_template = (ROOT / "templates/family_detail.html").read_text()
+        settings_template = (ROOT / "templates/admin_settings.html").read_text()
+        moderation_source = (ROOT / "routes/moderation.py").read_text()
+        for label in ["lifetime XP", "available Family Points", "Challenges completed", "Goals achieved", "Encouragement milestones", "Days growing together"]:
+            self.assertIn(label, family_template)
+        self.assertIn("family_level_rising_interval", settings_template)
+        self.assertIn("configured_thresholds", moderation_source)
+        self.assertIn('require_admin_role("super_admin")', moderation_source)
+
     def test_stage_fifteen_point_reversals_are_audited_and_grouped(self):
         point_source = (ROOT / "points.py").read_text()
         moderation_source = (ROOT / "routes/moderation.py").read_text()

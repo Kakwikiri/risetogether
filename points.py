@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from extensions import db
 from models import ChallengeCompletion, PointTransaction
@@ -60,6 +60,7 @@ def award_points(*, amount, reason, source_type, source_id, unique_reward_key,
         reason=reason,
         source_type=source_type,
         source_id=source_id,
+        transaction_kind="award",
         unique_reward_key=unique_reward_key,
         awarded_by_id=awarded_by_id,
     )
@@ -142,7 +143,20 @@ def personal_point_balance(user_id):
 
 
 def family_point_balance(family_id):
+    signed_amount = case(
+        (PointTransaction.transaction_kind == "spend", -PointTransaction.amount),
+        else_=PointTransaction.amount,
+    )
+    balance = db.session.query(func.coalesce(func.sum(signed_amount), 0)).filter(
+        PointTransaction.family_id == family_id,
+        PointTransaction.reversed.is_(False),
+    ).scalar()
+    return max(0, balance)
+
+
+def family_lifetime_xp(family_id):
     return db.session.query(func.coalesce(func.sum(PointTransaction.amount), 0)).filter(
         PointTransaction.family_id == family_id,
+        PointTransaction.transaction_kind == "award",
         PointTransaction.reversed.is_(False),
     ).scalar()

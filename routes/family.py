@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from feature_flags import is_feature_enabled
+from family_levels import family_level_summary
 from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
 from models import (
     ChallengeCompletion,
@@ -1035,6 +1036,7 @@ def family_detail(family_id):
         effective_member_limit=capacity["member_limit"],
         family_is_full=capacity["is_full"],
         remaining_slots=capacity["remaining_slots"],
+        family_level=family_level_summary(family),
         **family_home_dashboard(family, members, member),
         **poll_dashboard(family, member),
         **challenge_dashboard(family, members, member),
