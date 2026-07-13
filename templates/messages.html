@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import rise_badges with context %} {% block content %}
 <section class="panel" data-live-search data-live-search-singular="chat" data-live-search-plural="chats">
   <div class="panel-header split-header">
     <h2>Messages</h2>
@@ -44,7 +44,7 @@
         alt="Avatar"
       />
       <div>
-        <strong>{{ item.user.profile.display_name }}</strong>
+        <strong>{{ item.user.profile.display_name }}{{ rise_badges(rise_user_badges(item.user)) }}</strong>
         <p>{{ item.message.content }}</p>
       </div>
       <span>{{ item.message.created_at.strftime('%H:%M') }}</span>

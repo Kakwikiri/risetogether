@@ -5002,7 +5002,9 @@ body.media-viewer-open {
 .location-card {
   display: grid;
   gap: 0.55rem;
-  min-width: min(300px, 74vw);
+  width: min(300px, 100%);
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0.15rem;
   color: inherit;
   text-decoration: none;
@@ -5073,6 +5075,7 @@ body.media-viewer-open {
 
 .location-card-body {
   display: grid;
+  min-width: 0;
   gap: 0.1rem;
 }
 
@@ -5084,6 +5087,7 @@ body.media-viewer-open {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 :root[data-theme="dark"] .chat-message .location-message-link {

@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-badge-responsive"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-chat-fixes"
     />
     <script
       defer
@@ -190,7 +190,7 @@
         </div>
       </div>
     </div>
-    {% if request.endpoint not in ['main.profile', 'chat.direct_chat', 'chat.family_chat', 'main.live_room'] %}
+    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'main.live_room'] %}
     <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
     {% endif %}
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">

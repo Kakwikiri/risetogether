@@ -13,7 +13,7 @@
           {% if not family %}
           <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
           {% endif %}
-          {% if family %}{{ family.name }}{% else %}{{ other.username }}{% endif %}
+          {% if family %}{{ family.name }}{% else %}{{ other.username }}{{ rise_badges(rise_user_badges(other)) }}{% endif %}
         </h2>
         <span data-presence-label>
           {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
