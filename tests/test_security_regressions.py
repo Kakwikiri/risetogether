@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyChallenge, PasswordResetToken, PointTransaction, Reaction
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyChallenge, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -36,6 +36,39 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_stage_fifteen_point_reversals_are_audited_and_grouped(self):
+        point_source = (ROOT / "points.py").read_text()
+        moderation_source = (ROOT / "routes/moderation.py").read_text()
+        family_source = (ROOT / "routes/family.py").read_text()
+        self.assertIn("def reverse_reward_group", point_source)
+        self.assertIn("def reverse_completion_rewards_for_user", point_source)
+        self.assertIn("source_id=transaction.source_id", point_source)
+        self.assertIn('"point_reward_reversal"', moderation_source)
+        self.assertIn('completion.verification_status = "invalidated"', moderation_source)
+        self.assertIn("Family leaders cannot approve their own", family_source)
+        self.assertIn("challenge_points_reversed", family_source)
+
+    def test_stage_fifteen_rate_limits_and_security_flags_are_database_backed(self):
+        family_source = (ROOT / "routes/family.py").read_text()
+        point_source = (ROOT / "points.py").read_text()
+        migration = (ROOT / "migrations/20260713_stage15_point_security.sql").read_text()
+        self.assertIn("recent_completion_count >= 20", family_source)
+        self.assertIn("DAILY_REPEATABLE_PERSONAL_LIMIT = 100", point_source)
+        self.assertIn("class PointLimitExceeded", point_source)
+        self.assertIn("CREATE TABLE IF NOT EXISTS point_security_events", migration)
+        self.assertIn("reversal_reason", migration)
+        self.assertIn("suspicious", migration)
+        self.assertEqual(PointSecurityEvent.__tablename__, "point_security_events")
+
+    def test_stage_fifteen_admin_ledger_is_super_admin_only(self):
+        source = (ROOT / "routes/moderation.py").read_text()
+        template = (ROOT / "templates/admin_point_transactions.html").read_text()
+        route = source[source.index("def admin_point_transactions"):]
+        self.assertIn('require_admin_role("super_admin")', route[:300])
+        self.assertIn("Point transactions", template)
+        self.assertIn("Reverse linked reward", template)
+        self.assertIn('name="csrf_token"', template)
+
     def test_stage_fourteen_ledger_has_idempotency_and_recipient_constraints(self):
         self.assertTrue(PointTransaction.unique_reward_key.unique)
         constraint_names = {constraint.name for constraint in PointTransaction.__table__.constraints}

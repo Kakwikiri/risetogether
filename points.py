@@ -1,14 +1,22 @@
+from datetime import datetime
+
 from sqlalchemy import func
 
 from extensions import db
-from models import PointTransaction
+from models import ChallengeCompletion, PointTransaction
 
 
 MAX_CONTROLLED_REWARD = 10000
+DAILY_REPEATABLE_PERSONAL_LIMIT = 100
+
+
+class PointLimitExceeded(ValueError):
+    pass
 
 
 def award_points(*, amount, reason, source_type, source_id, unique_reward_key,
-                 user_id=None, family_id=None, awarded_by_id=None):
+                 user_id=None, family_id=None, awarded_by_id=None,
+                 repeatable=False, daily_limit=None):
     """Queue one idempotent, server-controlled point award in the active transaction."""
     if isinstance(amount, bool) or not isinstance(amount, int):
         raise ValueError("Point amount must be a whole number.")
@@ -31,6 +39,20 @@ def award_points(*, amount, reason, source_type, source_id, unique_reward_key,
     ).first()
     if existing:
         return existing, False
+    if repeatable and user_id is not None:
+        limit = daily_limit or DAILY_REPEATABLE_PERSONAL_LIMIT
+        start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        earned_today = db.session.query(
+            func.coalesce(func.sum(PointTransaction.amount), 0)
+        ).filter(
+            PointTransaction.user_id == user_id,
+            PointTransaction.reversed.is_(False),
+            PointTransaction.created_at >= start_of_day,
+        ).scalar()
+        if earned_today + amount > limit:
+            raise PointLimitExceeded(
+                f"Daily repeatable reward limit of {limit} Personal Points reached."
+            )
     transaction = PointTransaction(
         user_id=user_id,
         family_id=family_id,
@@ -59,6 +81,7 @@ def award_challenge_completion_points(completion, awarded_by_id=None):
             unique_reward_key=f"{source_key}:personal",
             user_id=completion.user_id,
             awarded_by_id=awarded_by_id,
+            repeatable=completion.challenge.completion_frequency != "one_time",
         ),
         award_points(
             amount=completion.points_awarded,
@@ -70,6 +93,45 @@ def award_challenge_completion_points(completion, awarded_by_id=None):
             awarded_by_id=awarded_by_id,
         ),
     ]
+
+
+def reverse_reward_group(transaction, *, reversed_by_id, reason):
+    reason = (reason or "").strip()
+    if len(reason) < 10 or len(reason) > 500:
+        raise ValueError("A reversal reason between 10 and 500 characters is required.")
+    transactions = PointTransaction.query.filter_by(
+        source_type=transaction.source_type,
+        source_id=transaction.source_id,
+        reversed=False,
+    ).with_for_update().all()
+    reversed_at = datetime.utcnow()
+    for item in transactions:
+        item.reversed = True
+        item.reversed_at = reversed_at
+        item.reversed_by_id = reversed_by_id
+        item.reversal_reason = reason
+    return transactions
+
+
+def reverse_completion_rewards_for_user(user_id, *, reversed_by_id=None):
+    completions = ChallengeCompletion.query.filter_by(
+        user_id=user_id, verification_status="completed"
+    ).all()
+    reversed_transactions = []
+    for completion in completions:
+        transaction = PointTransaction.query.filter_by(
+            source_type="challenge_completion",
+            source_id=completion.id,
+            reversed=False,
+        ).first()
+        if transaction:
+            reversed_transactions.extend(reverse_reward_group(
+                transaction,
+                reversed_by_id=reversed_by_id,
+                reason="Automatic reversal because the related completion was deleted.",
+            ))
+        completion.verification_status = "invalidated"
+    return reversed_transactions
 
 
 def personal_point_balance(user_id):

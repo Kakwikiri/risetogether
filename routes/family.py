@@ -9,10 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from feature_flags import is_feature_enabled
 from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
-from points import award_challenge_completion_points
 from models import (
     ChallengeCompletion,
     ChallengeParticipant,
+    AuditLog,
     Block,
     Family,
     FamilyChallenge,
@@ -26,6 +26,7 @@ from models import (
     Message,
     Notification,
     Post,
+    PointSecurityEvent,
     Profile,
     Quiz,
     QuizAnswer,
@@ -35,6 +36,7 @@ from models import (
     SiteSetting,
     User,
 )
+from points import PointLimitExceeded, award_challenge_completion_points, reverse_reward_group
 
 family_bp = Blueprint("family", __name__)
 
@@ -1510,6 +1512,23 @@ def complete_challenge(family_id, challenge_id):
     if not challenge_is_current(challenge):
         flash("This challenge is not active.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    recent_completion_count = ChallengeCompletion.query.filter(
+        ChallengeCompletion.user_id == current_user.id,
+        ChallengeCompletion.completed_at >= datetime.utcnow() - timedelta(hours=1),
+    ).count()
+    if recent_completion_count >= 20:
+        db.session.add(PointSecurityEvent(
+            user_id=current_user.id,
+            family_id=family.id,
+            event_type="completion_rate_limit",
+            source_type="family_challenge",
+            source_id=challenge.id,
+            details="More than 20 challenge completion submissions were attempted within one hour.",
+            ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
+        ))
+        db.session.commit()
+        flash("You have reached the hourly challenge submission limit. Please try again later.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     period_key = challenge_completion_period(challenge)
     existing = ChallengeCompletion.query.filter_by(
         challenge_id=challenge.id, user_id=current_user.id, period_key=period_key
@@ -1578,10 +1597,24 @@ def complete_challenge(family_id, challenge_id):
         points_awarded=reward_for_challenge(challenge),
     )
     db.session.add(completion)
+    reward_limit_message = ""
     try:
         db.session.flush()
         if verification_status == "completed":
-            award_challenge_completion_points(completion)
+            try:
+                award_challenge_completion_points(completion)
+            except PointLimitExceeded as exc:
+                reward_limit_message = str(exc)
+                completion.points_awarded = 0
+                db.session.add(PointSecurityEvent(
+                    user_id=current_user.id,
+                    family_id=family.id,
+                    event_type="daily_earning_limit",
+                    source_type="challenge_completion",
+                    source_id=completion.id,
+                    details=reward_limit_message,
+                    ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
+                ))
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -1624,6 +1657,11 @@ def complete_challenge(family_id, challenge_id):
         "personal_points": completion.points_awarded,
         "family_points": completion.points_awarded,
     }
+    if reward_limit_message:
+        celebration["message"] = (
+            "Your completion was recorded, but no additional points were added because "
+            "today’s repeatable reward limit has been reached."
+        )
     if not challenge.allow_achievement_sharing:
         redirect_url = url_for("family.family_detail", family_id=family.id) + "#family-challenges"
         if async_completion:
@@ -1724,6 +1762,49 @@ def review_challenge_completion(family_id, completion_id, action):
         ChallengeCompletion.id == completion_id,
         FamilyChallenge.family_id == family.id,
     ).first_or_404()
+    if action == "invalidate":
+        if completion.verification_status != "completed":
+            flash("Only an approved completion can be invalidated.", "info")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+        if completion.user_id == current_user.id and not (
+            current_user.is_admin and current_user.admin_role == "super_admin"
+        ):
+            flash("You cannot invalidate your own completion.", "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+        reason = request.form.get("reason", "").strip()
+        if len(reason) < 10 or len(reason) > 500:
+            flash("Add a clear reversal reason between 10 and 500 characters.", "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+        transaction = completion.user.point_transactions.filter_by(
+            source_type="challenge_completion", source_id=completion.id, reversed=False
+        ).first()
+        reversed_transactions = []
+        if transaction:
+            reversed_transactions = reverse_reward_group(
+                transaction, reversed_by_id=current_user.id, reason=reason
+            )
+        completion.verification_status = "invalidated"
+        db.session.add(AuditLog(
+            actor_user_id=current_user.id,
+            actor_role=current_user.admin_role or member.role,
+            action_type="challenge_points_reversed",
+            target_user_id=completion.user_id,
+            target_family_id=family.id,
+            target_content_id=completion.id,
+            reason=reason,
+            metadata_text=f"transactions={','.join(str(item.id) for item in reversed_transactions)}",
+            ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
+        ))
+        db.session.commit()
+        add_family_notification(
+            completion.user_id,
+            "challenge_approval",
+            f"Points for {completion.challenge.title} were reversed after moderator review.",
+            url_for("main.point_history"),
+        )
+        db.session.commit()
+        flash("The completion was invalidated and its Personal and Family Points were reversed.", "success")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if completion.verification_status != "pending":
         flash("This completion has already been reviewed.", "info")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
@@ -1741,6 +1822,9 @@ def review_challenge_completion(family_id, completion_id, action):
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if action != "approve":
         flash("Choose a valid review action.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if completion.user_id == current_user.id:
+        flash("Family leaders cannot approve their own point-bearing completion.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     completion.verification_status = "completed"
     award_challenge_completion_points(completion, awarded_by_id=current_user.id)

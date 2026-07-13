@@ -120,6 +120,7 @@
         {% endif %}
         {% if current_user.admin_role == 'super_admin' %}
         <a href="{{ url_for('moderation.admin_audit_log') }}" data-icon="☷"><span>Audit</span></a>
+        <a href="{{ url_for('moderation.admin_point_transactions') }}" data-icon="✦"><span>Point ledger</span></a>
         <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Settings</span></a>
         <a href="{{ url_for('moderation.admin_feature_flags') }}" data-icon="⚑"><span>Features</span></a>
         {% endif %}

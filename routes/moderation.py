@@ -12,7 +12,11 @@ from feature_flags import (
     get_feature_flags,
     is_feature_enabled,
 )
-from models import AuditLog, Block, Family, HelpRequest, Post, Report, SiteSetting, User
+from models import (
+    AuditLog, Block, ChallengeCompletion, Family, HelpRequest, Notification,
+    PointSecurityEvent, PointTransaction, Post, Report, SiteSetting, User,
+)
+from points import reverse_completion_rewards_for_user, reverse_reward_group
 
 mod_bp = Blueprint("moderation", __name__)
 
@@ -310,6 +314,77 @@ def admin_audit_log():
     return render_template("admin_audit_log.html", logs=logs)
 
 
+@mod_bp.route("/admin/point-transactions")
+@login_required
+def admin_point_transactions():
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    page = max(1, request.args.get("page", 1, type=int))
+    transactions = PointTransaction.query.order_by(
+        PointTransaction.created_at.desc(), PointTransaction.id.desc()
+    ).paginate(page=page, per_page=50, error_out=False)
+    security_events = PointSecurityEvent.query.filter_by(resolved=False).order_by(
+        PointSecurityEvent.created_at.desc()
+    ).limit(100).all()
+    return render_template(
+        "admin_point_transactions.html",
+        transactions=transactions,
+        security_events=security_events,
+    )
+
+
+@mod_bp.route("/admin/point-transactions/<int:transaction_id>/reverse", methods=["POST"])
+@fresh_login_required
+def reverse_point_transaction(transaction_id):
+    if not require_admin_role("moderator"):
+        return redirect(url_for("main.home"))
+    transaction = PointTransaction.query.with_for_update().get_or_404(transaction_id)
+    if transaction.reversed:
+        flash("That reward has already been reversed.", "info")
+        return redirect(url_for("moderation.admin_point_transactions"))
+    if transaction.user_id == current_user.id and website_role(current_user) != "super_admin":
+        flash("Moderators cannot reverse their own points.", "warning")
+        return redirect(url_for("moderation.admin_point_transactions"))
+    reason = request.form.get("reason", "").strip()
+    try:
+        reversed_transactions = reverse_reward_group(
+            transaction, reversed_by_id=current_user.id, reason=reason
+        )
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("moderation.admin_point_transactions"))
+    completion = None
+    if transaction.source_type == "challenge_completion" and transaction.source_id:
+        completion = ChallengeCompletion.query.get(transaction.source_id)
+        if completion:
+            completion.verification_status = "invalidated"
+    record_admin_audit(
+        "point_reward_reversal",
+        target_user=transaction.user,
+        target_family=transaction.family,
+        target_content_id=transaction.source_id,
+        reason=reason,
+        metadata_text=f"transactions={','.join(str(item.id) for item in reversed_transactions)};source={transaction.source_type}",
+    )
+    if transaction.user_id:
+        db.session.add(Notification(
+            user_id=transaction.user_id,
+            category="points_reversed",
+            message=f"A point reward was reversed after moderator review: {reason}",
+            action_url=url_for("main.point_history"),
+        ))
+    elif completion:
+        db.session.add(Notification(
+            user_id=completion.user_id,
+            category="points_reversed",
+            message=f"Points for {completion.challenge.title} were reversed after moderator review.",
+            action_url=url_for("main.point_history"),
+        ))
+    db.session.commit()
+    flash("The linked Personal and Family rewards were reversed and audited.", "success")
+    return redirect(url_for("moderation.admin_point_transactions"))
+
+
 @mod_bp.route("/help", methods=["GET", "POST"])
 @login_required
 def help_request():
@@ -584,6 +659,8 @@ def admin_delete_user(user_id):
     if not can_act_on(user, "delete"):
         return redirect(request.referrer or url_for("moderation.admin_users"))
     record_admin_audit("user_delete", target_user=user, reason="Deleted from admin Users page")
+    reverse_completion_rewards_for_user(user.id, reversed_by_id=current_user.id)
+    db.session.flush()
     db.session.delete(user)
     db.session.commit()
     flash("Account deleted.", "info")
@@ -629,6 +706,10 @@ def manage_report(report_id, action):
         if not can_act_on(report.reported_user, "delete"):
             return redirect(url_for("moderation.admin_reports"))
         record_admin_audit("user_delete", target_user=report.reported_user, reason="Deleted from report review")
+        reverse_completion_rewards_for_user(
+            report.reported_user.id, reversed_by_id=current_user.id
+        )
+        db.session.flush()
         db.session.delete(report.reported_user)
         report.status = "actioned"
         flash("Reported account deleted.", "info")

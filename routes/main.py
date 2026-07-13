@@ -35,7 +35,7 @@ from models import (
     Reaction,
     User,
 )
-from points import family_point_balance, personal_point_balance
+from points import family_point_balance, personal_point_balance, reverse_completion_rewards_for_user
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
@@ -1231,7 +1231,7 @@ def point_history():
         visibility.append(PointTransaction.user_id == current_user.id)
     if family_enabled and family_ids:
         visibility.append(PointTransaction.family_id.in_(family_ids))
-    query = PointTransaction.query.filter(PointTransaction.reversed.is_(False))
+    query = PointTransaction.query
     if visibility:
         query = query.filter(or_(*visibility))
     else:
@@ -1314,6 +1314,8 @@ def settings():
 def delete_account():
     if request.form.get("confirm") == "DELETE":
         user = current_user
+        reverse_completion_rewards_for_user(user.id, reversed_by_id=user.id)
+        db.session.flush()
         db.session.delete(user)
         db.session.commit()
         flash("Your account has been deleted.", "info")

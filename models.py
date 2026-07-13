@@ -329,6 +329,13 @@ class PointTransaction(db.Model):
     source_id = db.Column(db.Integer, nullable=True)
     unique_reward_key = db.Column(db.String(180), unique=True, nullable=False)
     reversed = db.Column(db.Boolean, default=False, nullable=False)
+    reversed_at = db.Column(db.DateTime, nullable=True)
+    reversed_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reversal_reason = db.Column(db.String(500), default="", nullable=False)
+    suspicious = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    suspicious_reason = db.Column(db.String(500), default="", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     awarded_by_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -340,6 +347,27 @@ class PointTransaction(db.Model):
         "Family", foreign_keys=[family_id], backref=db.backref("point_transactions", lazy="dynamic")
     )
     awarded_by = db.relationship("User", foreign_keys=[awarded_by_id])
+    reversed_by = db.relationship("User", foreign_keys=[reversed_by_id])
+
+
+class PointSecurityEvent(db.Model):
+    __tablename__ = "point_security_events"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    event_type = db.Column(db.String(64), nullable=False, index=True)
+    source_type = db.Column(db.String(64), default="", nullable=False)
+    source_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.String(500), default="", nullable=False)
+    ip_address = db.Column(db.String(64), default="", nullable=False)
+    resolved = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user = db.relationship("User", foreign_keys=[user_id])
+    family = db.relationship("Family", foreign_keys=[family_id])
 
 
 class FamilyModerationLog(db.Model):

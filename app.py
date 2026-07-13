@@ -158,6 +158,7 @@ def ensure_schema_compatibility():
         QuizChoice,
         QuizQuestion,
         PointTransaction,
+        PointSecurityEvent,
     )
     from helpers import get_media_type, mimetype_for_filename
 
@@ -179,6 +180,7 @@ def ensure_schema_compatibility():
     QuizAttempt.__table__.create(db.engine, checkfirst=True)
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
     PointTransaction.__table__.create(db.engine, checkfirst=True)
+    PointSecurityEvent.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
     platform_owner_literal = platform_owner_username.replace("'", "''")
@@ -227,6 +229,12 @@ def ensure_schema_compatibility():
         "ALTER TABLE challenge_completions ADD COLUMN IF NOT EXISTS points_awarded INTEGER NOT NULL DEFAULT 0",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM site_settings WHERE key = 'migration_stage10_rewards') THEN UPDATE challenge_completions SET points_awarded = family_challenges.points FROM family_challenges WHERE challenge_completions.challenge_id = family_challenges.id; UPDATE challenge_completions SET period_key = TO_CHAR(completed_at, 'YYYY-MM-DD') FROM family_challenges WHERE challenge_completions.challenge_id = family_challenges.id AND family_challenges.challenge_type IN ('daily_check_in', 'habit') AND challenge_completions.period_key = 'once'; UPDATE family_challenges SET reward_tier = CASE WHEN points <= 5 THEN 'small' WHEN points <= 10 THEN 'easy' WHEN points <= 25 THEN 'medium' WHEN points <= 50 THEN 'hard' ELSE 'major' END; UPDATE family_challenges SET reward_tier = 'small' WHERE challenge_type = 'daily_check_in'; UPDATE family_challenges SET reward_tier = 'easy' WHERE challenge_type = 'task'; UPDATE family_challenges SET reward_tier = 'easy' WHERE challenge_type = 'habit' AND reward_tier NOT IN ('small', 'easy'); UPDATE family_challenges SET reward_tier = 'medium' WHERE challenge_type IN ('learning_lesson', 'quiz') AND reward_tier NOT IN ('small', 'easy', 'medium'); UPDATE family_challenges SET points = CASE reward_tier WHEN 'small' THEN 5 WHEN 'easy' THEN 10 WHEN 'medium' THEN 25 WHEN 'hard' THEN 50 WHEN 'major' THEN 100 ELSE 10 END; INSERT INTO site_settings (key, value, updated_at) VALUES ('migration_stage10_rewards', 'complete', CURRENT_TIMESTAMP); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM site_settings WHERE key = 'migration_stage14_point_ledger') THEN INSERT INTO point_transactions (user_id, family_id, amount, reason, source_type, source_id, unique_reward_key, reversed, created_at, awarded_by_id) SELECT cc.user_id, NULL, cc.points_awarded, LEFT('Completed ' || fc.title, 240), 'challenge_completion', cc.id, 'challenge_completion:' || cc.id || ':' || 'personal', FALSE, cc.completed_at, NULL FROM challenge_completions cc JOIN family_challenges fc ON fc.id = cc.challenge_id WHERE cc.verification_status = 'completed' AND cc.points_awarded > 0 ON CONFLICT (unique_reward_key) DO NOTHING; INSERT INTO point_transactions (user_id, family_id, amount, reason, source_type, source_id, unique_reward_key, reversed, created_at, awarded_by_id) SELECT NULL, fc.family_id, cc.points_awarded, LEFT('Completed ' || fc.title, 240), 'challenge_completion', cc.id, 'challenge_completion:' || cc.id || ':' || 'family', FALSE, cc.completed_at, NULL FROM challenge_completions cc JOIN family_challenges fc ON fc.id = cc.challenge_id WHERE cc.verification_status = 'completed' AND cc.points_awarded > 0 ON CONFLICT (unique_reward_key) DO NOTHING; INSERT INTO site_settings (key, value, updated_at) VALUES ('migration_stage14_point_ledger', 'complete', CURRENT_TIMESTAMP); END IF; END $$",
+        "ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMP",
+        "ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS reversed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS reversal_reason VARCHAR(500) NOT NULL DEFAULT ''",
+        "ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS suspicious BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS suspicious_reason VARCHAR(500) NOT NULL DEFAULT ''",
+        "CREATE INDEX IF NOT EXISTS ix_point_transactions_suspicious ON point_transactions (suspicious)",
         "ALTER TABLE challenge_completions DROP CONSTRAINT IF EXISTS uq_challenge_completion_user",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_challenge_completion_period') THEN CREATE UNIQUE INDEX uq_challenge_completion_period ON challenge_completions (challenge_id, user_id, period_key); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_posts_challenge_completion') THEN CREATE UNIQUE INDEX uq_posts_challenge_completion ON posts (challenge_completion_id) WHERE challenge_completion_id IS NOT NULL; END IF; END $$",
