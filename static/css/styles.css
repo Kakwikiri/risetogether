@@ -492,6 +492,7 @@ video {
 .rise-badge-list {
   display: inline-flex;
   align-items: center;
+  max-width: 20px;
   gap: 0.18rem;
   margin-left: 0.3rem;
   vertical-align: text-bottom;
@@ -505,6 +506,7 @@ video {
   height: 20px;
   min-width: 20px;
   min-height: 20px;
+  flex: 0 0 20px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -560,8 +562,9 @@ video {
   z-index: 80;
   left: 50%;
   bottom: calc(100% + 9px);
-  width: max-content;
-  max-width: min(260px, 80vw);
+  box-sizing: border-box;
+  width: 220px;
+  max-width: calc(100vw - 24px);
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm, 10px);
@@ -572,6 +575,8 @@ video {
   font-weight: 400;
   line-height: 1.35;
   text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
   transform: translateX(-50%);
   opacity: 0;
   visibility: hidden;
