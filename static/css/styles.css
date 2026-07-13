@@ -495,12 +495,13 @@ video {
 .rise-badge__check { fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .rise-badge--verified { --rise-badge-color: #2563eb; }
 .rise-badge--organization, .rise-badge--family { --rise-badge-color: #d97706; }
-.rise-badge--admin, .rise-badge--platform { --rise-badge-color: #7c3aed; }
+.rise-badge--platform { --rise-badge-color: #7c3aed; }
 .rise-badge--moderator { --rise-badge-color: #16a34a; }
 .rise-badge--founder { --rise-badge-color: #dc2626; }
+.rise-badge--admin { --rise-badge-color: #7c3aed; }
 .rise-badge__tooltip { position: absolute; z-index: 80; left: 50%; bottom: calc(100% + 9px); width: max-content; max-width: min(260px, 80vw); padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius-sm, 10px); background: var(--panel); color: var(--ink); box-shadow: var(--shadow-md); font-size: .78rem; font-weight: 400; line-height: 1.35; text-align: left; transform: translateX(-50%); opacity: 0; visibility: hidden; pointer-events: none; }
 .rise-badge__tooltip strong { display: block; margin-bottom: .15rem; }
-.rise-badge:hover .rise-badge__tooltip, .rise-badge:focus-visible .rise-badge__tooltip, .rise-badge:focus .rise-badge__tooltip { opacity: 1; visibility: visible; }
+.rise-badge:hover .rise-badge__tooltip, .rise-badge:focus-visible .rise-badge__tooltip, .rise-badge:focus .rise-badge__tooltip, .rise-badge:active .rise-badge__tooltip { opacity: 1; visibility: visible; }
 .rise-badge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .badge-admin-form { display: grid; gap: .35rem; min-width: 220px; }
 .notification-preference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .55rem; margin-block: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
