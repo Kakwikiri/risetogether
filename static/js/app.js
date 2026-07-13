@@ -1,5 +1,22 @@
+const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+const csrfToken = csrfMeta ? csrfMeta.content : "";
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (resource, options = {}) => {
+  const requestUrl = new URL(
+    typeof resource === "string" ? resource : resource.url,
+    window.location.origin,
+  );
+  const method = (options.method || (resource instanceof Request ? resource.method : "GET")).toUpperCase();
+  if (requestUrl.origin === window.location.origin && !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)) {
+    const headers = new Headers(options.headers || (resource instanceof Request ? resource.headers : undefined));
+    headers.set("X-CSRF-Token", csrfToken);
+    options = { ...options, headers };
+  }
+  return nativeFetch(resource, options);
+};
+
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-chat-date-ticks";
+  const APP_VERSION = "20260713-stage4-avatars";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -37,14 +54,74 @@ document.addEventListener("DOMContentLoaded", () => {
   const updateNow = document.querySelector("[data-update-now]");
   const updateLater = document.querySelector("[data-update-later]");
   let waitingServiceWorker = null;
-  const showToast = (message) => {
+  const showToast = (message, tone = "info") => {
     if (!toast) return;
     toast.textContent = message;
+    toast.dataset.tone = tone;
     toast.hidden = false;
     window.clearTimeout(showToast.timer);
     showToast.timer = window.setTimeout(() => {
       toast.hidden = true;
     }, 5200);
+  };
+
+  const confirmationModal = document.querySelector("[data-confirmation-modal]");
+  const confirmationMessage = document.querySelector("[data-confirmation-message]");
+  const confirmationAccept = document.querySelector("[data-confirmation-accept]");
+  const celebrationModal = document.querySelector("[data-celebration-modal]");
+  const celebrationTitle = document.querySelector("[data-celebration-title]");
+  const celebrationMessage = document.querySelector("[data-celebration-message]");
+  let pendingConfirmation = null;
+
+  const openDialog = (dialog) => {
+    if (!dialog) return;
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+  };
+
+  const closeDialog = (dialog) => {
+    if (!dialog) return;
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  };
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-confirm]");
+    if (!trigger || trigger.dataset.confirmed === "true") return;
+    event.preventDefault();
+    pendingConfirmation = trigger;
+    if (confirmationMessage) confirmationMessage.textContent = trigger.dataset.confirm || "Please confirm this action.";
+    openDialog(confirmationModal);
+  });
+
+  if (confirmationAccept) {
+    confirmationAccept.addEventListener("click", () => {
+      const trigger = pendingConfirmation;
+      pendingConfirmation = null;
+      closeDialog(confirmationModal);
+      if (!trigger) return;
+      trigger.dataset.confirmed = "true";
+      if (trigger.tagName === "A") window.location.assign(trigger.href);
+      else if (trigger.form) trigger.form.requestSubmit(trigger);
+      window.setTimeout(() => delete trigger.dataset.confirmed, 0);
+    });
+  }
+
+  document.querySelectorAll("[data-confirmation-cancel]").forEach((button) => {
+    button.addEventListener("click", () => { pendingConfirmation = null; closeDialog(confirmationModal); });
+  });
+
+  document.querySelectorAll("[data-celebration-close]").forEach((button) => {
+    button.addEventListener("click", () => closeDialog(celebrationModal));
+  });
+
+  window.RiseTogetherUI = {
+    toast: showToast,
+    celebrate: ({ title = "Beautiful progress", message = "Your effort matters. Keep growing, one gentle step at a time." } = {}) => {
+      if (celebrationTitle) celebrationTitle.textContent = title;
+      if (celebrationMessage) celebrationMessage.textContent = message;
+      openDialog(celebrationModal);
+    },
   };
 
   if (pageBack) {

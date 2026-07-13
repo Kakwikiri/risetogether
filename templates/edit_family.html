@@ -7,9 +7,10 @@
       <p class="muted-meta">Keep the Family identity, goal, privacy and member capacity clear for everyone.</p>
     </div>
   </header>
-  {% set family_image_url = url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') %}
+  {% set family_image_url = family_avatar_url(family) %}
   {% if can_change_family_image %}
   <form class="family-image-form" action="{{ url_for('family.update_family_image', family_id=family.id) }}" method="post" enctype="multipart/form-data" data-family-image-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="family-image-editor">
       <img class="family-image-preview" src="{{ family_image_url }}" alt="{{ family.name }} picture" data-family-image-preview />
       <div>
@@ -29,6 +30,7 @@
 
   {% if can_edit_family_details %}
   <form class="modern-edit-form" action="" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <section class="settings-panel">
       <h3>Identity</h3>
       <label>Family name</label>

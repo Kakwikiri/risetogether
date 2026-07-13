@@ -6,12 +6,12 @@
         <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
         <img
           class="avatar-large profile-hero-avatar{% if live_session %} live-avatar-ring{% endif %}"
-          src="{{ url_for('static', filename='images/default-avatar.png') if not profile.avatar else url_for('api.serve_upload', filename=profile.avatar) }}"
+          src="{{ user_avatar_url(user) }}"
           alt="avatar"
         />
       </div>
       <div class="profile-title-block">
-        <h1>{{ profile.display_name }}{% if user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
+        <h1>{{ profile.display_name }}{% if feature_enabled('verification_badges') and user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
         <p class="profile-username">@{{ user.username }}</p>
       </div>
     </div>
@@ -47,10 +47,12 @@
         <span class="status-pill">Friend request pending</span>
         {% else %}
         <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button" type="submit">Add friend</button>
         </form>
         {% endif %}
         <form action="{{ url_for('main.toggle_follow', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button secondary" type="submit">{{ 'Following' if is_following else '+ Follow' }}</button>
         </form>
       {% endif %}
@@ -101,11 +103,11 @@
         <div class="profile-post-top">
           <img
             class="avatar"
-            src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+            src="{{ user_avatar_url(post.author) }}"
             alt="Avatar"
           />
           <div>
-            <strong>{{ post.author.profile.display_name }}{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong>
+            <strong>{{ post.author.profile.display_name }}{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong>
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
           </div>
         </div>
@@ -117,12 +119,13 @@
         </div>
         {% elif post.media_url and post.media_type == 'video' %}
         <div class="media-frame">
-          <video class="post-media autoplay-video" controls autoplay muted playsinline loop preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
+          <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
           <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
         </div>
         {% endif %}
         <div class="profile-post-actions">
           <form action="{{ url_for('main.react_post', post_id=post.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" name="reaction_type" value="support">❤️ Support {{ post.reactions.filter_by(type='support').count() }}</button>
             <button type="submit" name="reaction_type" value="understand">🤝 I Understand {{ post.reactions.filter_by(type='understand').count() }}</button>
             <button type="submit" name="reaction_type" value="keep-going">🔥 Keep Going {{ post.reactions.filter_by(type='keep-going').count() }}</button>
@@ -141,9 +144,11 @@
   {% if current_user.is_authenticated and current_user.id != user.id %}
   <section class="profile-section profile-actions">
     <form action="{{ url_for('moderation.block_user', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button secondary" type="submit">Remove / Block User</button>
     </form>
     <form action="{{ url_for('moderation.report_user', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <textarea name="reason" placeholder="Reason for reporting"></textarea>
       <button class="button" type="submit">Report User</button>
     </form>

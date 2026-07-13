@@ -7,7 +7,7 @@ from flask_login import current_user, login_required
 from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
-from helpers import get_ice_servers, get_media_type, save_media, send_device_push, validate_upload
+from helpers import get_ice_servers, get_media_type, save_media, send_device_push, user_avatar_url, validate_upload
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
@@ -209,6 +209,7 @@ def serialize_message(message):
     return {
         "sender_id": message.sender_id,
         "sender_name": message.sender.username,
+        "sender_avatar_url": user_avatar_url(message.sender),
         "recipient_id": message.recipient_id,
         "family_id": message.family_id,
         "content": message.content,
@@ -750,11 +751,37 @@ def on_disconnect(reason=None):
 
 @socketio.on("join_room")
 def on_join_room(data):
-    room = data.get("room")
-    if room:
-        join_room(room)
-        log_socket_event("join_room", room=room)
-        emit("room_joined", {"room": room}, room=request.sid)
+    room = (data or {}).get("room", "")
+    allowed = False
+    if room.startswith("private-"):
+        parts = room.split("-")
+        if len(parts) == 3:
+            first_id = parse_user_id(parts[1])
+            second_id = parse_user_id(parts[2])
+            allowed = bool(
+                first_id
+                and second_id
+                and current_user.id in {first_id, second_id}
+                and room == room_for_private_chat(first_id, second_id)
+                and users_can_message(first_id, second_id)
+            )
+    elif room.startswith("family-"):
+        family_id = parse_user_id(room.removeprefix("family-"))
+        allowed = bool(
+            family_id
+            and FamilyMember.query.filter_by(
+                family_id=family_id, user_id=current_user.id
+            ).first()
+        )
+    if not allowed:
+        current_app.logger.warning(
+            "socket_room_join_denied user_id=%s room=%s", current_user.id, room
+        )
+        emit("room_join_denied", {"room": room}, room=request.sid)
+        return
+    join_room(room)
+    log_socket_event("join_room", room=room)
+    emit("room_joined", {"room": room}, room=request.sid)
 
 
 @socketio.on("private_message")

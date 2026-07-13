@@ -3,6 +3,7 @@
   <div class="panel-header split-header">
     <h2>Notifications</h2>
     <form action="{{ url_for('main.mark_all_notifications_read') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button secondary" type="submit">✓ Mark all read</button>
     </form>
   </div>
@@ -50,6 +51,7 @@
       action="{{ url_for('main.mark_notification_read', notification_id=notification.id) }}"
       method="post"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button secondary" type="submit">Mark read</button>
     </form>
     {% endif %}

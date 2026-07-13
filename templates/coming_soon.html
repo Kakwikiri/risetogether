@@ -1,0 +1,3 @@
+{% extends 'base.html' %} {% from 'components/ui.html' import empty_state %} {% block content %}
+{{ empty_state(feature_name ~ ' is coming soon', 'This feature is resting while the RiseTogether team prepares it with care.', '♡', url_for('main.home'), 'Return home') }}
+{% endblock %}

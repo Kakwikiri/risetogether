@@ -12,6 +12,7 @@
       data-remote-search-url="{{ url_for('api.search_users') }}"
       data-remote-search-type="people"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <label class="search-input-wrap">
         <span aria-hidden="true">Search</span>
         <input
@@ -36,19 +37,20 @@
       <article class="person-card" data-search-item data-search-text="{{ user.username }} {{ user.profile.display_name }} {{ user.email }}">
         <img
           class="avatar"
-          src="{{ url_for('static', filename='images/default-avatar.png') if not user.profile.avatar else url_for('api.serve_upload', filename=user.profile.avatar) }}"
+          src="{{ user_avatar_url(user) }}"
           alt="Avatar"
         />
         <div>
           <h3>
             <a href="{{ url_for('main.profile', username=user.username) }}"
               >{{ user.profile.display_name }}</a
-            >{% if user.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}
+            >{% if feature_enabled('verification_badges') and user.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}
           </h3>
           <p>@{{ user.username }}</p>
         </div>
         <div class="person-actions">
           <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Add friend</button>
           </form>
           <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=user.id) }}"
@@ -89,12 +91,14 @@
             action="{{ url_for('main.respond_friend_request', request_id=request.id, action='accept') }}"
             method="post"
           >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button" type="submit">Accept</button>
           </form>
           <form
             action="{{ url_for('main.respond_friend_request', request_id=request.id, action='decline') }}"
             method="post"
           >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Decline</button>
           </form>
         </div>

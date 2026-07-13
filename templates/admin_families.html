@@ -15,6 +15,7 @@
     data-remote-search-url="{{ url_for('api.search_families') }}"
     data-remote-search-type="families"
   >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="search" name="q" value="{{ query_text }}" placeholder="Search name, category or owner" data-live-search-input />
     <select name="status">
       <option value="all" {% if status == 'all' %}selected{% endif %}>All Families</option>
@@ -54,10 +55,12 @@
         <td class="admin-actions">
           {% if family.is_active %}
           <form action="{{ url_for('moderation.admin_family_action', family_id=family.id, action='suspend') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button danger" type="submit">Suspend</button>
           </form>
           {% else %}
           <form action="{{ url_for('moderation.admin_family_action', family_id=family.id, action='restore') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Restore</button>
           </form>
           {% endif %}

@@ -38,6 +38,7 @@
   </div>
   {% else %}
   <form action="" method="post" class="quiz-question-list">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     {% for question in questions %}
     <fieldset class="quiz-question-card">
       <legend>{{ loop.index }}. {{ question.question_text }}</legend>

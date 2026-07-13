@@ -6,6 +6,12 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
 
 from extensions import db
+from feature_flags import (
+    FEATURE_FLAG_DEFINITIONS,
+    feature_flag_key,
+    get_feature_flags,
+    is_feature_enabled,
+)
 from models import AuditLog, Block, Family, HelpRequest, Post, Report, SiteSetting, User
 
 mod_bp = Blueprint("moderation", __name__)
@@ -391,6 +397,36 @@ def admin_settings():
     )
 
 
+@mod_bp.route("/admin/feature-flags", methods=["GET", "POST"])
+@fresh_login_required
+def admin_feature_flags():
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    if request.method == "POST":
+        for name in FEATURE_FLAG_DEFINITIONS:
+            setting = SiteSetting.query.get(feature_flag_key(name)) or SiteSetting(
+                key=feature_flag_key(name)
+            )
+            setting.value = "true" if request.form.get(name) == "1" else "false"
+            db.session.add(setting)
+        enabled_names = [
+            name for name in FEATURE_FLAG_DEFINITIONS if request.form.get(name) == "1"
+        ]
+        record_admin_audit(
+            "feature_flags_change",
+            reason="Updated platform feature flags",
+            metadata_text=f"Enabled: {', '.join(enabled_names) or 'none'}",
+        )
+        db.session.commit()
+        flash("Feature flags updated safely.", "success")
+        return redirect(url_for("moderation.admin_feature_flags"))
+    return render_template(
+        "admin_feature_flags.html",
+        definitions=FEATURE_FLAG_DEFINITIONS,
+        flags=get_feature_flags(),
+    )
+
+
 @mod_bp.route("/admin/users/<int:user_id>/toggle-admin", methods=["POST"])
 @fresh_login_required
 def toggle_admin(user_id):
@@ -498,6 +534,9 @@ def admin_user_action(user_id, action):
         record_admin_audit("unban", target_user=user, reason="Account unbanned")
         flash("User unbanned.", "success")
     elif action == "verify":
+        if not is_feature_enabled("verification_badges"):
+            flash("Verification badges are currently disabled.", "info")
+            return redirect(url_for("moderation.admin_users"))
         user.is_verified = not user.is_verified
         record_admin_audit("verification_toggle", target_user=user, metadata_text=f"is_verified={user.is_verified}")
         flash("Verification badge updated.", "success")

@@ -1,10 +1,9 @@
-const CACHE_NAME = "risetogether-cache-v33";
+const CACHE_NAME = "risetogether-cache-v34";
 const ASSETS = [
   "/offline",
   "/static/css/styles.css",
   "/static/js/app.js",
   "/static/js/socket.js",
-  "/static/images/default-avatar.png",
   "/static/images/icon-192-v2.png",
   "/static/images/icon-512-v2.png",
   "/static/images/icon-maskable-512-v2.png",

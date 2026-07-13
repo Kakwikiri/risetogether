@@ -32,18 +32,22 @@
         <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
         <td class="admin-actions">
           <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='reviewed') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Reviewed</button>
           </form>
           {% if report.post %}
           <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='delete_post') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button danger" type="submit">Delete post</button>
           </form>
           {% endif %}
           {% if report.reported_user %}
           <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='ban_user') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Ban account</button>
           </form>
           <form action="{{ url_for('moderation.manage_report', report_id=report.id, action='delete_user') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button danger" type="submit">Delete account</button>
           </form>
           {% endif %}

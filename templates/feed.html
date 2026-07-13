@@ -22,6 +22,7 @@
     {% if video_only %}
     <div class="video-quick-actions">
       <form action="{{ url_for('main.home') }}" method="get" class="video-search">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="hidden" name="type" value="videos" />
         <input type="search" name="q" value="{{ query }}" placeholder="Search videos..." />
         <button class="icon-button" type="submit" aria-label="Search videos">⌕</button>
@@ -35,7 +36,7 @@
       {% for live in active_live_sessions %}
       <a class="live-chip" href="{{ url_for('main.live_room', session_id=live.id) }}">
         <img
-          src="{{ url_for('static', filename='images/default-avatar.png') if not live.user.profile.avatar else url_for('api.serve_upload', filename=live.user.profile.avatar) }}"
+          src="{{ user_avatar_url(live.user) }}"
           alt=""
         />
         <span><strong>LIVE</strong>{{ live.user.profile.display_name }}</span>
@@ -49,7 +50,7 @@
       <button class="mobile-composer-trigger" type="button" data-composer-open>
         <img
           class="avatar"
-          src="{{ url_for('static', filename='images/default-avatar.png') if not current_user.profile.avatar else url_for('api.serve_upload', filename=current_user.profile.avatar) }}"
+          src="{{ user_avatar_url(current_user) }}"
           alt=""
         />
         <span>Share your story...</span>
@@ -62,6 +63,7 @@
         class="post-composer"
         data-composer-form
       >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <textarea
           name="content"
           rows="4"
@@ -97,7 +99,7 @@
         <div class="post-author">
           <img
             class="avatar"
-            src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+            src="{{ user_avatar_url(post.author) }}"
             alt="Avatar"
           />
           <div>
@@ -105,7 +107,7 @@
               ><a
                 href="{{ url_for('main.profile', username=post.author.username) }}"
                 >{{ post.author.profile.display_name }}</a
-              >{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
+              >{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
             >
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
             {% if realtime_media_enabled and post.user_id in live_user_ids %}
@@ -114,6 +116,7 @@
           </div>
           {% if post.user_id != current_user.id %}
           <form action="{{ url_for('main.toggle_follow', user_id=post.user_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="follow-chip" type="submit">+ Follow</button>
           </form>
           {% endif %}
@@ -140,7 +143,7 @@
       </div>
       {% elif post.media_type == 'video' %}
       <div class="media-frame">
-      <video class="post-media autoplay-video" controls autoplay muted playsinline loop preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}">
+      <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}">
           <source
             src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
             type="video/mp4"
@@ -166,6 +169,7 @@
           method="post"
           class="reaction-form"
         >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           {% for key,label in reactions.items() %}
           <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}" data-reaction-button data-reaction-type="{{ key }}">
             <span data-reaction-count>{{ post.reactions.filter_by(type=key).count() }}</span>
@@ -181,6 +185,7 @@
         <details class="report-widget">
           <summary>Report</summary>
           <form action="{{ url_for('moderation.report_post', post_id=post.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <textarea name="reason" rows="2" required placeholder="Why are you reporting this post?"></textarea>
             <button class="button danger" type="submit">Send report</button>
           </form>
@@ -188,9 +193,11 @@
         {% endif %}
         {% if post.user_id == current_user.id %}
         <form action="{{ url_for('main.manage_post', post_id=post.id, action='hide') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button secondary" type="submit">{{ 'Unhide' if post.is_hidden else 'Hide' }}</button>
         </form>
         <form action="{{ url_for('main.manage_post', post_id=post.id, action='delete') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button danger" type="submit">Delete</button>
         </form>
         {% endif %}

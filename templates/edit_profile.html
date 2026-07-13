@@ -8,7 +8,8 @@
     </div>
   </header>
   <form class="modern-edit-form" action="" method="post" enctype="multipart/form-data" data-profile-edit-form>
-    {% set avatar_url = url_for('static', filename='images/default-avatar.png') if not profile.avatar else url_for('api.serve_upload', filename=profile.avatar) %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    {% set avatar_url = user_avatar_url(current_user) %}
     <section class="settings-panel profile-avatar-editor">
       <img class="avatar-large" src="{{ avatar_url }}" alt="Profile picture preview" data-profile-avatar-preview />
       <div>

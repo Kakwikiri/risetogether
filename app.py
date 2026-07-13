@@ -13,6 +13,8 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import db, login_manager, socketio
+from feature_flags import get_feature_flags
+from security import csrf_token, init_csrf
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env", override=False)
@@ -71,10 +73,15 @@ app.config["REALTIME_MEDIA_ENABLED"] = (
 app.config["VAPID_PUBLIC_KEY"] = os.getenv("VAPID_PUBLIC_KEY", "").strip()
 app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip()
 app.config["VAPID_SUBJECT"] = os.getenv("VAPID_SUBJECT", "mailto:admin@risetogether.local").strip()
+app.config["CSRF_ENABLED"] = os.getenv("CSRF_ENABLED", "true").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 db.init_app(app)
+init_csrf(app)
 login_manager.init_app(app)
 login_manager.login_view = "auth.login"
 login_manager.refresh_view = "auth.reauthenticate"
@@ -271,7 +278,7 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_navigation_counts():
-    from helpers import is_hevc_upload
+    from helpers import family_avatar_url, is_hevc_upload, user_avatar_url
     from models import Message, Notification
 
     unread_notifications = 0
@@ -283,12 +290,17 @@ def inject_navigation_counts():
         unread_messages = Message.query.filter_by(
             recipient_id=current_user.id, delivered=False
         ).count()
+    feature_flags = get_feature_flags()
     return {
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
         "is_hevc_upload": is_hevc_upload,
         "chat_day_label": chat_day_label,
         "realtime_media_enabled": app.config["REALTIME_MEDIA_ENABLED"],
+        "user_avatar_url": user_avatar_url,
+        "family_avatar_url": family_avatar_url,
+        "feature_flags": feature_flags,
+        "feature_enabled": lambda name: feature_flags.get(name, False),
     }
 
 
@@ -343,6 +355,17 @@ def handle_upload_too_large(error):
     return f"Upload is too large. Please choose a file under {limit_mb} MB.", 413
 
 
+@app.errorhandler(500)
+def handle_unexpected_error(error):
+    app.logger.exception(
+        "unhandled_application_error path=%s method=%s",
+        request.path,
+        request.method,
+        exc_info=getattr(error, "original_exception", error),
+    )
+    return "RiseTogether hit an unexpected problem. Please try again shortly.", 500
+
+
 def admin_setup_form(token="", message="", status=200):
     safe_message = escape(message) if message else ""
     safe_token = escape(token or "")
@@ -358,6 +381,7 @@ def admin_setup_form(token="", message="", status=200):
     <h1>RiseTogether Admin Setup</h1>
     {'<p><strong>' + safe_message + '</strong></p>' if safe_message else ''}
     <form method="post">
+      <input type="hidden" name="csrf_token" value="{csrf_token()}" />
       <input type="hidden" name="token" value="{safe_token}" />
       <label>Action
         <select name="action">

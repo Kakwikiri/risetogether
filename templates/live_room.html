@@ -37,6 +37,7 @@
       </div>
       <div class="live-comments" id="live-comments" aria-live="polite"></div>
       <form class="live-comment-form" id="live-comment-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input
           id="live-comment-input"
           name="content"
@@ -51,6 +52,7 @@
       <details class="live-report">
         <summary>Report live</summary>
         <form action="{{ url_for('moderation.report_user', user_id=session.user_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <textarea name="reason" rows="3" required placeholder="Explain what is wrong with this live stream..."></textarea>
           <button class="button danger" type="submit">Report</button>
         </form>
@@ -58,6 +60,7 @@
       {% endif %}
       {% if current_user.is_admin and not is_host and session.status == 'live' %}
       <form class="live-admin-stop" action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <button class="button danger" type="submit">Stop live</button>
       </form>
       {% endif %}
@@ -70,6 +73,7 @@
     <button class="call-control" id="live-camera" type="button">Camera</button>
     <span class="status-pill" id="live-host-state">Camera is live</span>
     <form action="{{ url_for('main.end_live_session', session_id=session.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="call-control end-call" type="submit">End live</button>
     </form>
     {% else %}

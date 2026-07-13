@@ -12,6 +12,7 @@
     data-remote-search-url="{{ url_for('api.search_users', target='chat') }}"
     data-remote-search-type="people"
   >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label class="search-input-wrap">
       <span aria-hidden="true">Search</span>
       <input
@@ -39,7 +40,7 @@
     >
       <img
         class="avatar"
-        src="{{ url_for('static', filename='images/default-avatar.png') if not item.user.profile.avatar else url_for('api.serve_upload', filename=item.user.profile.avatar) }}"
+        src="{{ user_avatar_url(item.user) }}"
         alt="Avatar"
       />
       <div>
@@ -78,7 +79,7 @@
       data-search-item
       data-search-text="{{ family.name }} {{ family.description or '' }} {{ family.category }}"
     >
-      <div class="avatar family-avatar">{{ family.name[:1]|upper }}</div>
+      <img class="avatar family-avatar" src="{{ family_avatar_url(family) }}" alt="{{ family.name }} Family" />
       <div>
         <strong>{{ family.name }}</strong>
         <p>Open family conversation</p>

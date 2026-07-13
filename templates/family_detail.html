@@ -1,10 +1,10 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar %} {% block content %}
 <section class="card family-detail-card">
   <header class="family-hero">
     <div class="family-identity-row">
       <img
         class="family-profile-image"
-        src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
+        src="{{ family_avatar_url(family) }}"
         alt="{{ family.name }} picture"
       />
       <div class="family-title-block">
@@ -26,6 +26,7 @@
       <button class="button secondary" type="button" disabled>Family paused</button>
       {% else %}
       <form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <button class="button" type="submit">Join family</button>
       </form>
       {% endif %}
@@ -147,7 +148,7 @@
         </ul>
       </section>
 
-      <section class="family-dashboard-panel">
+      {% if feature_enabled('weekly_reports') %}<section class="family-dashboard-panel">
         <h4>This week</h4>
         <ul class="dashboard-list">
           {% for achievement in dashboard_weekly_achievements %}
@@ -159,13 +160,13 @@
           <li><span>No weekly achievements yet.</span></li>
           {% endfor %}
         </ul>
-      </section>
+      </section>{% endif %}
     </div>
 
-    <section class="family-dashboard-panel">
+    {% if feature_enabled('family_leaderboards') %}<section class="family-dashboard-panel">
       <div class="split-header">
         <h4>Member progress</h4>
-        <span class="muted-meta">Ranked by earned challenge and quiz points</span>
+        <span class="muted-meta">{% if feature_enabled('family_points') %}Ranked by earned challenge and quiz points{% else %}Family progress{% endif %}</span>
       </div>
       <div class="member-progress-list">
         {% for row in dashboard_member_progress %}
@@ -173,13 +174,11 @@
           <div>
             <strong>{{ row.membership.user.username }}</strong>
             <p class="muted-meta">
-              {{ row.completed_challenges }} completed · {{ row.pending_challenges }} pending · {{ row.quiz_points }} quiz pts · {{ row.total_points }} total pts
+              {{ row.completed_challenges }} completed · {{ row.pending_challenges }} pending{% if feature_enabled('family_points') %} · {{ row.quiz_points }} quiz pts · {{ row.total_points }} total pts{% endif %}
             </p>
           </div>
           {% if row.progress_percent is not none %}
-          <div class="progress-meter" aria-label="{{ row.progress_percent }}% challenge progress">
-            <span style="width: {{ row.progress_percent }}%"></span>
-          </div>
+          {{ progress_bar(row.progress_percent, row.membership.user.username ~ ' challenge progress') }}
           {% else %}
           <p class="muted-meta">Activity-based goal: progress shown through completed work.</p>
           {% endif %}
@@ -195,7 +194,7 @@
         <p class="muted-meta">No members yet.</p>
         {% endfor %}
       </div>
-    </section>
+    </section>{% endif %}
   </section>
 
   <section id="family-goal" class="family-section" data-family-panel hidden>
@@ -210,6 +209,7 @@
     <h3>Polls</h3>
     {% if can_create_polls %}
     <form class="poll-form compact-composer" action="{{ url_for('family.create_poll', family_id=family.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <h4>Create official poll</h4>
       <label>
         Question
@@ -262,13 +262,15 @@
             </p>
           </div>
           {% if row.can_close %}
-          <form action="{{ url_for('family.close_poll', family_id=family.id, poll_id=poll.id) }}" method="post" onsubmit="return confirm('Close this poll now?');">
-            <button class="text-button danger-text" type="submit">Close poll</button>
+          <form action="{{ url_for('family.close_poll', family_id=family.id, poll_id=poll.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button class="text-button danger-text" type="submit" data-confirm="Close this poll now? Members will still be able to see the final results.">Close poll</button>
           </form>
           {% endif %}
         </header>
         {% if member and row.is_open %}
         <form action="{{ url_for('family.vote_poll', family_id=family.id, poll_id=poll.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <div class="poll-options">
             {% for option_row in row.options %}
             <label class="poll-option">
@@ -323,6 +325,7 @@
       action="{{ url_for('family.create_challenge', family_id=family.id) }}"
       method="post"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <h4>Create official challenge</h4>
       <input type="text" name="title" placeholder="Challenge title" required />
       <textarea name="description" rows="3" placeholder="What should members do?"></textarea>
@@ -376,6 +379,7 @@
             enctype="multipart/form-data"
             class="challenge-complete-form"
           >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <strong>Complete challenge</strong>
             <input type="text" name="evidence_text" placeholder="What did you do? Optional" />
             <label class="file-pill">
@@ -428,36 +432,43 @@
         <span class="member-actions">
           {% if can_manage_roles %}
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post" onsubmit="return confirm('Promote this member to Family admin?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="confirm" value="1" />
             <button class="text-button" type="submit">Make admin</button>
           </form>
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='make_moderator') }}" method="post" onsubmit="return confirm('Make this member a Family moderator?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="confirm" value="1" />
             <button class="text-button" type="submit">Make moderator</button>
           </form>
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='demote') }}" method="post" onsubmit="return confirm('Remove this member role?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="confirm" value="1" />
             <button class="text-button" type="submit">Make member</button>
           </form>
           {% endif %}
           {% if can_manage_members %}
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='remove') }}" method="post" onsubmit="return confirm('Remove this member from the Family?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="confirm" value="1" />
             <button class="text-button danger-text" type="submit">Remove</button>
           </form>
           {% endif %}
           {% if can_warn_members %}
           <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='warn') }}" method="post" onsubmit="return confirm('Warn this member?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="reason" value="Family rule reminder" />
             <button class="text-button" type="submit">Warn</button>
           </form>
           <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='mute') }}" method="post" onsubmit="return confirm('Mute this member for Family chat?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="reason" value="Temporary Family moderation action" />
             <button class="text-button" type="submit">Mute</button>
           </form>
           {% endif %}
           {% if can_suspend_members %}
           <form action="{{ url_for('family.restrict_family_member', family_id=family.id, member_id=membership.id, action='suspend') }}" method="post" onsubmit="return confirm('Temporarily suspend this member inside the Family?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="reason" value="Temporary Family suspension" />
             <button class="text-button danger-text" type="submit">Suspend</button>
           </form>
@@ -484,6 +495,7 @@
       action="{{ url_for('family.create_quiz', family_id=family.id) }}"
       method="post"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <h4>Create multiple-choice quiz</h4>
       <input type="text" name="title" placeholder="Quiz title" required />
       <textarea name="description" rows="2" placeholder="Short quiz description"></textarea>
@@ -555,14 +567,14 @@
 
     <div class="quiz-panels">
       <section>
-        <h4>Family leaderboard</h4>
+        {% if feature_enabled('family_leaderboards') %}<h4>Family leaderboard</h4>
         <ol>
           {% for row in quiz_leaderboard %}
           <li>{{ row.user.username }} - {{ row.points }} pts</li>
           {% else %}
           <li>No quiz points yet.</li>
           {% endfor %}
-        </ol>
+        </ol>{% else %}<p class="muted-meta">Family leaderboards are coming soon.</p>{% endif %}
       </section>
       <section>
         <h4>Your quiz history</h4>
@@ -590,6 +602,7 @@
       enctype="multipart/form-data"
       class="post-composer compact-composer"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <input type="hidden" name="family_id" value="{{ family.id }}" />
       <input type="hidden" name="audience" value="family" />
       <textarea
@@ -648,6 +661,7 @@
       data-remote-search-type="people"
       data-remote-search-fill-input="1"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <label class="search-input-wrap">
         <span aria-hidden="true">Search</span>
         <input

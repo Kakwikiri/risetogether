@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from werkzeug.utils import safe_join
 
 from extensions import db
+from helpers import user_avatar_url
 from models import Family, FamilyMember, MediaAsset, Message, Profile, PushSubscription, User
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -44,7 +45,7 @@ def current_user_info():
             "username": current_user.username,
             "email": current_user.email,
             "display_name": profile.display_name,
-            "avatar": profile.avatar,
+            "avatar": user_avatar_url(current_user),
             "bio": profile.bio,
             "privacy_posts": profile.privacy_posts,
             "notifications_enabled": profile.notifications_enabled,

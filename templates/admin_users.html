@@ -23,6 +23,7 @@
     data-remote-search-url="{{ url_for('api.search_users') }}"
     data-remote-search-type="people"
   >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="search" name="q" value="{{ query_text }}" placeholder="Search username, email or user ID" data-live-search-input />
     <button class="button secondary" type="submit">Search</button>
     {% if query_text %}
@@ -53,7 +54,7 @@
         <td>{{ user.email }}</td>
         <td>{{ user.country or 'Unknown' }}</td>
         <td>{{ role_labels.get(user.admin_role or ('admin' if user.is_admin else ''), 'Member') }}</td>
-        <td>{{ 'Verified' if user.is_verified else 'None' }}</td>
+        <td>{{ 'Verified' if feature_enabled('verification_badges') and user.is_verified else 'None' }}</td>
         <td>
           {% if user.is_banned %}
             Banned{% if user.ban_until %} until {{ user.ban_until.strftime('%Y-%m-%d') }}{% endif %}
@@ -67,6 +68,7 @@
           {% if user.id != current_user.id %}
           {% if current_admin_role == 'super_admin' %}
           <form action="{{ url_for('moderation.set_website_role', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="admin_role">
               <option value="" {% if not user.admin_role and not user.is_admin %}selected{% endif %}>Member</option>
               <option value="moderator" {% if user.admin_role == 'moderator' %}selected{% endif %}>Moderator</option>
@@ -78,39 +80,49 @@
           {% endif %}
           {% if current_admin_role == 'super_admin' %}
           <form action="{{ url_for('moderation.toggle_admin', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">
               {{ 'Remove admin' if user.is_admin else 'Make admin' }}
             </button>
           </form>
           {% endif %}
           <form action="{{ url_for('moderation.toggle_ban_user', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">
               {{ 'Unban' if user.is_banned else 'Ban' }}
             </button>
           </form>
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='warn') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Warn</button>
           </form>
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='temp_ban') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Ban 1 month</button>
           </form>
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='perm_ban') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button danger" type="submit">Permanent ban</button>
           </form>
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='unban') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Unban</button>
           </form>
-          <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='verify') }}" method="post">
+          {% if feature_enabled('verification_badges') %}<form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='verify') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">{{ 'Remove badge' if user.is_verified else 'Give badge' }}</button>
-          </form>
+          </form>{% endif %}
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='hide_directory') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">{{ 'Show in users' if user.is_hidden_from_directory else 'Hide from users' }}</button>
           </form>
           {% if current_admin_role == 'super_admin' %}
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='reset_password') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Generate password</button>
           </form>
           <form action="{{ url_for('moderation.admin_delete_user', user_id=user.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button danger" type="submit">Delete</button>
           </form>
           {% endif %}

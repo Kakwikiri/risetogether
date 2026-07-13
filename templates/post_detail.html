@@ -4,7 +4,7 @@
     <div class="post-author">
       <img
         class="avatar"
-        src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+        src="{{ user_avatar_url(post.author) }}"
         alt="Avatar"
       />
       <div>
@@ -12,7 +12,7 @@
           ><a
             href="{{ url_for('main.profile', username=post.author.username) }}"
             >{{ post.author.profile.display_name }}</a
-          >{% if post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
+          >{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
         >
         <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }} · {{ post.audience|capitalize }}{% if post.is_hidden %} · Hidden{% endif %}</span>
       </div>
@@ -53,6 +53,7 @@
       method="post"
       class="reaction-form"
     >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       {% for key,label in reactions.items() %}
       <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}">
         {{ reaction_counts.get(key, 0) }} {{ label }}
@@ -65,6 +66,7 @@
     <details class="report-widget">
       <summary>Report</summary>
       <form action="{{ url_for('moderation.report_post', post_id=post.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <textarea name="reason" rows="2" required placeholder="Why are you reporting this post?"></textarea>
         <button class="button danger" type="submit">Send report</button>
       </form>
@@ -72,9 +74,11 @@
     {% endif %}
     {% if post.user_id == current_user.id %}
     <form action="{{ url_for('main.manage_post', post_id=post.id, action='hide') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button secondary" type="submit">{{ 'Unhide' if post.is_hidden else 'Hide' }}</button>
     </form>
     <form action="{{ url_for('main.manage_post', post_id=post.id, action='delete') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button danger" type="submit">Delete</button>
     </form>
     {% endif %}
@@ -88,6 +92,7 @@
       <p>{{ link_mentions(comment.content) }}</p>
       <div class="comment-actions">
         <form action="{{ url_for('main.like_comment', comment_id=comment.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="text-button" type="submit">Like {{ comment.likes.count() }}</button>
         </form>
       </div>
@@ -97,12 +102,14 @@
         <span>{{ reply.created_at.strftime('%b %d, %Y %H:%M') }}</span>
         <p>{{ link_mentions(reply.content) }}</p>
         <form action="{{ url_for('main.like_comment', comment_id=reply.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="text-button" type="submit">Like {{ reply.likes.count() }}</button>
         </form>
       </div>
       {% endfor %}
       {% if current_user.is_authenticated %}
       <form action="" method="post" class="reply-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="hidden" name="parent_id" value="{{ comment.id }}" />
         <input type="text" name="comment" placeholder="Reply..." />
         <button class="button secondary" type="submit">Reply</button>
@@ -113,6 +120,7 @@
     <p>No comments yet.</p>
     {% endfor %} {% if current_user.is_authenticated %}
     <form action="" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <textarea
         name="comment"
         rows="3"

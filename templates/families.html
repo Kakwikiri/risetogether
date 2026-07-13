@@ -12,6 +12,7 @@
     data-remote-search-url="{{ url_for('api.search_families') }}"
     data-remote-search-type="families"
   >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label class="search-input-wrap">
       <span aria-hidden="true">Search</span>
       <input
@@ -39,7 +40,7 @@
     >
       <img
         class="family-card-image"
-        src="{{ url_for('api.serve_upload', filename=family.profile_image) if family.profile_image else url_for('static', filename='images/risetogether-logo.png') }}"
+        src="{{ family_avatar_url(family) }}"
         alt="{{ family.name }} picture"
       />
       <h3>

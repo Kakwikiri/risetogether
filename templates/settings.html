@@ -2,6 +2,7 @@
 <section class="card form-card">
   <h2>Settings</h2>
   <form action="" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>
       <input
         type="checkbox"
@@ -45,8 +46,9 @@
     <h3>Delete account</h3>
     <p>Type DELETE to remove your account permanently.</p>
     <form action="{{ url_for('main.delete_account') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <input type="text" name="confirm" placeholder="DELETE" required />
-      <button class="button secondary" type="submit">Delete Account</button>
+      <button class="button secondary" type="submit" data-confirm="Delete your RiseTogether account permanently? This cannot be undone.">Delete Account</button>
     </form>
   </section>
 </section>

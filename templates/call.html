@@ -4,7 +4,7 @@
   <div class="voice-fallback" id="voice-fallback">
     <img
       class="call-avatar"
-      src="{{ url_for('static', filename='images/default-avatar.png') if not other.profile.avatar else url_for('api.serve_upload', filename=other.profile.avatar) }}"
+      src="{{ user_avatar_url(other) }}"
       alt="{{ other.username }}"
     />
     <h1>{{ other.profile.display_name }}</h1>

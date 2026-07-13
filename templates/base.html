@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f766e" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <meta name="feature-media-autoplay" content="{{ '1' if feature_enabled('media_autoplay') else '0' }}" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="RiseTogether" />
@@ -57,16 +59,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-chat-date-ticks"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage4-avatars"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-chat-date-ticks"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-stage4-avatars"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260713-chat-date-ticks"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260713-stage4-avatars"
     ></script>
   </head>
   <body>
@@ -115,6 +117,7 @@
         {% if current_user.admin_role == 'super_admin' %}
         <a href="{{ url_for('moderation.admin_audit_log') }}" data-icon="☷"><span>Audit</span></a>
         <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Settings</span></a>
+        <a href="{{ url_for('moderation.admin_feature_flags') }}" data-icon="⚑"><span>Features</span></a>
         {% endif %}
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" data-icon="⇥"><span>Logout</span></a>
@@ -127,12 +130,33 @@
         <button class="install-button" type="button" hidden>Install</button>
       </nav>
     </header>
-    <div class="toast" data-toast hidden></div>
+    <div class="toast" data-toast data-tone="info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <div class="app-update-notice" data-update-notice hidden>
       <span>A new version of RiseTogether is available.</span>
       <button class="button" type="button" data-update-now>Update now</button>
       <button class="button secondary" type="button" data-update-later>Later</button>
     </div>
+    <dialog class="ui-modal confirmation-modal" data-confirmation-modal aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+      <form method="dialog" class="ui-modal__card">
+        <span class="ui-modal__icon ui-modal__icon--question" aria-hidden="true">?</span>
+        <h2 id="confirmation-title">Are you sure?</h2>
+        <p id="confirmation-message" data-confirmation-message>Please confirm this action.</p>
+        <div class="ui-modal__actions">
+          <button class="button secondary" value="cancel" data-confirmation-cancel>Not now</button>
+          <button class="button" value="confirm" data-confirmation-accept>Yes, continue</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="ui-modal celebration-modal" data-celebration-modal aria-labelledby="celebration-title" aria-describedby="celebration-message">
+      <div class="ui-modal__card">
+        <span class="ui-modal__glow" aria-hidden="true"></span>
+        <span class="ui-modal__icon ui-modal__icon--celebration" aria-hidden="true">✦</span>
+        <p class="eyebrow">A moment worth celebrating</p>
+        <h2 id="celebration-title" data-celebration-title>Beautiful progress</h2>
+        <p id="celebration-message" data-celebration-message>Your effort matters. Keep growing, one gentle step at a time.</p>
+        <button class="button" type="button" data-celebration-close>Keep going</button>
+      </div>
+    </dialog>
     <div class="install-panel" data-install-panel hidden>
       <div class="install-card">
         <button class="install-close" type="button" data-install-close aria-label="Close install help">×</button>

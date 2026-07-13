@@ -1,0 +1,26 @@
+{% extends 'base.html' %} {% block content %}
+<section class="card form-card">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Super Admin</p>
+      <h2>Feature flags</h2>
+      <p class="muted-meta">Turn features on or off without deleting code or redeploying Render.</p>
+    </div>
+  </div>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="feature-flag-list">
+      {% for name, definition in definitions.items() %}
+      <label class="feature-flag-row">
+        <span>
+          <strong>{{ definition[0] }}</strong>
+          <small>{{ name }} · safe default {{ 'on' if definition[1] else 'off' }}</small>
+        </span>
+        <input type="checkbox" name="{{ name }}" value="1" {% if flags[name] %}checked{% endif %} />
+      </label>
+      {% endfor %}
+    </div>
+    <button class="button" type="submit">Save feature flags</button>
+  </form>
+</section>
+{% endblock %}

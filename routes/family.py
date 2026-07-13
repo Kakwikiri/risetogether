@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
+from feature_flags import is_feature_enabled
 from helpers import get_media_type, save_media, send_device_push, validate_upload
 from models import (
     ChallengeCompletion,
@@ -781,7 +782,11 @@ def family_detail(family_id):
         members=members,
         posts=posts,
         categories=FAMILY_CATEGORIES,
-        challenge_types=CHALLENGE_TYPES,
+        challenge_types={
+            key: label
+            for key, label in CHALLENGE_TYPES.items()
+            if key != "daily_check_in" or is_feature_enabled("daily_checkins")
+        },
         role_labels=FAMILY_ROLE_LABELS,
         can_edit_family=family_has_permission(member, "edit_family"),
         can_change_family_image=family_has_permission(member, "change_family_image"),
@@ -1078,6 +1083,9 @@ def create_challenge(family_id):
     if challenge_type not in CHALLENGE_TYPES:
         flash("Choose a valid challenge type.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge_type == "daily_check_in" and not is_feature_enabled("daily_checkins"):
+        flash("Daily check-ins are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if status not in CHALLENGE_STATUSES:
         status = "active"
     if points is None:
@@ -1148,16 +1156,17 @@ def complete_challenge(family_id, challenge_id):
     post_content = f"Completed challenge: {challenge.title}"
     if evidence_text:
         post_content = f"{post_content}\n\n{evidence_text}"
-    db.session.add(
-        Post(
-            user_id=current_user.id,
-            family_id=family.id,
-            content=post_content,
-            media_url=evidence_media_url,
-            media_type=get_media_type(evidence_media_url) if evidence_media_url else "text",
-            audience="family",
+    if is_feature_enabled("achievement_posts"):
+        db.session.add(
+            Post(
+                user_id=current_user.id,
+                family_id=family.id,
+                content=post_content,
+                media_url=evidence_media_url,
+                media_type=get_media_type(evidence_media_url) if evidence_media_url else "text",
+                audience="family",
+            )
         )
-    )
     db.session.commit()
     flash("Challenge marked complete and shared to Family posts.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")

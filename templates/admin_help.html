@@ -12,12 +12,15 @@
       </small>
       <div class="admin-actions">
         <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='reviewed') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button secondary" type="submit">Reviewed</button>
         </form>
         <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='closed') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button" type="submit">Close</button>
         </form>
         <form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='open') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button secondary" type="submit">Reopen</button>
         </form>
       </div>

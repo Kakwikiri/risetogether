@@ -212,7 +212,13 @@ const appendChatMessage = (chatLog, data, isOwn) => {
 
   const user = document.createElement("span");
   user.className = "chat-user";
-  user.textContent = isOwn ? "You" : data.sender_name || `User ${data.sender_id}`;
+  if (!isOwn && data.sender_avatar_url) {
+    const avatar = document.createElement("img");
+    avatar.src = data.sender_avatar_url;
+    avatar.alt = "";
+    user.appendChild(avatar);
+  }
+  user.append(isOwn ? "You" : data.sender_name || `User ${data.sender_id}`);
 
   const body = data.media_type === "call" || !data.content
     ? null

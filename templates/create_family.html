@@ -2,6 +2,7 @@
 <section class="card form-card family-form-card">
   <h2>Create a goal-based Family</h2>
   <form action="" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>What is your Family called?</label>
     <input type="text" name="name" value="{{ form.get('name', '') if form else '' }}" required />
 

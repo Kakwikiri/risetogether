@@ -7,6 +7,7 @@
       <p>Inspire someone. Get inspired. Continue sharing support and hope.</p>
     </div>
     <form action="" method="post" class="stacked-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <label for="email">Username or email</label>
       <input id="email" type="text" name="email" required autocomplete="username" />
       <label for="password">Password</label>

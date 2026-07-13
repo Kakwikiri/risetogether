@@ -1,0 +1,34 @@
+{% macro progress_bar(value, label='Progress', tone='brand') -%}
+<div class="ui-progress" role="progressbar" aria-label="{{ label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ value|int }}">
+  <span class="ui-progress__fill ui-progress__fill--{{ tone }}" style="width: {{ [0, [value|int, 100]|min]|max }}%"></span>
+</div>
+{%- endmacro %}
+
+{% macro achievement_card(title, description='', icon='✦', meta='') -%}
+<article class="achievement-card">
+  <span class="achievement-card__icon" aria-hidden="true">{{ icon }}</span>
+  <div><strong>{{ title }}</strong>{% if description %}<p>{{ description }}</p>{% endif %}{% if meta %}<small>{{ meta }}</small>{% endif %}</div>
+</article>
+{%- endmacro %}
+
+{% macro user_avatar(user, size='medium', class_name='', alt='') -%}<img class="user-avatar user-avatar--{{ size }} {{ class_name }}" src="{{ user_avatar_url(user) }}" alt="{{ alt or (user.profile.display_name if user.profile else user.username) }}" loading="lazy" decoding="async" />{%- endmacro %}
+{% macro family_avatar(family, size='medium', class_name='', alt='') -%}<img class="family-placeholder-avatar family-placeholder-avatar--{{ size }} {{ class_name }}" src="{{ family_avatar_url(family) }}" alt="{{ alt or (family.name ~ ' Family') }}" loading="lazy" decoding="async" />{%- endmacro %}
+
+{% macro avatar_stack(users, limit=4, label='People') -%}
+<div class="avatar-stack" aria-label="{{ label }}">
+  {% for user in users[:limit] %}<img src="{{ user_avatar_url(user) }}" alt="{{ user.profile.display_name if user.profile else user.username }}" />{% endfor %}
+  {% if users|length > limit %}<span aria-label="{{ users|length - limit }} more">+{{ users|length - limit }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro skeleton(lines=3, label='Loading content') -%}
+<div class="skeleton-card" role="status" aria-label="{{ label }}">{% for line in range(lines) %}<span class="skeleton-line skeleton-line--{{ (line % 3) + 1 }}"></span>{% endfor %}<span class="sr-only">{{ label }}</span></div>
+{%- endmacro %}
+
+{% macro empty_state(title, message, icon='♡', action_url='', action_label='') -%}
+<section class="empty-state-card"><span class="empty-state-card__icon" aria-hidden="true">{{ icon }}</span><h3>{{ title }}</h3><p>{{ message }}</p>{% if action_url and action_label %}<a class="button" href="{{ action_url }}">{{ action_label }}</a>{% endif %}</section>
+{%- endmacro %}
+
+{% macro status_chip(label, tone='neutral') -%}<span class="status-chip status-chip--{{ tone }}">{{ label }}</span>{%- endmacro %}
+{% macro point_badge(points, label='points') -%}<span class="point-badge"><strong>{{ points }}</strong> {{ label }}</span>{%- endmacro %}
+{% macro family_level_badge(level, name='Growing Together') -%}<span class="family-level-badge"><span aria-hidden="true">✦</span> Level {{ level }} · {{ name }}</span>{%- endmacro %}

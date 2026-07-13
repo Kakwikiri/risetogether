@@ -7,6 +7,7 @@
       <p>Your password is stored securely as a hash, not plain text.</p>
     </div>
     <form action="" method="post" class="stacked-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <label for="username">Username</label>
       <input id="username" type="text" name="username" required autocomplete="username" />
       <label for="email">Email address</label>

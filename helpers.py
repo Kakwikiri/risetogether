@@ -2,9 +2,12 @@ import json
 import os
 import shutil
 import subprocess
+import hashlib
 from datetime import datetime
+from html import escape
+from urllib.parse import quote
 
-from flask import current_app
+from flask import current_app, url_for
 from werkzeug.utils import secure_filename
 
 try:
@@ -43,6 +46,69 @@ REACTION_LABELS = {
     "inspire": "💪 You Inspire Me",
 }
 
+AVATAR_PALETTES = (
+    ("#115e59", "#ffffff"), ("#166534", "#ffffff"),
+    ("#1e40af", "#ffffff"), ("#6b21a8", "#ffffff"),
+    ("#9f1239", "#ffffff"), ("#9a3412", "#ffffff"),
+    ("#334155", "#ffffff"), ("#0e7490", "#ffffff"),
+)
+
+
+def stable_avatar_palette(identity):
+    digest = hashlib.sha256(str(identity or "risetogether").encode("utf-8")).digest()
+    return AVATAR_PALETTES[digest[0] % len(AVATAR_PALETTES)]
+
+
+def display_initial(value, fallback="R"):
+    value = (value or "").strip()
+    return (value[0] if value else fallback).upper()
+
+
+def initials(value, limit=2, fallback="RT"):
+    words = [word for word in (value or "").strip().split() if word]
+    return "".join(word[0] for word in words[:limit]).upper() if words else fallback
+
+
+def svg_data_url(svg):
+    return f"data:image/svg+xml,{quote(svg, safe='')}"
+
+
+def user_avatar_url(user):
+    profile = getattr(user, "profile", None)
+    if profile and profile.avatar:
+        return url_for("api.serve_upload", filename=profile.avatar)
+    name = getattr(profile, "display_name", "") or getattr(user, "username", "") or "RiseTogether member"
+    identity = getattr(user, "id", None) or getattr(user, "username", name)
+    background, foreground = stable_avatar_palette(f"user:{identity}")
+    initial = escape(display_initial(name))
+    label = escape(name)
+    return svg_data_url(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" '
+        f'aria-label="{label}"><rect width="128" height="128" rx="64" fill="{background}"/>'
+        '<circle cx="98" cy="28" r="18" fill="rgba(255,255,255,.10)"/>'
+        f'<text x="64" y="69" text-anchor="middle" dominant-baseline="middle" fill="{foreground}" '
+        f'font-family="system-ui,-apple-system,sans-serif" font-size="58" font-weight="750">{initial}</text></svg>'
+    )
+
+
+def family_avatar_url(family):
+    if getattr(family, "profile_image", ""):
+        return url_for("api.serve_upload", filename=family.profile_image)
+    name = getattr(family, "name", "") or "RiseTogether Family"
+    identity = getattr(family, "id", None) or name
+    background, foreground = stable_avatar_palette(f"family:{identity}")
+    family_initials = escape(initials(name))
+    label = escape(f"{name} Family")
+    return svg_data_url(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" '
+        f'aria-label="{label}"><rect width="160" height="160" rx="36" fill="{background}"/>'
+        '<g fill="none" stroke="rgba(255,255,255,.58)" stroke-width="5" stroke-linecap="round">'
+        '<circle cx="67" cy="43" r="13"/><circle cx="101" cy="48" r="10"/>'
+        '<path d="M43 80c4-18 44-18 48 0M84 80c3-13 30-13 33 0"/></g>'
+        f'<text x="80" y="126" text-anchor="middle" fill="{foreground}" font-family="system-ui,-apple-system,sans-serif" '
+        f'font-size="38" font-weight="800" letter-spacing="2">{family_initials}</text></svg>'
+    )
+
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -77,9 +143,48 @@ def file_size(file):
     return size
 
 
+def upload_signature_matches(file, extension):
+    position = file.stream.tell()
+    file.stream.seek(0)
+    header = file.stream.read(16)
+    file.stream.seek(position)
+    if extension in {"jpg", "jpeg"}:
+        return header.startswith(b"\xff\xd8\xff")
+    if extension == "png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if extension == "gif":
+        return header.startswith((b"GIF87a", b"GIF89a"))
+    if extension == "pdf":
+        return header.startswith(b"%PDF-")
+    if extension == "doc":
+        return header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+    if extension == "docx":
+        return header.startswith(b"PK\x03\x04")
+    if extension in {"mp4", "m4v", "mov", "3gp", "m4a"}:
+        return len(header) >= 12 and header[4:8] == b"ftyp"
+    if extension in {"webm", "mkv"}:
+        return header.startswith(b"\x1aE\xdf\xa3")
+    if extension == "avi":
+        return header.startswith(b"RIFF") and header[8:12] == b"AVI "
+    if extension == "wav":
+        return header.startswith(b"RIFF") and header[8:12] == b"WAVE"
+    if extension == "ogg":
+        return header.startswith(b"OggS")
+    if extension == "mp3":
+        return header.startswith(b"ID3") or (
+            len(header) >= 2 and header[0] == 0xFF and header[1] & 0xE0 == 0xE0
+        )
+    if extension in {"mpeg", "mpg"}:
+        return header.startswith((b"\x00\x00\x01\xba", b"\x00\x00\x01\xb3"))
+    return False
+
+
 def validate_upload(file):
     if not file or not allowed_file(file.filename):
         return False, "Unsupported file type."
+    extension = file.filename.rsplit(".", 1)[1].lower()
+    if not upload_signature_matches(file, extension):
+        return False, "The file contents do not match the selected file type."
     media_type = get_media_type(file.filename)
     size = file_size(file)
     limit = get_upload_limit(media_type)
@@ -272,6 +377,14 @@ def device_push_body(notification):
 
 
 def send_device_push(notification, title="RiseTogether"):
+    from feature_flags import is_feature_enabled
+
+    if not is_feature_enabled("enhanced_notifications"):
+        current_app.logger.info(
+            "push_skipped enhanced_notifications_disabled notification_id=%s",
+            notification.id,
+        )
+        return
     if not webpush:
         current_app.logger.info("push_skipped pywebpush_not_installed notification_id=%s", notification.id)
         return

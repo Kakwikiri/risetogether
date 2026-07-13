@@ -13,7 +13,7 @@
       <header>
         <img
           class="avatar"
-          src="{{ url_for('static', filename='images/default-avatar.png') if not post.author.profile.avatar else url_for('api.serve_upload', filename=post.author.profile.avatar) }}"
+          src="{{ user_avatar_url(post.author) }}"
           alt=""
         />
         <div>
@@ -32,6 +32,7 @@
     </article>
 
     <form method="post" class="share-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       {% if recipients %}
       <div class="share-recipient-grid">
         {% for user in recipients %}
@@ -39,7 +40,7 @@
           <input type="checkbox" name="recipient_ids" value="{{ user.id }}" />
           <img
             class="avatar"
-            src="{{ url_for('static', filename='images/default-avatar.png') if not user.profile.avatar else url_for('api.serve_upload', filename=user.profile.avatar) }}"
+            src="{{ user_avatar_url(user) }}"
             alt=""
           />
           <span>
