@@ -29,6 +29,11 @@
       />
       Show message preview in phone notifications
     </label>
+    <fieldset class="notification-preference-grid">
+      <legend>Notification categories</legend>
+      <p class="muted-meta">Turn off anything that is not useful to you. Essential account and safety notices remain available.</p>
+      {% for key, label in notification_categories.items() %}<label><input type="checkbox" name="notification_{{ key }}" {% if notification_preferences.get(key, true) %}checked{% endif %} />{{ label }}</label>{% endfor %}
+    </fieldset>
     {% if feature_enabled('achievement_posts') %}
     <label>
       <input type="checkbox" name="auto_share_completed_challenges" {% if current_user.profile.auto_share_completed_challenges %}checked{% endif %} />

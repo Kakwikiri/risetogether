@@ -972,6 +972,41 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("<svg", svg)
         self.assertIn("migration_stage28_risetogether_badges", migration)
 
+    def test_stage_twenty_nine_notifications_group_and_dedupe_server_side(self):
+        models = (ROOT / "models.py").read_text()
+        service = (ROOT / "notifications_service.py").read_text()
+        self.assertIn("class NotificationPreference", models)
+        self.assertIn("class NotificationDeliveryKey", models)
+        self.assertIn("event_count", models + service)
+        self.assertIn("with_for_update", service)
+        self.assertIn("NotificationDeliveryKey(key=dedupe_key", service)
+        self.assertIn("timedelta(hours=24)", service)
+
+    def test_stage_twenty_nine_message_context_privacy_and_deep_links(self):
+        chat = (ROOT / "routes" / "chat.py").read_text()
+        template = (ROOT / "templates" / "chat.html").read_text()
+        helpers = (ROOT / "helpers.py").read_text()
+        self.assertIn("preview =", chat)
+        self.assertIn("#message-{message.id}", chat)
+        self.assertIn('id="message-{{ message.id }}"', template)
+        self.assertIn("notification_previews_enabled", helpers)
+        self.assertIn("You received a new message.", helpers)
+
+    def test_stage_twenty_nine_preferences_reads_and_required_categories(self):
+        service = (ROOT / "notifications_service.py").read_text()
+        main = (ROOT / "routes" / "main.py").read_text()
+        settings = (ROOT / "templates" / "settings.html").read_text()
+        migration = (ROOT / "migrations" / "20260713_stage29_smart_notifications.sql").read_text()
+        for category in ["message", "comment", "reaction", "follow", "family_invitation",
+                         "challenge_invitation", "challenge_reminder", "challenge_completed",
+                         "goal_progress", "weekly_report", "upgrade_campaign",
+                         "contribution_received", "family_level", "encouragement"]:
+            self.assertIn(f'"{category}"', service)
+        self.assertIn("mark_notification_read", main)
+        self.assertIn("mark_all_notifications_read", main)
+        self.assertIn("notification_preferences", settings)
+        self.assertIn("migration_stage29_smart_notifications", migration)
+
 
 if __name__ == "__main__":
     unittest.main()

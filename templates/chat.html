@@ -63,7 +63,7 @@
     <div class="chat-date-separator" data-chat-date="{{ message_day }}">{{ chat_day_label(message.created_at) }}</div>
     {% set date_state.last_day = message_day %}
     {% endif %}
-    <div
+    <div id="message-{{ message.id }}"
       class="chat-message {% if message.sender_id == current_user.id %}own{% endif %}{% if message.pinned_until %} is-pinned{% endif %}"
       data-message-id="{{ message.id }}"
       data-sender-id="{{ message.sender_id }}"

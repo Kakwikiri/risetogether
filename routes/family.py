@@ -15,7 +15,7 @@ from family_upgrades import (
     family_has_upgrade, next_capacity_target, open_quiz_limit,
     purchased_upgrade_keys, upgrade_is_available,
 )
-from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
+from helpers import get_media_type, get_upload_limit, save_media, validate_upload
 from models import (
     ChallengeCompletion,
     ChallengeParticipant,
@@ -62,6 +62,7 @@ from points import (
     spend_personal_points,
 )
 from streaks import record_challenge_streaks, record_streak_activity
+from notifications_service import smart_notify
 from weekly_reports import get_or_create_weekly_report, report_post_content
 
 family_bp = Blueprint("family", __name__)
@@ -290,16 +291,27 @@ def cleanup_family_image(filename):
 
 
 def add_family_notification(user_id, category, message, action_url):
-    notification = Notification(
-        user_id=user_id,
-        category=category,
-        message=message,
-        action_url=action_url,
+    notification, _ = smart_notify(
+        user_id=user_id, category=category, message=message, action_url=action_url,
     )
-    db.session.add(notification)
-    db.session.flush()
-    send_device_push(notification)
     return notification
+
+
+def notify_family_level_increase(family, previous_level):
+    if previous_level is None or not is_feature_enabled("family_levels"):
+        return
+    db.session.flush()
+    summary = family_level_summary(family)
+    if summary["level"] <= previous_level:
+        return
+    for membership in family.members:
+        smart_notify(
+            user_id=membership.user_id, category="family_level",
+            message=f"{family.name} grew to Level {summary['level']} · {summary['name']}!",
+            action_url=url_for("family.family_detail", family_id=family.id) + "#family-home",
+            group_key=f"family-level:{family.id}:{summary['level']}",
+            dedupe_key=f"family-level:{family.id}:{summary['level']}:{membership.user_id}",
+        )
 
 
 def normalize_family_role(role):
@@ -1254,6 +1266,29 @@ def family_detail(family_id):
     )
     if family.is_active and is_feature_enabled("weekly_reports") and (member or is_super_admin):
         ensure_weekly_report_ready(family)
+    if family.is_active and member and is_feature_enabled("enhanced_notifications"):
+        now = datetime.utcnow()
+        reminder_window = now + timedelta(hours=24)
+        ending_challenges = FamilyChallenge.query.filter(
+            FamilyChallenge.family_id == family.id, FamilyChallenge.status == "active",
+            FamilyChallenge.ends_at > now, FamilyChallenge.ends_at <= reminder_window,
+        ).limit(5).all()
+        for challenge in ending_challenges:
+            completed = ChallengeCompletion.query.filter_by(
+                challenge_id=challenge.id, user_id=current_user.id,
+                period_key=challenge_completion_period(challenge), verification_status="completed",
+            ).first()
+            if not completed:
+                smart_notify(
+                    user_id=current_user.id, category="challenge_reminder",
+                    message=f"{challenge.title} in {family.name} ends within 24 hours. Join in if it feels right for you.",
+                    action_url=url_for("family.family_detail", family_id=family.id) + f"#challenge-{challenge.id}",
+                    group_key=f"challenge-reminder:{challenge.id}:{current_user.id}",
+                    dedupe_key=f"challenge-reminder:{challenge.id}:{current_user.id}:{challenge.ends_at.date().isoformat()}",
+                    reminder=True,
+                )
+        if ending_challenges:
+            db.session.commit()
     return render_family_detail_page(
         family, member, members, capacity, posts, is_super_admin,
         encouragement_checkin_count,
@@ -1388,6 +1423,20 @@ def family_encouragement(family_id):
             needs_crisis_guidance=any(phrase in lowered for phrase in CRISIS_PHRASES),
         )
         db.session.add(item)
+        db.session.flush()
+        request_url = url_for("family.family_encouragement", family_id=family.id) + f"#encouragement-{item.id}"
+        for recipient in family.members:
+            if recipient.user_id == current_user.id:
+                continue
+            if visibility == "admins" and recipient.role not in {"owner", "admin"}:
+                continue
+            requester = current_user.username if visibility == "identity" else "Someone"
+            smart_notify(
+                user_id=recipient.user_id, category="encouragement",
+                message=f"{requester} in {family.name} requested encouragement: {ENCOURAGEMENT_CATEGORIES[category]}.",
+                action_url=request_url, group_key=f"encouragement:{family.id}",
+                dedupe_key=f"encouragement:{item.id}:{recipient.user_id}",
+            )
         db.session.commit()
         flash(
             "Your request was shared. If you may be in immediate danger, please also contact emergency help now."
@@ -2435,7 +2484,7 @@ def create_challenge(family_id):
                     membership.user_id,
                     "challenge_created",
                     f"New challenge in {family.name}: {challenge.title}",
-                    url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+                    url_for("family.family_detail", family_id=family.id) + f"#challenge-{challenge.id}",
                 )
     db.session.commit()
     flash("Challenge created.", "success")
@@ -2613,6 +2662,7 @@ def complete_challenge(family_id, challenge_id):
             flash("The evidence file could not be saved.", "warning")
             return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     verification_status = "pending" if challenge.requires_admin_approval else "completed"
+    previous_family_level = family_level_summary(family)["level"] if verification_status == "completed" and is_feature_enabled("family_levels") else None
     completion = ChallengeCompletion(
         challenge_id=challenge.id,
         user_id=current_user.id,
@@ -2642,6 +2692,7 @@ def complete_challenge(family_id, challenge_id):
                     ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
                 ))
             record_challenge_streaks(completion)
+            notify_family_level_increase(family, previous_family_level)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -2853,9 +2904,11 @@ def review_challenge_completion(family_id, completion_id, action):
     if completion.user_id == current_user.id:
         flash("Family leaders cannot approve their own point-bearing completion.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    previous_family_level = family_level_summary(family)["level"] if is_feature_enabled("family_levels") else None
     completion.verification_status = "completed"
     award_challenge_completion_points(completion, awarded_by_id=current_user.id)
     record_challenge_streaks(completion)
+    notify_family_level_increase(family, previous_family_level)
     achievement = None
     if (
         completion.challenge.allow_achievement_sharing

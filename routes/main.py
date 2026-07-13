@@ -14,7 +14,6 @@ from helpers import (
     get_ice_servers,
     get_media_type,
     save_media,
-    send_device_push,
     user_avatar_url,
     validate_upload,
 )
@@ -46,6 +45,10 @@ from models import (
     User,
 )
 from points import family_point_balance, personal_point_balance, reverse_completion_rewards_for_user
+from notifications_service import (
+    NOTIFICATION_CATEGORIES, notification_allowed, preference_map,
+    save_notification_preferences, smart_notify,
+)
 from streaks import STREAK_DEFINITIONS, local_activity_date, queue_expiring_streak_warning, record_streak_activity
 
 main_bp = Blueprint("main", __name__)
@@ -122,16 +125,9 @@ def validate_profile_avatar_upload(file):
 
 
 def add_notification(user_id, category, message, action_url=""):
-    notification = Notification(
-        user_id=user_id,
-        category=category,
-        message=message,
-        action_url=action_url,
+    notification, _ = smart_notify(
+        user_id=user_id, category=category, message=message, action_url=action_url,
     )
-    db.session.add(notification)
-    db.session.flush()
-    emit_notification(notification)
-    send_device_push(notification)
     return notification
 
 
@@ -296,12 +292,14 @@ def grouped_reaction_message(post):
         Reaction.user_id != post.user_id,
     ).count()
     if reactor_count == 1:
-        return "Someone encouraged your post."
-    return f"{reactor_count} people encouraged your post."
+        return "Someone supported your post."
+    return f"{reactor_count} people supported your post."
 
 
 def notify_post_author_about_reactions(post, allow_create=True):
     if post.user_id == current_user.id:
+        return
+    if not notification_allowed(post.user_id, "reaction"):
         return
     action_url = url_for("main.post_detail", post_id=post.id)
     message = grouped_reaction_message(post)
@@ -323,7 +321,8 @@ def notify_post_author_about_reactions(post, allow_create=True):
         return
     if existing:
         existing.message = message
-        existing.created_at = datetime.utcnow()
+        existing.updated_at = datetime.utcnow()
+        existing.event_count = max(1, reactor_count)
         db.session.flush()
         emit_notification(existing)
         return
@@ -1076,7 +1075,7 @@ def post_detail(post_id):
     if current_user.is_authenticated:
         Notification.query.filter(
             Notification.user_id == current_user.id,
-            Notification.action_url == url_for("main.post_detail", post_id=post.id),
+            Notification.action_url.startswith(url_for("main.post_detail", post_id=post.id)),
             Notification.seen == False,
         ).update({"seen": True})
         db.session.commit()
@@ -1096,17 +1095,18 @@ def post_detail(post_id):
                 parent_id=parent.id if parent else None,
             )
             db.session.add(comment)
+            db.session.flush()
             notify_user_id = parent.user_id if parent else post.user_id
             if notify_user_id != current_user.id:
                 add_notification(
                     notify_user_id,
                     "comment",
                     (
-                        f"{current_user.username} replied to your comment."
+                        f"{current_user.username} replied: ‘{' '.join(content.split())[:90]}’"
                         if parent
-                        else f"{current_user.username} commented on your post."
+                        else f"{current_user.username} commented: ‘{' '.join(content.split())[:90]}’"
                     ),
-                    url_for("main.post_detail", post_id=post.id),
+                    url_for("main.post_detail", post_id=post.id) + f"#comment-{comment.id}",
                 )
             mentioned_users = []
             names = mentioned_usernames(content)
@@ -1122,8 +1122,8 @@ def post_detail(post_id):
                 add_notification(
                     mentioned.id,
                     "mention",
-                    f"{current_user.username} mentioned you in a comment.",
-                    url_for("main.post_detail", post_id=post.id),
+                    f"{current_user.username} mentioned you: ‘{' '.join(content.split())[:90]}’",
+                    url_for("main.post_detail", post_id=post.id) + f"#comment-{comment.id}",
                 )
                 already_notified.add(mentioned.id)
             db.session.commit()
@@ -1470,7 +1470,7 @@ def respond_friend_request(request_id, action):
 def notifications():
     notifications = (
         Notification.query.filter_by(user_id=current_user.id)
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.updated_at.desc(), Notification.created_at.desc())
         .all()
     )
     return render_template("notifications.html", notifications=notifications)
@@ -1566,6 +1566,7 @@ def settings():
         current_user.profile.auto_share_completed_challenges = (
             request.form.get("auto_share_completed_challenges") == "on"
         )
+        save_notification_preferences(current_user, request.form)
         timezone_name = request.form.get("timezone", "Africa/Kampala").strip()
         try:
             if not timezone_name or len(timezone_name) > 64:
@@ -1578,7 +1579,10 @@ def settings():
         db.session.commit()
         flash("Settings saved.", "success")
         return redirect(url_for("main.settings"))
-    return render_template("settings.html")
+    return render_template(
+        "settings.html", notification_categories=NOTIFICATION_CATEGORIES,
+        notification_preferences=preference_map(current_user),
+    )
 
 
 @main_bp.route("/streaks")

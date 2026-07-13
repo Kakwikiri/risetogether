@@ -507,6 +507,10 @@ video {
 .rise-badge:hover .rise-badge__tooltip, .rise-badge:focus-visible .rise-badge__tooltip, .rise-badge:focus .rise-badge__tooltip { opacity: 1; visibility: visible; }
 .rise-badge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .badge-admin-form { display: grid; gap: .35rem; min-width: 220px; }
+.notification-preference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .55rem; margin-block: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.notification-preference-grid legend { padding-inline: .35rem; font-weight: 700; }
+.notification-preference-grid > p { grid-column: 1 / -1; }
+.notification-preference-grid label { display: flex; gap: .55rem; align-items: flex-start; padding: .55rem; border-radius: var(--radius-sm); background: var(--soft); }
 
 button,
 input,

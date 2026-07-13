@@ -874,6 +874,31 @@ class Notification(db.Model):
     action_url = db.Column(db.String(255), default="")
     seen = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    group_key = db.Column(db.String(180), default="", nullable=False, index=True)
+    dedupe_key = db.Column(db.String(180), nullable=True, unique=True)
+    event_count = db.Column(db.Integer, default=1, nullable=False)
+
+
+class NotificationPreference(db.Model):
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "category", name="uq_notification_preference_user_category"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = db.Column(db.String(48), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("notification_preferences", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class NotificationDeliveryKey(db.Model):
+    __tablename__ = "notification_delivery_keys"
+    key = db.Column(db.String(180), primary_key=True)
+    notification_id = db.Column(db.Integer, db.ForeignKey("notifications.id", ondelete="CASCADE"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    notification = db.relationship("Notification", backref=db.backref("delivery_keys", lazy="dynamic", cascade="all, delete-orphan"))
 
 
 class DailyCheckIn(db.Model):

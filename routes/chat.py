@@ -9,7 +9,8 @@ from flask_socketio import emit, join_room, leave_room
 from extensions import db, socketio
 from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
-from helpers import get_ice_servers, get_media_type, save_media, send_device_push, user_avatar_url, validate_upload
+from helpers import get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
+from notifications_service import smart_notify
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
@@ -375,7 +376,7 @@ def direct_chat(user_id):
     Notification.query.filter(
         Notification.user_id == current_user.id,
         Notification.category.in_(["message", "call"]),
-        Notification.action_url == url_for("chat.direct_chat", user_id=other.id),
+        Notification.action_url.startswith(url_for("chat.direct_chat", user_id=other.id)),
         Notification.seen == False,
     ).update({"seen": True})
     db.session.commit()
@@ -406,11 +407,11 @@ def family_chat(family_id):
         .order_by(Message.created_at.asc())
         .all()
     )
-    Notification.query.filter_by(
-        user_id=current_user.id,
-        category="family_chat",
-        action_url=url_for("chat.family_chat", family_id=family.id),
-        seen=False,
+    Notification.query.filter(
+        Notification.user_id == current_user.id,
+        Notification.category.in_(["message", "family_chat"]),
+        Notification.action_url.startswith(url_for("chat.family_chat", family_id=family.id)),
+        Notification.seen == False,
     ).update({"seen": True})
     db.session.commit()
     return render_template("chat.html", other=None, messages=messages, family=family)
@@ -506,25 +507,22 @@ def upload_message_file():
     db.session.add(message)
     db.session.commit()
     if media_type == "audio":
-        notification_message = f"New voice note from {current_user.username}"
+        notification_message = f"{current_user.username} sent a voice note."
     elif media_type == "video":
-        notification_message = f"New video note from {current_user.username}"
+        notification_message = f"{current_user.username} sent a video note."
     else:
-        notification_message = f"New file from {current_user.username}"
+        notification_message = f"{current_user.username} shared a file."
     for user_id in recipients:
-        notification = Notification(
-            user_id=user_id,
-            category="video_note" if media_type == "video" else "voice_note" if media_type == "audio" else "message",
-            message=notification_message,
+        smart_notify(
+            user_id=user_id, category="message", message=notification_message,
             action_url=(
                 url_for("chat.family_chat", family_id=message.family_id)
                 if message.family_id
                 else url_for("chat.direct_chat", user_id=current_user.id)
-            ),
+            ) + f"#message-{message.id}",
+            group_key=f"message:{current_user.id}:{message.family_id or 'direct'}",
+            dedupe_key=f"message-media:{message.id}:{user_id}",
         )
-        db.session.add(notification)
-        db.session.flush()
-        send_device_push(notification)
     db.session.commit()
     payload = emit_chat_message(
         message,
@@ -815,17 +813,15 @@ def private_message(data):
     )
     db.session.add(message)
     db.session.commit()
-    notification = Notification(
-        user_id=recipient_id,
-        category="message",
-        message=f"New message from {current_user.username}",
-        action_url=url_for("chat.direct_chat", user_id=current_user.id),
+    preview = " ".join(content.split())[:100]
+    smart_notify(
+        user_id=recipient_id, category="message",
+        message=f"{current_user.username}: ‘{preview}{'…' if len(content) > 100 else ''}’",
+        action_url=url_for("chat.direct_chat", user_id=current_user.id) + f"#message-{message.id}",
+        group_key=f"message:{current_user.id}:direct",
+        dedupe_key=f"message:{message.id}:{recipient_id}",
     )
-    db.session.add(notification)
-    db.session.flush()
-    send_device_push(notification)
     db.session.commit()
-    emit_notification(recipient_id, notification)
     emit_chat_message(message, room, "new_private_message", [current_user.id, recipient_id])
 
 
@@ -864,16 +860,14 @@ def family_message(data):
     db.session.commit()
     for member in family.members:
         if member.user_id != current_user.id:
-            notification = Notification(
-                user_id=member.user_id,
-                category="family_chat",
-                message=f"New family chat message in {family.name}",
-                action_url=url_for("chat.family_chat", family_id=family.id),
+            preview = " ".join(content.split())[:100]
+            smart_notify(
+                user_id=member.user_id, category="message",
+                message=f"{current_user.username} in {family.name}: ‘{preview}{'…' if len(content) > 100 else ''}’",
+                action_url=url_for("chat.family_chat", family_id=family.id) + f"#message-{message.id}",
+                group_key=f"message:{current_user.id}:family:{family.id}",
+                dedupe_key=f"family-message:{message.id}:{member.user_id}",
             )
-            db.session.add(notification)
-            db.session.flush()
-            emit_notification(member.user_id, notification)
-            send_device_push(notification)
     db.session.commit()
     room = f"family-{family.id}"
     emit_chat_message(
@@ -1012,13 +1006,12 @@ def call_invite(data):
     log_call_signal("caller_joined_call_room", call_id, room_id=room_id, target_id=target_id)
     if not user_is_online(target_id):
         create_call_history(current_user.id, target_id, mode, "missed")
-        db.session.add(
-            Notification(
-                user_id=target_id,
-                category="call",
-                message=f"Missed {mode} call from {current_user.username}",
-                action_url=url_for("chat.direct_chat", user_id=current_user.id),
-            )
+        smart_notify(
+            user_id=target_id, category="message",
+            message=f"Missed {mode} call from {current_user.username}.",
+            action_url=url_for("chat.direct_chat", user_id=current_user.id),
+            group_key=f"message:{current_user.id}:direct",
+            dedupe_key=f"missed-call:{call_id}:{target_id}",
         )
         db.session.commit()
         emit("call_unavailable", {"target_id": target_id}, room=request.sid)

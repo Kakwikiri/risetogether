@@ -164,6 +164,8 @@ def ensure_schema_compatibility():
         QuizQuestion,
         PointTransaction,
         PointSecurityEvent,
+        NotificationPreference,
+        NotificationDeliveryKey,
         RiseBadgeAssignment,
     )
     from helpers import get_media_type, mimetype_for_filename
@@ -192,6 +194,8 @@ def ensure_schema_compatibility():
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
     PointTransaction.__table__.create(db.engine, checkfirst=True)
     PointSecurityEvent.__table__.create(db.engine, checkfirst=True)
+    NotificationPreference.__table__.create(db.engine, checkfirst=True)
+    NotificationDeliveryKey.__table__.create(db.engine, checkfirst=True)
     RiseBadgeAssignment.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
@@ -206,6 +210,12 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(32) DEFAULT 'text'",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255) DEFAULT ''",
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS group_key VARCHAR(180) NOT NULL DEFAULT ''",
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS dedupe_key VARCHAR(180)",
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_count INTEGER NOT NULL DEFAULT 1",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_user_group_unread ON notifications (user_id, group_key, seen, updated_at)",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_notifications_dedupe_key') THEN CREATE UNIQUE INDEX uq_notifications_dedupe_key ON notifications (dedupe_key) WHERE dedupe_key IS NOT NULL; END IF; END $$",
         "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS code_hash VARCHAR(256) DEFAULT ''",
         "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP",

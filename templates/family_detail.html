@@ -352,7 +352,7 @@
     <div class="challenge-list">
       {% for challenge in active_challenges %}
       {% set challenge_progress = progress_by_challenge[challenge.id] %}
-      <article class="challenge-card">
+      <article class="challenge-card" id="challenge-{{ challenge.id }}">
         <div class="challenge-card-main">
           <span class="status-pill">{{ challenge.challenge_type|replace('_', ' ')|title }} · {{ reward_values.get(challenge.reward_tier, challenge.points) }} pts</span>
           <h4>{{ challenge.title }}</h4>

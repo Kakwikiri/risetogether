@@ -2,6 +2,7 @@
 <section class="card panel">
   <div class="panel-header split-header">
     <h2>Notifications</h2>
+    <span class="status-chip">{{ notifications|selectattr('seen', 'equalto', false)|list|length }} unread</span>
     <form action="{{ url_for('main.mark_all_notifications_read') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button secondary" type="submit">✓ Mark all read</button>
@@ -13,16 +14,16 @@
   >
     {% if notification.action_url %}
     <a class="notification-main" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
-      <span>{{ notification.message }}</span>
-      <small>{{ notification.created_at.strftime('%b %d, %Y %H:%M') }}</small>
+      <span>{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
+      <small>{{ notification.category|replace('_', ' ')|title }} · {{ notification.updated_at.strftime('%b %d, %Y %H:%M') }}</small>
     </a>
     <a class="button secondary notification-view" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
       {% if notification.category in ['message', 'family_chat'] %}View message{% elif notification.category in ['reaction', 'comment'] %}View post{% else %}View{% endif %}
     </a>
     {% else %}
     <div class="notification-main">
-      <span>{{ notification.message }}</span>
-      <small>{{ notification.created_at.strftime('%b %d, %Y %H:%M') }}</small>
+      <span>{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
+      <small>{{ notification.category|replace('_', ' ')|title }} · {{ notification.updated_at.strftime('%b %d, %Y %H:%M') }}</small>
     </div>
     {% endif %}
     {#

@@ -13,7 +13,7 @@
     <aside class="crisis-guidance"><strong>If you may be in immediate danger</strong><p>RiseTogether cannot provide emergency or professional mental-health care. Contact local emergency services or go to the nearest hospital, and reach a trusted person who can stay with you.</p><a href="https://www.who.int/health-topics/suicide" target="_blank" rel="noopener">WHO crisis and suicide-prevention guidance</a></aside>
   </section>
   <section class="encouragement-list">
-    {% for item in items %}<article class="card encouragement-request{% if item.needs_crisis_guidance %} needs-urgent-care{% endif %}">
+    {% for item in items %}<article id="encouragement-{{ item.id }}" class="card encouragement-request{% if item.needs_crisis_guidance %} needs-urgent-care{% endif %}">
       <header><div><span class="status-chip">{{ categories[item.category] }}</span><strong>{% if item.visibility == 'anonymous' and not can_review_identity and item.user_id != current_user.id %}Anonymous Family member{% else %}{{ item.requester.profile.display_name if item.requester.profile and item.requester.profile.display_name else item.requester.username }}{% endif %}</strong>{% if item.visibility == 'anonymous' %}<small> · Anonymous to normal members</small>{% elif item.visibility == 'admins' %}<small> · Family admins only</small>{% endif %}</div><time datetime="{{ item.created_at.isoformat() }}">{{ item.created_at.strftime('%b %d · %H:%M') }}</time></header>
       {% if can_review_identity and item.visibility in ['anonymous', 'admins'] %}<p class="moderator-identity">Safety identity: @{{ item.requester.username }} · visible only to Family moderators/admins</p>{% endif %}
       <p class="encouragement-content">{{ item.content }}</p>

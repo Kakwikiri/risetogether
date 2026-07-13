@@ -13,6 +13,7 @@ from models import (
     GoalParticipant, GoalProgress, Notification, PointTransaction, Post, User,
 )
 from points import PointLimitExceeded, award_points
+from notifications_service import smart_notify
 
 goals_bp = Blueprint("goals", __name__)
 
@@ -60,7 +61,7 @@ def parse_date(value, required=False):
 
 
 def queue_notification(user_id, message, action_url):
-    db.session.add(Notification(user_id=user_id, category="goal", message=message, action_url=action_url))
+    smart_notify(user_id=user_id, category="goal_progress", message=message, action_url=action_url)
 
 
 @goals_bp.route("/goals")
@@ -269,6 +270,13 @@ def add_goal_progress(goal_id):
             award_goal_event(goal, current_user.id, "completed", goal.id)
         except PointLimitExceeded:
             pass
+    if goal.owner_user_id and goal.owner_user_id != current_user.id:
+        smart_notify(
+            user_id=goal.owner_user_id, category="goal_progress",
+            message=f"{current_user.username} added {amount:g} toward {goal.title}.",
+            action_url=url_for("goals.goal_detail", goal_id=goal.id) + f"#progress-{entry.id}",
+            group_key=f"goal-progress:{goal.id}", dedupe_key=f"goal-progress:{entry.id}:{goal.owner_user_id}",
+        )
     db.session.commit()
     flash("Goal achieved! Choose whether you want to share it." if completed_now else "Progress added. Every honest step matters.", "success")
     return redirect(url_for("goals.share_goal_achievement", goal_id=goal.id) if completed_now else url_for("goals.goal_detail", goal_id=goal.id))
