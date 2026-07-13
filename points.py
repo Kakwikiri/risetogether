@@ -160,3 +160,26 @@ def family_lifetime_xp(family_id):
         PointTransaction.transaction_kind == "award",
         PointTransaction.reversed.is_(False),
     ).scalar()
+
+
+def spend_family_points(*, family_id, amount, reason, source_type, source_id,
+                        unique_reward_key, awarded_by_id):
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+        raise ValueError("Upgrade cost must be a positive whole number.")
+    if family_point_balance(family_id) < amount:
+        raise PointLimitExceeded("This Family does not have enough available Family Points.")
+    existing = PointTransaction.query.filter_by(unique_reward_key=unique_reward_key).first()
+    if existing:
+        return existing, False
+    transaction = PointTransaction(
+        family_id=family_id,
+        amount=amount,
+        reason=(reason or "")[:240],
+        source_type=source_type,
+        source_id=source_id,
+        unique_reward_key=unique_reward_key,
+        transaction_kind="spend",
+        awarded_by_id=awarded_by_id,
+    )
+    db.session.add(transaction)
+    return transaction, True

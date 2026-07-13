@@ -7,6 +7,8 @@ from flask_login import current_user, login_required
 from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
+from family_upgrades import pinned_announcement_limit
+from feature_flags import is_feature_enabled
 from helpers import get_ice_servers, get_media_type, save_media, send_device_push, user_avatar_url, validate_upload
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
 
@@ -644,10 +646,14 @@ def pin_message(message_id):
         db.session.commit()
         return jsonify({"ok": True, "pinned": False})
     if message.family_id:
-        Message.query.filter(
+        active_pins = Message.query.filter(
             Message.family_id == message.family_id,
             Message.id != message.id,
-        ).update({"pinned_until": None}, synchronize_session=False)
+            Message.pinned_until > datetime.utcnow(),
+        ).order_by(Message.pinned_until.asc()).all()
+        limit = pinned_announcement_limit(message.family_id) if is_feature_enabled("family_upgrades") else 1
+        if len(active_pins) >= limit:
+            active_pins[0].pinned_until = None
     else:
         Message.query.filter(
             Message.id != message.id,

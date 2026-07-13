@@ -277,6 +277,8 @@ class Family(db.Model):
     member_limit = db.Column(db.Integer, default=50, nullable=False)
     profile_image = db.Column(db.String(255), default="")
     profile_image_public_id = db.Column(db.String(255), default="")
+    banner_image = db.Column(db.String(255), default="", nullable=False)
+    theme = db.Column(db.String(32), default="classic", nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(
@@ -288,6 +290,46 @@ class Family(db.Model):
     posts = db.relationship(
         "Post", backref="family", lazy="dynamic", cascade="all, delete-orphan"
     )
+
+
+class FamilyUpgradePurchase(db.Model):
+    __tablename__ = "family_upgrade_purchases"
+    __table_args__ = (
+        db.UniqueConstraint("family_id", "upgrade_key", name="uq_family_upgrade_purchase"),
+        db.CheckConstraint("cost > 0", name="ck_family_upgrade_positive_cost"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    upgrade_key = db.Column(db.String(64), nullable=False)
+    cost = db.Column(db.Integer, nullable=False)
+    purchased_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    family = db.relationship(
+        "Family", backref=db.backref("upgrade_purchases", lazy="dynamic", cascade="all, delete-orphan")
+    )
+    purchased_by = db.relationship("User", foreign_keys=[purchased_by_id])
+
+
+class FamilyGalleryItem(db.Model):
+    __tablename__ = "family_gallery_items"
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    uploaded_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    media_url = db.Column(db.String(255), nullable=False)
+    caption = db.Column(db.String(240), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    family = db.relationship(
+        "Family", backref=db.backref("gallery_items", lazy="dynamic", cascade="all, delete-orphan")
+    )
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
 
 
 class FamilyMember(db.Model):

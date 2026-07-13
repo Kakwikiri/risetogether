@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyChallenge, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyChallenge, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -31,12 +31,55 @@ from feature_flags import (
     get_feature_flags,
 )
 from family_levels import family_level_for_xp
+from family_upgrades import UPGRADE_CATALOG
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_stage_seventeen_upgrade_catalog_is_practical_and_capacity_costs_increase(self):
+        expected = {
+            "custom_banner", "pinned_announcements", "challenge_slots", "family_gallery",
+            "quiz_slots", "extra_themes", "advanced_statistics", "custom_badge_frame",
+            "capacity_75", "capacity_100", "capacity_150", "capacity_250",
+        }
+        self.assertEqual(set(UPGRADE_CATALOG), expected)
+        capacity_costs = [UPGRADE_CATALOG[f"capacity_{size}"]["cost"] for size in (75, 100, 150, 250)]
+        self.assertEqual(capacity_costs, sorted(capacity_costs))
+        self.assertEqual([UPGRADE_CATALOG[f"capacity_{size}"]["capacity"] for size in (75, 100, 150, 250)], [75, 100, 150, 250])
+
+    def test_stage_seventeen_purchases_are_atomic_unique_and_server_priced(self):
+        constraint_columns = {
+            column.name for constraint in FamilyUpgradePurchase.__table__.constraints
+            if constraint.name == "uq_family_upgrade_purchase" for column in constraint.columns
+        }
+        self.assertEqual(constraint_columns, {"family_id", "upgrade_key"})
+        family_source = (ROOT / "routes/family.py").read_text()
+        point_source = (ROOT / "points.py").read_text()
+        self.assertIn("with_for_update()", family_source)
+        self.assertIn('definition = UPGRADE_CATALOG.get(upgrade_key)', family_source)
+        self.assertIn('unique_reward_key=f"family_upgrade:{family.id}:{upgrade_key}"', family_source)
+        self.assertIn("def spend_family_points", point_source)
+        self.assertIn('transaction_kind="spend"', point_source)
+        self.assertIn('"activate_upgrade": {"owner", "admin"}', family_source)
+
+    def test_stage_seventeen_limits_and_upgrade_ui_are_enforced(self):
+        family_source = (ROOT / "routes/family.py").read_text()
+        chat_source = (ROOT / "routes/chat.py").read_text()
+        page = (ROOT / "templates/family_upgrades.html").read_text()
+        create_page = (ROOT / "templates/create_family.html").read_text()
+        edit_page = (ROOT / "templates/edit_family.html").read_text()
+        self.assertIn("active_challenge_limit", family_source)
+        self.assertIn("open_quiz_limit", family_source)
+        self.assertIn("pinned_announcement_limit", chat_source)
+        self.assertIn("data-confirm=", page)
+        self.assertIn("available Family Points", page)
+        self.assertIn("Purchase history", page)
+        self.assertNotIn('name="member_limit"', create_page)
+        self.assertNotIn('name="member_limit"', edit_page)
+        self.assertEqual(FamilyGalleryItem.__tablename__, "family_gallery_items")
+
     def test_stage_sixteen_family_levels_use_lifetime_xp_thresholds(self):
         thresholds = {1: 0, 2: 100, 3: 300, 4: 750, 5: 1500, 6: 3000, 7: 5000}
         with patch("family_levels.family_level_thresholds", return_value=(thresholds, 2500)):

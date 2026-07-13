@@ -1,5 +1,6 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack, family_level_badge, point_badge %} {% block content %}
-<section class="card family-detail-card">
+<section class="card family-detail-card family-theme-{{ (family.theme or 'classic') if feature_enabled('family_upgrades') else 'classic' }}{% if has_custom_badge_frame %} family-has-badge-frame{% endif %}">
+  {% if feature_enabled('family_upgrades') and family.banner_image %}<img class="family-custom-banner" src="{{ url_for('api.serve_upload', filename=family.banner_image) }}" alt="{{ family.name }} banner" />{% endif %}
   <header class="family-hero">
     <div class="family-identity-row">
       <img
@@ -33,6 +34,7 @@
       {% endif %}
       {% if member %}
       <a class="button" href="{{ url_for('chat.family_chat', family_id=family.id) }}">Open family chat</a>
+      {% if feature_enabled('family_upgrades') %}<a class="button secondary" href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Family upgrades</a>{% endif %}
       {% if can_edit_family or can_change_family_image %}
       <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
       {% endif %}
@@ -81,6 +83,7 @@
       <div class="family-level-stats"><div><strong>{{ family_level.challenges_completed }}</strong><span>Challenges completed</span></div><div><strong>{{ family_level.goals_achieved }}</strong><span>Goals achieved</span></div><div><strong>{{ family_level.encouragement_milestones }}</strong><span>Encouragement milestones</span></div><div><strong>{{ family_level.age_days }}</strong><span>Days growing together</span></div></div>
     </section>
     {% endif %}
+    {% if has_advanced_statistics %}<section class="family-dashboard-panel"><h4>Advanced statistics</h4><div class="family-level-stats"><div><strong>{{ ((family_level.challenges_completed / active_member_count) if active_member_count else 0)|round(1) }}</strong><span>Completions per active member</span></div><div><strong>{{ family.gallery_items.count() }}</strong><span>Gallery memories</span></div><div><strong>{{ family.upgrade_purchases.count() }}</strong><span>Upgrades unlocked</span></div><div><strong>{{ dashboard_member_progress|length }}</strong><span>Members tracked</span></div></div></section>{% endif %}
     <div class="family-dashboard-grid">
       <section class="family-dashboard-panel family-dashboard-goal">
         <span class="eyebrow">
@@ -204,6 +207,8 @@
       </div>
     </section>{% endif %}
   </section>
+
+  {% if has_family_gallery %}<section id="family-gallery" class="family-section"><div class="split-header"><div><p class="eyebrow">Shared memories</p><h3>Family gallery</h3></div><span class="muted-meta">{{ family.gallery_items.count() }} / 30 memories</span></div>{% if member %}<form action="{{ url_for('family.add_family_gallery_item', family_id=family.id) }}" method="post" enctype="multipart/form-data" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Photo<input type="file" name="gallery_image" accept="image/png,image/jpeg,image/gif" required></label><label>Caption<input type="text" name="caption" maxlength="240" placeholder="A small memory worth keeping"></label><button class="button" type="submit">Add to gallery</button></form>{% endif %}<div class="family-gallery-grid">{% for item in family.gallery_items.all()|reverse %}<figure><img src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ item.caption or family.name ~ ' memory' }}" loading="lazy">{% if item.caption %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>{% else %}<p class="muted-meta">The gallery is ready for its first Family memory.</p>{% endfor %}</div></section>{% endif %}
 
   <section id="family-goal" class="family-section" data-family-panel hidden>
     <h3>Goal</h3>

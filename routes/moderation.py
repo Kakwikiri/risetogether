@@ -343,6 +343,9 @@ def reverse_point_transaction(transaction_id):
     if transaction.reversed:
         flash("That reward has already been reversed.", "info")
         return redirect(url_for("moderation.admin_point_transactions"))
+    if transaction.transaction_kind != "award":
+        flash("Upgrade spending cannot be reversed from the reward moderation screen.", "warning")
+        return redirect(url_for("moderation.admin_point_transactions"))
     if transaction.user_id == current_user.id and website_role(current_user) != "super_admin":
         flash("Moderators cannot reverse their own points.", "warning")
         return redirect(url_for("moderation.admin_point_transactions"))

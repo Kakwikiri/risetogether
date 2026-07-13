@@ -81,10 +81,7 @@
             <option value="invite_only" {% if family.privacy == 'invite_only' %}selected{% endif %}>Invitation-only</option>
           </select>
         </label>
-        <label>
-          Member limit
-          <input type="number" name="member_limit" min="2" value="{{ family.member_limit or '' }}" placeholder="Optional" />
-        </label>
+        <label>Member capacity<input type="number" value="{{ family.member_limit or 50 }}" readonly /><small class="muted-meta">Capacity is protected and can only increase through Family upgrades.</small></label>
       </div>
 
       <label>

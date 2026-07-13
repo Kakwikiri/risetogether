@@ -9,6 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from feature_flags import is_feature_enabled
 from family_levels import family_level_summary
+from family_upgrades import (
+    UPGRADE_CATALOG, active_challenge_limit, family_has_upgrade,
+    open_quiz_limit, purchased_upgrade_keys,
+)
 from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
 from models import (
     ChallengeCompletion,
@@ -20,6 +24,8 @@ from models import (
     FamilyMember,
     FamilyMemberRestriction,
     FamilyModerationLog,
+    FamilyGalleryItem,
+    FamilyUpgradePurchase,
     FamilyPoll,
     FamilyPollOption,
     FamilyPollVote,
@@ -37,7 +43,10 @@ from models import (
     SiteSetting,
     User,
 )
-from points import PointLimitExceeded, award_challenge_completion_points, reverse_reward_group
+from points import (
+    PointLimitExceeded, award_challenge_completion_points, family_point_balance,
+    reverse_reward_group, spend_family_points,
+)
 
 family_bp = Blueprint("family", __name__)
 
@@ -154,6 +163,7 @@ FAMILY_PERMISSIONS = {
     "create_quiz": {"owner", "admin"},
     "invite_members": {"owner", "admin"},
     "delete_family": {"owner"},
+    "activate_upgrade": {"owner", "admin"},
 }
 
 
@@ -971,6 +981,7 @@ def create_family():
         if error:
             flash(error, "warning")
             return render_template("create_family.html", **family_form_context(form=request.form))
+        payload["member_limit"] = 50
         family = Family(
             **payload,
             owner_id=current_user.id,
@@ -1032,6 +1043,10 @@ def family_detail(family_id):
         can_warn_members=family_has_permission(member, "warn_members"),
         can_suspend_members=family_has_permission(member, "suspend_members"),
         can_invite_members=family_has_permission(member, "invite_members"),
+        can_activate_upgrades=family_has_permission(member, "activate_upgrade"),
+        has_family_gallery=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "family_gallery"),
+        has_advanced_statistics=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "advanced_statistics"),
+        has_custom_badge_frame=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "custom_badge_frame"),
         active_member_count=capacity["member_count"],
         effective_member_limit=capacity["member_limit"],
         family_is_full=capacity["is_full"],
@@ -1042,6 +1057,207 @@ def family_detail(family_id):
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
     )
+
+
+@family_bp.route("/family/<int:family_id>/upgrades")
+@login_required
+def family_upgrades(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member:
+        flash("Join this Family before viewing its upgrades.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    purchased = purchased_upgrade_keys(family.id)
+    current_capacity = effective_family_member_limit(family)
+    next_capacity = next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+    catalog = []
+    for key, definition in UPGRADE_CATALOG.items():
+        item = {"key": key, **definition}
+        capacity = definition.get("capacity")
+        item["unlocked"] = key in purchased or bool(capacity and current_capacity >= capacity)
+        item["available"] = not item["unlocked"] and (
+            capacity is None or capacity == next_capacity
+        )
+        catalog.append(item)
+    purchases = FamilyUpgradePurchase.query.filter_by(family_id=family.id).order_by(
+        FamilyUpgradePurchase.purchased_at.desc()
+    ).all()
+    return render_template(
+        "family_upgrades.html",
+        family=family,
+        member=member,
+        catalog=catalog,
+        purchases=purchases,
+        purchased_keys=purchased,
+        catalog_by_key=UPGRADE_CATALOG,
+        available_points=family_point_balance(family.id),
+        current_capacity=current_capacity,
+        can_purchase=family_has_permission(member, "activate_upgrade"),
+    )
+
+
+@family_bp.route("/family/<int:family_id>/upgrades/purchase", methods=["POST"])
+@login_required
+def purchase_family_upgrade(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.filter_by(id=family_id).with_for_update().first_or_404()
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade"):
+        flash("Only Family owners and admins can activate upgrades.", "danger")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    upgrade_key = request.form.get("upgrade_key", "").strip()
+    definition = UPGRADE_CATALOG.get(upgrade_key)
+    if not definition:
+        flash("Choose a valid Family upgrade.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if FamilyUpgradePurchase.query.filter_by(
+        family_id=family.id, upgrade_key=upgrade_key
+    ).first():
+        flash("This Family already owns that upgrade.", "info")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    capacity = definition.get("capacity")
+    if capacity:
+        current_capacity = effective_family_member_limit(family)
+        next_capacity = next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+        if capacity != next_capacity:
+            flash("Capacity upgrades must be unlocked in order.", "warning")
+            return redirect(url_for("family.family_upgrades", family_id=family.id))
+        if capacity < active_family_member_count(family):
+            flash("Capacity can never be below the current active member count.", "warning")
+            return redirect(url_for("family.family_upgrades", family_id=family.id))
+    purchase = FamilyUpgradePurchase(
+        family_id=family.id,
+        upgrade_key=upgrade_key,
+        cost=definition["cost"],
+        purchased_by_id=current_user.id,
+    )
+    db.session.add(purchase)
+    try:
+        db.session.flush()
+        spend_family_points(
+            family_id=family.id,
+            amount=definition["cost"],
+            reason=f"Unlocked {definition['name']}",
+            source_type="family_upgrade",
+            source_id=purchase.id,
+            unique_reward_key=f"family_upgrade:{family.id}:{upgrade_key}",
+            awarded_by_id=current_user.id,
+        )
+        if capacity:
+            family.member_limit = capacity
+        log_family_action(
+            family,
+            "family_upgrade_purchased",
+            reason=f"{definition['name']} unlocked for {definition['cost']} Family Points.",
+        )
+        db.session.commit()
+    except PointLimitExceeded as exc:
+        db.session.rollback()
+        flash(str(exc), "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    except IntegrityError:
+        db.session.rollback()
+        flash("This upgrade was already purchased. No points were spent twice.", "info")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    flash(f"{definition['name']} unlocked for {family.name}.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/banner", methods=["POST"])
+@login_required
+def update_family_banner(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "custom_banner"):
+        flash("Unlock the custom banner upgrade before changing the banner.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    banner = request.files.get("banner_image")
+    if not banner or not banner.filename:
+        flash("Choose a banner image.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    valid, message = validate_family_image_upload(banner)
+    if not valid:
+        flash(message, "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    filename = save_media(banner)
+    if not filename:
+        flash("The banner could not be saved.", "danger")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    previous = family.banner_image
+    family.banner_image = filename
+    db.session.commit()
+    if previous and previous != filename:
+        cleanup_family_image(previous)
+    flash("Family banner updated.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/theme", methods=["POST"])
+@login_required
+def update_family_theme(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "extra_themes"):
+        flash("Unlock extra Family themes before changing the theme.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    theme = request.form.get("theme", "").strip()
+    if theme not in {"classic", "sunrise", "ocean", "forest"}:
+        flash("Choose a valid Family theme.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    family.theme = theme
+    db.session.commit()
+    flash("Family theme updated.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/gallery", methods=["POST"])
+@login_required
+def add_family_gallery_item(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member or not family_has_upgrade(family.id, "family_gallery"):
+        flash("The Family gallery has not been unlocked.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if family.gallery_items.count() >= 30:
+        flash("The Family gallery currently holds up to 30 memories.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    media = request.files.get("gallery_image")
+    caption = request.form.get("caption", "").strip()
+    if len(caption) > 240:
+        flash("Gallery captions cannot exceed 240 characters.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if not media or not media.filename:
+        flash("Choose a gallery image.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    valid, message = validate_family_image_upload(media)
+    if not valid:
+        flash(message, "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    filename = save_media(media)
+    if not filename:
+        flash("The gallery image could not be saved.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    db.session.add(FamilyGalleryItem(
+        family_id=family.id, uploaded_by_id=current_user.id,
+        media_url=filename, caption=caption,
+    ))
+    db.session.commit()
+    flash("A new memory was added to the Family gallery.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-gallery")
 
 
 @family_bp.route("/family/<int:family_id>/edit", methods=["GET", "POST"])
@@ -1062,6 +1278,7 @@ def edit_family(family_id):
         if error:
             flash(error, "warning")
             return redirect(url_for("family.edit_family", family_id=family.id))
+        payload["member_limit"] = effective_family_member_limit(family)
         active_count = active_family_member_count(family)
         if payload["member_limit"] < active_count:
             flash(
@@ -1306,6 +1523,11 @@ def create_challenge(family_id):
     if not family_has_permission(member, "create_challenge"):
         flash("Only Family owners and admins can create official challenges.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
+    active_count = FamilyChallenge.query.filter_by(family_id=family.id, status="active").count()
+    challenge_limit = active_challenge_limit(family.id) if is_feature_enabled("family_upgrades") else 3
+    if active_count >= challenge_limit:
+        flash("This Family has reached its active challenge slot limit.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
     challenge_type = request.form.get("challenge_type", "task").strip()
@@ -1944,6 +2166,11 @@ def create_quiz(family_id):
         return redirect(url_for("family.family_detail", family_id=family.id))
     if not family_supports_quizzes(family):
         flash("This Family type does not use quizzes.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
+    open_count = Quiz.query.filter_by(family_id=family.id, status="open").count()
+    quiz_limit = open_quiz_limit(family.id) if is_feature_enabled("family_upgrades") else 2
+    if open_count >= quiz_limit:
+        flash("This Family has reached its open quiz slot limit.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()

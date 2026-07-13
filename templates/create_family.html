@@ -58,7 +58,8 @@
       </label>
       <label>
         Member limit
-        <input type="number" name="member_limit" min="2" value="{{ form.get('member_limit', default_member_limit) if form else default_member_limit }}" />
+        <input type="number" value="50" readonly aria-describedby="member-capacity-help" />
+        <small id="member-capacity-help" class="muted-meta">Every new Family starts with space for 50 members. Capacity upgrades can unlock more later.</small>
       </label>
     </div>
 

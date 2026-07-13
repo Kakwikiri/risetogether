@@ -5924,6 +5924,21 @@ body.nav-menu-open {
 .family-level-stats div { display: grid; gap: 0.15rem; padding: 0.65rem; border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 82%, transparent); }
 .family-level-stats strong { color: var(--accent-strong); font-size: 1.15rem; }
 .family-level-stats span { color: var(--muted); font-size: 0.78rem; }
+.family-custom-banner { width: 100%; max-height: 230px; object-fit: cover; border-radius: var(--radius-lg); margin-bottom: 0.9rem; }
+.family-theme-sunrise { --accent: #d97706; --accent-strong: #9a4d05; }
+.family-theme-ocean { --accent: #0284c7; --accent-strong: #0369a1; }
+.family-theme-forest { --accent: #15803d; --accent-strong: #166534; }
+.family-has-badge-frame .family-profile-image { outline: 4px double color-mix(in srgb, var(--accent) 72%, #facc15); outline-offset: 3px; }
+.upgrade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 0.9rem; margin: 1rem 0; }
+.upgrade-card { display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.upgrade-card.is-unlocked { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.upgrade-card h2 { margin: 0.55rem 0 0.3rem; font-size: 1.08rem; }
+.upgrade-card p { color: var(--muted); }
+.upgrade-state { color: var(--accent-strong); }
+.family-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+.family-gallery-grid figure { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.family-gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.family-gallery-grid figcaption { padding: 0.55rem; color: var(--muted); font-size: 0.82rem; }
 @media (max-width: 620px) {
   .family-level-card__heading { display: grid; }
   .family-level-card__balances { justify-content: flex-start; }
