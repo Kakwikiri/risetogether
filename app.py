@@ -221,6 +221,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS achievement_type VARCHAR(48) DEFAULT ''",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS challenge_completion_id INTEGER REFERENCES challenge_completions(id) ON DELETE CASCADE",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS encouraging_message VARCHAR(240) DEFAULT ''",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL",
         "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS reward_tier VARCHAR(32) NOT NULL DEFAULT 'easy'",
         "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS completion_frequency VARCHAR(24) NOT NULL DEFAULT 'one_time'",
         "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS custom_frequency_days INTEGER",
@@ -319,6 +320,7 @@ with app.app_context():
     from routes.auth import auth_bp
     from routes.chat import chat_bp
     from routes.family import family_bp
+    from routes.goals import goals_bp
     from routes.main import main_bp
     from routes.moderation import mod_bp
 
@@ -326,6 +328,7 @@ with app.app_context():
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(family_bp)
+    app.register_blueprint(goals_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(mod_bp)
     app.register_blueprint(api_bp)

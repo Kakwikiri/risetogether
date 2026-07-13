@@ -837,6 +837,27 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("Today is a fresh start.", template)
         self.assertIn("only if it feels supportive", service)
 
+    def test_stage_twenty_four_goal_models_and_progress_are_server_controlled(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "goals.py").read_text()
+        for model in ["Goal", "GoalParticipant", "GoalMilestone", "GoalProgress", "GoalActivity", "GoalEncouragement"]:
+            self.assertIn(f"class {model}", models)
+        self.assertIn("if amount <= 0 or amount > goal.target_amount - goal.current_progress", routes)
+        self.assertIn("validate_upload(evidence)", routes)
+        self.assertIn("family_goal_admin(goal)", routes)
+        self.assertIn("active_query.count() >= 10", routes)
+
+    def test_stage_twenty_four_rewards_sharing_and_activity_are_idempotent(self):
+        routes = (ROOT / "routes" / "goals.py").read_text()
+        migration = (ROOT / "migrations" / "20260713_stage24_goals.sql").read_text()
+        self.assertIn("goal.created_at > datetime.utcnow() - timedelta(hours=24)", routes)
+        self.assertIn('unique_reward_key=f"goal:', routes)
+        self.assertIn("milestone_percent in {25, 50, 75}", routes)
+        self.assertIn("family_goal_points_today + amount > 50", routes)
+        self.assertIn('achievement_type="goal_achieved"', routes)
+        self.assertIn("Nothing is shared unless you choose it.", (ROOT / "templates" / "goal_share.html").read_text())
+        self.assertIn("migration_stage24_family_goals", migration)
+
 
 if __name__ == "__main__":
     unittest.main()

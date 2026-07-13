@@ -147,6 +147,7 @@ class Post(db.Model):
         unique=True,
         nullable=True,
     )
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="SET NULL"), unique=True, nullable=True)
     encouraging_message = db.Column(db.String(240), default="")
     original_post = db.relationship(
         "Post",
@@ -946,6 +947,97 @@ class StreakMilestone(db.Model):
     bonus_points = db.Column(db.Integer, default=0, nullable=False)
     awarded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     streak = db.relationship("UserStreak", backref=db.backref("milestones", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class Goal(db.Model):
+    __tablename__ = "goals"
+    __table_args__ = (
+        db.CheckConstraint("scope IN ('personal','family')", name="ck_goal_scope"),
+        db.CheckConstraint("visibility IN ('private','family','public')", name="ck_goal_visibility"),
+        db.CheckConstraint("measurement_type IN ('number','percentage','binary')", name="ck_goal_measurement"),
+        db.CheckConstraint("status IN ('active','completed','archived')", name="ck_goal_status"),
+        db.CheckConstraint("target_amount > 0", name="ck_goal_target_positive"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    scope = db.Column(db.String(16), nullable=False, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, default="", nullable=False)
+    category = db.Column(db.String(48), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    target_date = db.Column(db.Date, nullable=True)
+    measurement_type = db.Column(db.String(20), nullable=False)
+    target_amount = db.Column(db.Float, nullable=False)
+    current_progress = db.Column(db.Float, default=0, nullable=False)
+    visibility = db.Column(db.String(16), default="private", nullable=False, index=True)
+    status = db.Column(db.String(16), default="active", nullable=False, index=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    owner = db.relationship("User", backref=db.backref("owned_goals", lazy="dynamic"))
+    family = db.relationship("Family", backref=db.backref("expanded_goals", lazy="dynamic", cascade="all, delete-orphan"))
+    achievement_post = db.relationship("Post", backref="goal", uselist=False, foreign_keys="Post.goal_id")
+
+
+class GoalParticipant(db.Model):
+    __tablename__ = "goal_participants"
+    __table_args__ = (db.UniqueConstraint("goal_id", "user_id", name="uq_goal_participant"),)
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    goal = db.relationship("Goal", backref=db.backref("participants", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("goal_participations", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class GoalMilestone(db.Model):
+    __tablename__ = "goal_milestones"
+    __table_args__ = (db.UniqueConstraint("goal_id", "target_amount", name="uq_goal_milestone_target"),)
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    target_amount = db.Column(db.Float, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    goal = db.relationship("Goal", backref=db.backref("milestones", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class GoalProgress(db.Model):
+    __tablename__ = "goal_progress_entries"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    amount = db.Column(db.Float, nullable=False)
+    note = db.Column(db.String(500), default="", nullable=False)
+    evidence_url = db.Column(db.String(255), default="", nullable=False)
+    evidence_type = db.Column(db.String(24), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    goal = db.relationship("Goal", backref=db.backref("progress_entries", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("goal_progress_entries", lazy="dynamic"))
+
+
+class GoalActivity(db.Model):
+    __tablename__ = "goal_activities"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    event_type = db.Column(db.String(32), nullable=False, index=True)
+    message = db.Column(db.String(300), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    goal = db.relationship("Goal", backref=db.backref("activities", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User")
+
+
+class GoalEncouragement(db.Model):
+    __tablename__ = "goal_encouragements"
+    __table_args__ = (db.UniqueConstraint("goal_id", "user_id", name="uq_goal_encouragement_user"),)
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reaction = db.Column(db.String(24), nullable=False)
+    message = db.Column(db.String(500), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    goal = db.relationship("Goal", backref=db.backref("encouragements", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User")
 
 
 class PushSubscription(db.Model):

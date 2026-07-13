@@ -163,11 +163,12 @@
   {% if has_family_gallery %}<section id="family-gallery" class="family-section"><div class="split-header"><div><p class="eyebrow">Shared memories</p><h3>Family gallery</h3></div><span class="muted-meta">{{ family.gallery_items.count() }} / 30 memories</span></div>{% if member %}<form action="{{ url_for('family.add_family_gallery_item', family_id=family.id) }}" method="post" enctype="multipart/form-data" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Photo<input type="file" name="gallery_image" accept="image/png,image/jpeg,image/gif" required></label><label>Caption<input type="text" name="caption" maxlength="240" placeholder="A small memory worth keeping"></label><button class="button" type="submit">Add to gallery</button></form>{% endif %}<div class="family-gallery-grid">{% for item in family.gallery_items.all()|reverse %}<figure><img src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ item.caption or family.name ~ ' memory' }}" loading="lazy">{% if item.caption %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>{% else %}<p class="muted-meta">The gallery is ready for its first Family memory.</p>{% endfor %}</div></section>{% endif %}
 
   <section id="family-goal" class="family-section" data-family-panel hidden>
-    <h3>Goal</h3>
+    <div class="split-header"><h3>Goals</h3><a class="button secondary" href="{{ url_for('goals.goals_dashboard') }}">Open goals</a></div>
     <p>{{ family.goal_description or family.description or 'This Family is preparing its shared goal.' }}</p>
     {% if family.target_date %}
     <span class="status-pill">Target date {{ family.target_date.strftime('%b %d, %Y') }}</span>
     {% endif %}
+    <div class="dashboard-list">{% for expanded_goal in family.expanded_goals.order_by(Goal.created_at.desc()).limit(5).all() %}<a href="{{ url_for('goals.goal_detail', goal_id=expanded_goal.id) }}"><strong>{{ expanded_goal.title }}</strong><small>{{ expanded_goal.current_progress|round(2) }} / {{ expanded_goal.target_amount|round(2) }}</small></a>{% else %}<p class="muted-meta">Expanded goals will appear here when a Family owner or admin creates one.</p>{% endfor %}</div>
   </section>
 
   <section id="family-polls" class="family-section" data-family-panel hidden>

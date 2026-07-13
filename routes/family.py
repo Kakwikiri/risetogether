@@ -34,6 +34,8 @@ from models import (
     FamilyCampaignContribution,
     FamilyContributionCampaign,
     FamilyUpgradePurchase,
+    Goal,
+    GoalActivity,
     FamilyPoll,
     FamilyPollOption,
     FamilyPollVote,
@@ -1077,6 +1079,17 @@ def family_activity_timeline(family, current_member, is_super_admin=False):
         add("goals", "Goal progress updated", log.reason or "The shared Family goal was updated.",
             log.created_at, "◎")
 
+    goal_events = GoalActivity.query.join(Goal).filter(Goal.family_id == family.id).order_by(
+        GoalActivity.created_at.desc()).limit(40).all()
+    for goal_event in goal_events:
+        title = {
+            "progress": "Goal progress updated", "milestone": "Goal milestone achieved",
+            "completed": "Family goal achieved", "participant_joined": "Member joined a goal",
+            "created": "Family goal created",
+        }.get(goal_event.event_type, "Family goal updated")
+        add("goals", title, goal_event.message, goal_event.created_at, "◎",
+            goal_event.event_type in {"milestone", "completed"})
+
     events.sort(key=lambda event: event["created_at"], reverse=True)
     if selected_filter != "all":
         events = [event for event in events if event["category"] == selected_filter]
@@ -1366,6 +1379,7 @@ def render_family_detail_page(
     return render_template(
         "family_detail.html",
         family=family,
+        Goal=Goal,
         member=member,
         members=members,
         posts=posts,
