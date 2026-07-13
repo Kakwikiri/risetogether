@@ -768,6 +768,12 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertGreaterEqual(routes.count("attempt.score or 0"), 2)
         self.assertIn("post.author.profile and post.author.profile.display_name", template)
 
+    def test_family_avatar_stack_import_receives_template_context(self):
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        first_line = template.splitlines()[0]
+        self.assertIn("avatar_stack", first_line)
+        self.assertIn("with context", first_line)
+
 
 if __name__ == "__main__":
     unittest.main()
