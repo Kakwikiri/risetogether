@@ -962,14 +962,14 @@ class SecurityRegressionTests(unittest.TestCase):
     def test_stage_twenty_eight_unique_mark_tooltips_and_impersonation_protection(self):
         component = (ROOT / "templates" / "components" / "ui.html").read_text()
         auth = (ROOT / "routes" / "auth.py").read_text()
-        svg = (ROOT / "static" / "images" / "rise-badge-mark.svg").read_text()
+        logo = ROOT / "static" / "images" / "risetogether-logo.png"
         migration = (ROOT / "migrations" / "20260713_stage28_risetogether_badges.sql").read_text()
-        self.assertIn("rise-badge-mark.svg", component)
+        self.assertIn("risetogether-logo.png", component)
         self.assertIn("Verified by RiseTogether.", (ROOT / "badges.py").read_text())
         self.assertIn('role="tooltip"', component)
         self.assertIn("SAFE_USERNAME_RE", auth)
         self.assertIn("Badge-like symbols are not allowed", auth)
-        self.assertIn("<svg", svg)
+        self.assertTrue(logo.exists())
         self.assertIn("migration_stage28_risetogether_badges", migration)
 
     def test_stage_twenty_nine_notifications_group_and_dedupe_server_side(self):

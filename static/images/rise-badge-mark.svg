@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="RiseTogether mark">
-  <path fill="#0f766e" d="M16 1.5 29 9v14L16 30.5 3 23V9z"/>
-  <circle cx="16" cy="11" r="3.2" fill="#fff"/>
-  <path fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3" d="M9.5 22c1.6-4 4-6 6.5-6s4.9 2 6.5 6M16 16v7"/>
-  <path fill="#99f6e4" d="M15.8 7.2c1.2-2.4 3.2-3.5 5.5-3.2-.5 2.5-2.3 4-5.5 4.4z"/>
-</svg>
