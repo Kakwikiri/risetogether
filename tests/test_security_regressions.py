@@ -774,6 +774,26 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("avatar_stack", first_line)
         self.assertIn("with context", first_line)
 
+    def test_stage_twenty_one_checkins_are_private_unique_and_server_validated(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "main.py").read_text()
+        self.assertIn('db.UniqueConstraint("user_id", "checkin_date"', models)
+        self.assertIn('privacy = db.Column(db.String(24), default="private"', models)
+        self.assertIn('request.form.get("public_consent") != "yes"', routes)
+        self.assertIn("family_id not in family_ids", routes)
+        self.assertIn('@feature_required("daily_checkins")', routes)
+        self.assertNotIn("award_", routes[routes.index("def daily_checkins"):routes.index("def respond_to_checkin")])
+
+    def test_stage_twenty_one_support_and_family_summary_respect_visibility(self):
+        family_routes = (ROOT / "routes" / "family.py").read_text()
+        template = (ROOT / "templates" / "daily_checkins.html").read_text()
+        self.assertIn('DailyCheckIn.privacy == "family"', family_routes)
+        self.assertIn('DailyCheckIn.privacy == "all_families"', family_routes)
+        self.assertIn("Check-ins do not earn daily points.", template)
+        self.assertIn("I understand this mood and note will be visible publicly.", template)
+        for mood in ["Happy", "Peaceful", "Motivated", "Okay", "Tired", "Worried", "Struggling", "Prefer not to say"]:
+            self.assertIn(mood.lower().replace(" ", "_") if mood == "Prefer not to say" else mood.lower(), (ROOT / "routes" / "main.py").read_text().lower())
+
 
 if __name__ == "__main__":
     unittest.main()

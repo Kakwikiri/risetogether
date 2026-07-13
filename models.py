@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -802,6 +802,52 @@ class Notification(db.Model):
     action_url = db.Column(db.String(255), default="")
     seen = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class DailyCheckIn(db.Model):
+    __tablename__ = "daily_check_ins"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "checkin_date", name="uq_daily_checkin_user_date"),
+        db.CheckConstraint(
+            "mood IN ('happy','peaceful','motivated','okay','tired','worried','struggling','prefer_not_to_say')",
+            name="ck_daily_checkin_mood",
+        ),
+        db.CheckConstraint(
+            "privacy IN ('private','family','all_families','public')",
+            name="ck_daily_checkin_privacy",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    mood = db.Column(db.String(32), nullable=False)
+    note = db.Column(db.String(500), default="", nullable=False)
+    privacy = db.Column(db.String(24), default="private", nullable=False, index=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True)
+    checkin_date = db.Column(db.Date, default=date.today, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("daily_checkins", lazy="dynamic", cascade="all, delete-orphan"))
+    family = db.relationship("Family", backref=db.backref("daily_checkins", lazy="dynamic"))
+
+
+class CheckInResponse(db.Model):
+    __tablename__ = "checkin_responses"
+    __table_args__ = (
+        db.UniqueConstraint("checkin_id", "user_id", name="uq_checkin_response_user"),
+        db.CheckConstraint(
+            "reaction IN ('support','understand','keep_going','inspire')",
+            name="ck_checkin_response_reaction",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    checkin_id = db.Column(db.Integer, db.ForeignKey("daily_check_ins.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reaction = db.Column(db.String(24), nullable=False)
+    message = db.Column(db.String(500), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    checkin = db.relationship("DailyCheckIn", backref=db.backref("responses", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("checkin_responses", lazy="dynamic", cascade="all, delete-orphan"))
 
 
 class PushSubscription(db.Model):

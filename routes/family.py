@@ -19,6 +19,7 @@ from helpers import get_media_type, get_upload_limit, save_media, send_device_pu
 from models import (
     ChallengeCompletion,
     ChallengeParticipant,
+    DailyCheckIn,
     AuditLog,
     Block,
     Family,
@@ -1175,6 +1176,20 @@ def family_detail(family_id):
         flash("This Family is private. Join through an invitation to enter.", "warning")
         return redirect(url_for("family.families"))
     members = FamilyMember.query.filter_by(family_id=family.id).all()
+    encouragement_checkin_count = 0
+    if is_feature_enabled("daily_checkins") and member:
+        member_ids = [membership.user_id for membership in members]
+        today = (datetime.utcnow() + timedelta(hours=3)).date()
+        encouragement_checkin_count = DailyCheckIn.query.filter(
+            DailyCheckIn.user_id.in_(member_ids),
+            DailyCheckIn.checkin_date == today,
+            DailyCheckIn.mood.in_(["worried", "struggling"]),
+            or_(
+                (DailyCheckIn.privacy == "family") & (DailyCheckIn.family_id == family.id),
+                DailyCheckIn.privacy == "all_families",
+                DailyCheckIn.privacy == "public",
+            ),
+        ).count()
     capacity = family_capacity_status(family)
     posts = (
         family.posts.filter(or_(Post.is_hidden == False, Post.user_id == current_user.id))
@@ -1233,6 +1248,7 @@ def family_detail(family_id):
         can_invite_members=family_has_permission(member, "invite_members"),
         can_activate_upgrades=family_has_permission(member, "activate_upgrade"),
         is_super_admin_view=is_super_admin,
+        encouragement_checkin_count=encouragement_checkin_count,
         has_family_gallery=has_gallery,
         has_advanced_statistics=has_advanced_statistics,
         has_custom_badge_frame=has_custom_badge_frame,

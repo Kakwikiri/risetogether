@@ -37,6 +37,7 @@
     </section>
     {% endif %}
     {% if not video_only %}
+    {% if feature_enabled('daily_checkins') %}<aside class="daily-checkin-prompt"><div><span aria-hidden="true">♡</span><div><strong>How are you feeling today?</strong><p>A private moment to notice what’s here.</p></div></div><a class="button secondary" href="{{ url_for('main.daily_checkins') }}">Check in</a></aside>{% endif %}
     <section class="composer-card" data-mobile-composer data-supportive-prompts='{{ supportive_prompts|tojson }}'>
       <h3>Share your story</h3>
       <button class="mobile-composer-trigger" type="button" data-composer-open>

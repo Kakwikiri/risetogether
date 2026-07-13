@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage18-contribution-campaigns"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage21-daily-checkins"
     />
     <script
       defer
@@ -106,6 +106,7 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
+        {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}

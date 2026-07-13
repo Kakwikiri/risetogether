@@ -2182,6 +2182,86 @@ body.media-viewer-open {
   .timeline-event-heading { display: grid; gap: 0.15rem; }
 }
 
+.daily-checkin-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.8rem;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.daily-checkin-prompt > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.daily-checkin-prompt p { margin: 0.15rem 0 0; }
+
+.checkin-page,
+.checkin-list,
+.checkin-form,
+.checkin-community {
+  display: grid;
+  gap: 1rem;
+}
+
+.checkin-page { max-width: 850px; margin: 0 auto; }
+
+.mood-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 0.55rem;
+  padding: 0;
+  border: 0;
+}
+
+.mood-picker legend { margin-bottom: 0.55rem; font-weight: 700; }
+.mood-picker label { position: relative; }
+.mood-picker input { position: absolute; opacity: 0; }
+.mood-picker span {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 0.65rem;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.mood-picker input:checked + span { color: white; background: var(--accent); border-color: var(--accent); }
+.mood-picker input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+
+.public-consent {
+  padding: 0.75rem;
+  background: color-mix(in srgb, #f59e0b 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, #f59e0b 40%, var(--line));
+  border-radius: 10px;
+}
+
+.checkin-card header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+.checkin-card header time { display: block; color: var(--muted); font-size: 0.8rem; }
+.checkin-support form, .checkin-responses { display: grid; gap: 0.6rem; margin-top: 0.65rem; }
+.checkin-responses { padding: 0.7rem; background: var(--soft); border-radius: 10px; }
+.checkin-responses p { margin: 0; }
+
+@media (max-width: 520px) {
+  .daily-checkin-prompt { align-items: stretch; flex-direction: column; }
+  .daily-checkin-prompt .button { width: 100%; }
+  .checkin-card header { grid-template-columns: auto 1fr; }
+  .checkin-card header .status-chip { grid-column: 1 / -1; width: fit-content; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-link { transition: none; }
   .dashboard-link:hover { transform: none; }

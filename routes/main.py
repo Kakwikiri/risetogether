@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
@@ -17,12 +17,14 @@ from helpers import (
     user_avatar_url,
     validate_upload,
 )
-from feature_flags import is_feature_enabled
+from feature_flags import feature_required, is_feature_enabled
 from models import (
     AuditLog,
     Block,
     Comment,
     CommentReaction,
+    CheckInResponse,
+    DailyCheckIn,
     Family,
     FamilyMember,
     FamilyMemberRestriction,
@@ -49,6 +51,16 @@ SUPPORTIVE_PROMPTS = (
     "Write something uplifting or honest.",
 )
 MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_]{2,80})")
+CHECKIN_MOODS = {
+    "happy": "Happy", "peaceful": "Peaceful", "motivated": "Motivated",
+    "okay": "Okay", "tired": "Tired", "worried": "Worried",
+    "struggling": "Struggling", "prefer_not_to_say": "Prefer not to say",
+}
+CHECKIN_PRIVACY = {"private", "family", "all_families", "public"}
+CHECKIN_REACTIONS = {
+    "support": "Support", "understand": "I Understand",
+    "keep_going": "Keep Going", "inspire": "You Inspire Me",
+}
 
 
 def emit_notification(notification):
@@ -375,6 +387,129 @@ def can_view_post(post):
             post.family_id and post.family_id in set(user_family_ids(current_user))
         )
     return False
+
+
+def checkin_today():
+    return (datetime.utcnow() + timedelta(hours=3)).date()
+
+
+def can_view_checkin(checkin, viewer, family_id=None):
+    if not viewer.is_authenticated:
+        return checkin.privacy == "public"
+    if checkin.user_id == viewer.id or checkin.privacy == "public":
+        return True
+    viewer_families = set(user_family_ids(viewer))
+    if family_id and family_id not in viewer_families:
+        return False
+    if checkin.privacy == "family":
+        return bool(checkin.family_id and checkin.family_id in viewer_families)
+    if checkin.privacy == "all_families":
+        owner_families = {membership.family_id for membership in checkin.user.family_memberships}
+        return bool(viewer_families & owner_families)
+    return False
+
+
+@main_bp.route("/check-ins", methods=["GET", "POST"])
+@login_required
+@feature_required("daily_checkins")
+def daily_checkins():
+    memberships = current_user.family_memberships.all()
+    family_ids = {membership.family_id for membership in memberships}
+    today = checkin_today()
+    existing = DailyCheckIn.query.filter_by(user_id=current_user.id, checkin_date=today).first()
+    if request.method == "POST":
+        mood = request.form.get("mood", "").strip()
+        note = request.form.get("note", "").strip()
+        privacy = request.form.get("privacy", "private").strip()
+        family_id = request.form.get("family_id", type=int)
+        if mood not in CHECKIN_MOODS:
+            flash("Choose how you are feeling today.", "warning")
+            return redirect(url_for("main.daily_checkins"))
+        if len(note) > 500:
+            flash("Your optional note must be 500 characters or fewer.", "warning")
+            return redirect(url_for("main.daily_checkins"))
+        if privacy not in CHECKIN_PRIVACY:
+            privacy = "private"
+        if privacy == "family" and family_id not in family_ids:
+            flash("Choose a Family you currently belong to.", "warning")
+            return redirect(url_for("main.daily_checkins"))
+        if privacy != "family":
+            family_id = None
+        if privacy == "public" and request.form.get("public_consent") != "yes":
+            flash("Please confirm before sharing emotional information publicly.", "warning")
+            return redirect(url_for("main.daily_checkins"))
+        checkin = existing or DailyCheckIn(user_id=current_user.id, checkin_date=today)
+        checkin.mood = mood
+        checkin.note = note
+        checkin.privacy = privacy
+        checkin.family_id = family_id
+        db.session.add(checkin)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("Today’s check-in was already saved. Refresh to update it.", "info")
+            return redirect(url_for("main.daily_checkins"))
+        flash("Your check-in is saved with the privacy you chose.", "success")
+        return redirect(url_for("main.daily_checkins"))
+
+    selected_family_id = request.args.get("family_id", type=int)
+    if selected_family_id not in family_ids:
+        selected_family_id = None
+    candidates = DailyCheckIn.query.filter(
+        DailyCheckIn.checkin_date >= today - timedelta(days=7)
+    ).order_by(DailyCheckIn.created_at.desc()).limit(150).all()
+    visible_checkins = [
+        checkin for checkin in candidates
+        if can_view_checkin(checkin, current_user, selected_family_id)
+        and (
+            not selected_family_id
+            or checkin.family_id == selected_family_id
+            or (
+                checkin.privacy == "all_families"
+                and selected_family_id in {m.family_id for m in checkin.user.family_memberships}
+            )
+        )
+    ]
+    return render_template(
+        "daily_checkins.html", moods=CHECKIN_MOODS, privacy_options=CHECKIN_PRIVACY,
+        reactions=CHECKIN_REACTIONS, memberships=memberships, existing=existing,
+        visible_checkins=visible_checkins, selected_family_id=selected_family_id,
+    )
+
+
+@main_bp.route("/check-ins/<int:checkin_id>/respond", methods=["POST"])
+@login_required
+@feature_required("daily_checkins")
+def respond_to_checkin(checkin_id):
+    checkin = DailyCheckIn.query.get_or_404(checkin_id)
+    if not can_view_checkin(checkin, current_user) or checkin.user_id == current_user.id:
+        abort(403)
+    reaction = request.form.get("reaction", "").strip()
+    message = request.form.get("message", "").strip()
+    if reaction not in CHECKIN_REACTIONS or len(message) > 500:
+        flash("Choose a supportive response and keep the message under 500 characters.", "warning")
+        return redirect(url_for("main.daily_checkins"))
+    response = CheckInResponse.query.filter_by(checkin_id=checkin.id, user_id=current_user.id).first()
+    is_new_response = response is None
+    if response:
+        response.reaction = reaction
+        response.message = message
+    else:
+        response = CheckInResponse(
+            checkin_id=checkin.id, user_id=current_user.id,
+            reaction=reaction, message=message,
+        )
+        db.session.add(response)
+    if is_new_response:
+        add_notification(
+            checkin.user_id, "checkin_support",
+            f"{current_user.username} sent support for your check-in.",
+            url_for("main.daily_checkins"),
+        )
+    db.session.commit()
+    flash("Your support was shared gently.", "success")
+    return redirect(request.referrer or url_for("main.daily_checkins"))
 
 
 @main_bp.route("/profile/<username>")

@@ -1,0 +1,49 @@
+{% extends 'base.html' %} {% block content %}
+<main class="checkin-page">
+  <section class="card checkin-composer">
+    <p class="eyebrow">A quiet moment for you</p>
+    <h1>How are you feeling today?</h1>
+    <p>Your check-in is private unless you deliberately choose to share it.</p>
+    <form method="post" class="checkin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <fieldset class="mood-picker"><legend>Choose what feels closest</legend>
+        {% for value, label in moods.items() %}
+        <label><input type="radio" name="mood" value="{{ value }}" {% if existing and existing.mood == value %}checked{% endif %} required /><span>{{ label }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <label>Optional note<textarea name="note" maxlength="500" rows="3" placeholder="Anything you want to remember or gently share">{{ existing.note if existing else '' }}</textarea></label>
+      <label>Who can see this?
+        <select name="privacy" data-checkin-privacy>
+          <option value="private" {% if not existing or existing.privacy == 'private' %}selected{% endif %}>Private to me</option>
+          <option value="family" {% if existing and existing.privacy == 'family' %}selected{% endif %}>Share with selected Family</option>
+          <option value="all_families" {% if existing and existing.privacy == 'all_families' %}selected{% endif %}>Share with all my Families</option>
+          <option value="public" {% if existing and existing.privacy == 'public' %}selected{% endif %}>Share publicly</option>
+        </select>
+      </label>
+      <label data-checkin-family>Selected Family
+        <select name="family_id"><option value="">Choose a Family</option>{% for membership in memberships %}<option value="{{ membership.family_id }}" {% if existing and existing.family_id == membership.family_id %}selected{% endif %}>{{ membership.family.name }}</option>{% endfor %}</select>
+      </label>
+      <label class="public-consent" data-public-consent><input type="checkbox" name="public_consent" value="yes" /> I understand this mood and note will be visible publicly.</label>
+      <button class="button" type="submit">{{ 'Update today’s check-in' if existing else 'Save today’s check-in' }}</button>
+      <p class="muted-meta">Check-ins do not earn daily points.</p>
+    </form>
+  </section>
+
+  <section class="checkin-community">
+    <div class="split-header"><div><p class="eyebrow">Shared with care</p><h2>Recent check-ins</h2></div></div>
+    <nav class="activity-filters" aria-label="Choose Family check-ins"><a class="status-chip{% if not selected_family_id %} is-active{% endif %}" href="{{ url_for('main.daily_checkins') }}">Visible to me</a>{% for membership in memberships %}<a class="status-chip{% if selected_family_id == membership.family_id %} is-active{% endif %}" href="{{ url_for('main.daily_checkins', family_id=membership.family_id) }}">{{ membership.family.name }}</a>{% endfor %}</nav>
+    <div class="checkin-list">
+      {% for checkin in visible_checkins %}
+      <article class="card checkin-card">
+        <header><img class="user-avatar user-avatar--small" src="{{ user_avatar_url(checkin.user) }}" alt="" /><div><strong>{{ checkin.user.profile.display_name if checkin.user.profile and checkin.user.profile.display_name else checkin.user.username }}</strong><time datetime="{{ checkin.created_at.isoformat() }}">{{ checkin.checkin_date.strftime('%b %d') }}</time></div><span class="status-chip">{{ moods[checkin.mood] }}</span></header>
+        {% if checkin.note %}<p>{{ checkin.note }}</p>{% endif %}
+        <p class="muted-meta">{% if checkin.privacy == 'public' %}Public{% elif checkin.privacy == 'all_families' %}Shared with their Families{% elif checkin.privacy == 'family' %}Shared with {{ checkin.family.name }}{% else %}Private to you{% endif %}</p>
+        {% if checkin.user_id != current_user.id %}<details class="checkin-support"><summary>Send support</summary><form action="{{ url_for('main.respond_to_checkin', checkin_id=checkin.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><label>Supportive response<select name="reaction" required>{% for value, label in reactions.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>Optional message<textarea name="message" maxlength="500" rows="2" placeholder="A kind, pressure-free message"></textarea></label><button class="button secondary" type="submit">Send support</button></form></details>{% endif %}
+        {% if checkin.user_id == current_user.id and checkin.responses.count() %}<div class="checkin-responses"><strong>{{ checkin.responses.count() }} supportive {{ 'response' if checkin.responses.count() == 1 else 'responses' }}</strong>{% for response in (checkin.responses.all()|sort(attribute='created_at', reverse=true))[:8] %}<p><b>{{ response.user.username }}</b> · {{ reactions[response.reaction] }}{% if response.message %} — {{ response.message }}{% endif %}</p>{% endfor %}</div>{% endif %}
+      </article>
+      {% else %}<div class="empty-state-card"><span aria-hidden="true">♡</span><h3>No shared check-ins here today</h3><p>Private check-ins stay private. Shared moments will appear only when someone chooses.</p></div>{% endfor %}
+    </div>
+  </section>
+</main>
+<script>document.addEventListener('DOMContentLoaded',()=>{const privacy=document.querySelector('[data-checkin-privacy]');const family=document.querySelector('[data-checkin-family]');const consent=document.querySelector('[data-public-consent]');if(!privacy)return;const sync=()=>{family.hidden=privacy.value!=='family';consent.hidden=privacy.value!=='public';};privacy.addEventListener('change',sync);sync();});</script>
+{% endblock %}
