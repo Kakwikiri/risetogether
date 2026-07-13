@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack, family_level_badge, point_badge with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack, family_level_badge, point_badge, rise_badges with context %} {% block content %}
 <section class="card family-detail-card family-theme-{{ (family.theme or 'classic') if feature_enabled('family_upgrades') else 'classic' }}{% if has_custom_badge_frame %} family-has-badge-frame{% endif %}">
   {% if feature_enabled('family_upgrades') and family.banner_image %}<img class="family-custom-banner" src="{{ url_for('api.serve_upload', filename=family.banner_image) }}" alt="{{ family.name }} banner" />{% endif %}
   <header class="family-hero">
@@ -12,7 +12,7 @@
         <span class="eyebrow">
           {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
         </span>
-        <h2>{{ family.name }}</h2>
+        <h2>{{ family.name }}{{ rise_badges(rise_family_badges(family), 'large') }}</h2>
         <p class="muted-meta">
           {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
           {% if family_is_full %} · Family is full{% endif %}
@@ -439,7 +439,7 @@
         data-search-text="{{ membership.user.username }} {{ membership.user.profile.display_name if membership.user.profile else '' }} {{ role_labels.get(membership.role, 'Member') }}"
       >
         <span>
-          {{ membership.user.username }} <span class="status-pill">{{ role_labels.get(membership.role, 'Member') }}</span>
+          {{ membership.user.username }}{{ rise_badges(rise_user_badges(membership.user, family)) }} <span class="status-pill">{{ role_labels.get(membership.role, 'Member') }}</span>
           <small class="muted-meta">
             · {{ member_completed.get(membership.user_id, 0) }} completed
             · {{ member_points.get(membership.user_id, 0) }} pts
@@ -645,7 +645,7 @@
     {% endif %}
     {% for post in posts %}
     <article class="card post-card">
-      <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}</strong>
+      <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}{{ rise_badges(rise_user_badges(post.author, family)) }}</strong>
       <p>{{ post.content }}</p>
       {% if post.media_url %}
         {% if post.media_type == 'image' %}

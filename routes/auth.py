@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import smtplib
 import urllib.parse
@@ -15,6 +16,7 @@ from extensions import db
 from models import PasswordResetToken, Profile, SiteSetting, User
 
 auth_bp = Blueprint("auth", __name__)
+SAFE_USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{2,80}$")
 
 COUNTRIES = [
     "Uganda",
@@ -194,6 +196,9 @@ def signup():
         password = request.form.get("password", "").strip()
         if not username or not email or not password or not country:
             flash("Please complete all fields.", "warning")
+            return render_signup()
+        if not SAFE_USERNAME_RE.fullmatch(username):
+            flash("Usernames may use only letters, numbers, and underscores. Badge-like symbols are not allowed.", "warning")
             return render_signup()
         if country not in COUNTRIES:
             country = "Other"
@@ -478,7 +483,7 @@ def google_callback():
         return redirect(url_for("auth.login"))
     user = User.query.filter_by(email=email).first()
     if not user:
-        username = email.split("@")[0]
+        username = re.sub(r"[^A-Za-z0-9_]", "_", email.split("@")[0])[:80].strip("_") or "member"
         base_username = username
         counter = 1
         while User.query.filter_by(username=username).first():

@@ -164,6 +164,7 @@ def ensure_schema_compatibility():
         QuizQuestion,
         PointTransaction,
         PointSecurityEvent,
+        RiseBadgeAssignment,
     )
     from helpers import get_media_type, mimetype_for_filename
 
@@ -191,6 +192,7 @@ def ensure_schema_compatibility():
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
     PointTransaction.__table__.create(db.engine, checkfirst=True)
     PointSecurityEvent.__table__.create(db.engine, checkfirst=True)
+    RiseBadgeAssignment.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
     platform_owner_literal = platform_owner_username.replace("'", "''")
@@ -225,6 +227,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_family_memberships BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_checkins BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE",
+        "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'verified_person', u.id, 'active', 'Legacy verification migrated into the audited RiseTogether badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.is_verified = TRUE ON CONFLICT (badge_type, user_id) DO NOTHING",
+        "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'platform_moderator', u.id, 'active', 'Existing website moderation role migrated into the protected badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.admin_role IN ('moderator','admin') ON CONFLICT (badge_type, user_id) DO NOTHING",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(32) NOT NULL DEFAULT 'standard'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS achievement_type VARCHAR(48) DEFAULT ''",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS challenge_completion_id INTEGER REFERENCES challenge_completions(id) ON DELETE CASCADE",
@@ -361,6 +365,7 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_navigation_counts():
+    from badges import family_badges, user_badges
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
     from models import Message, Notification
 
@@ -385,6 +390,8 @@ def inject_navigation_counts():
         "family_avatar_url": family_avatar_url,
         "feature_flags": feature_flags,
         "feature_enabled": lambda name: feature_flags.get(name, False),
+        "rise_user_badges": user_badges,
+        "rise_family_badges": family_badges,
     }
 
 

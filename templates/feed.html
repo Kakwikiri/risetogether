@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card, rise_badges with context %} {% block content %}
 <div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
   <section class="panel panel-feed">
     <div class="panel-header">
@@ -102,7 +102,7 @@
               ><a
                 href="{{ url_for('main.profile', username=post.author.username) }}"
                 >{{ post.author.profile.display_name }}</a
-              >{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
+              >{{ rise_badges(rise_user_badges(post.author)) }}</strong
             >
             <time datetime="{{ post.created_at.isoformat() }}" title="{{ post.created_at.strftime('%b %d, %Y at %H:%M') }}">{{ post.created_at.strftime('%b %d · %H:%M') }}</time>
             {% if realtime_media_enabled and post.user_id in live_user_ids %}

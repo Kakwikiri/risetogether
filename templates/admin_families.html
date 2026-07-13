@@ -64,6 +64,7 @@
             <button class="button secondary" type="submit">Restore</button>
           </form>
           {% endif %}
+          {% if feature_enabled('verification_badges') and current_admin_role == 'super_admin' %}<form action="{{ url_for('moderation.set_family_badge', family_id=family.id) }}" method="post" class="badge-admin-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><select name="badge_action"><option value="assign">Mark Trusted Family</option><option value="revoke">Revoke Trusted badge</option></select><input name="verification_note" minlength="10" maxlength="500" required placeholder="Review evidence or revocation reason" /><button class="button secondary" type="submit">Update badge</button></form>{% endif %}
         </td>
       </tr>
       {% else %}

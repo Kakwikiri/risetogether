@@ -941,6 +941,37 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE", migration)
         self.assertIn("migration_stage27_growth_profiles", migration)
 
+    def test_stage_twenty_eight_badges_are_server_controlled_and_audited(self):
+        models = (ROOT / "models.py").read_text()
+        moderation = (ROOT / "routes" / "moderation.py").read_text()
+        self.assertIn("class RiseBadgeAssignment", models)
+        self.assertIn("verification_note", models)
+        self.assertIn('require_admin_role("super_admin")', moderation[moderation.index("def set_user_badge"):])
+        self.assertIn("record_admin_audit", moderation[moderation.index("def set_user_badge"):moderation.index("def toggle_ban_user")])
+        self.assertIn("with_for_update", moderation)
+
+    def test_stage_twenty_eight_family_admin_badge_is_contextual(self):
+        service = (ROOT / "badges.py").read_text()
+        family_template = (ROOT / "templates" / "family_detail.html").read_text()
+        feed_template = (ROOT / "templates" / "feed.html").read_text()
+        self.assertIn("if family is not None", service)
+        self.assertIn('membership.role in {"owner", "admin"}', service)
+        self.assertIn("rise_user_badges(membership.user, family)", family_template)
+        self.assertNotIn("rise_user_badges(post.author, family)", feed_template)
+
+    def test_stage_twenty_eight_unique_mark_tooltips_and_impersonation_protection(self):
+        component = (ROOT / "templates" / "components" / "ui.html").read_text()
+        auth = (ROOT / "routes" / "auth.py").read_text()
+        svg = (ROOT / "static" / "images" / "rise-badge-mark.svg").read_text()
+        migration = (ROOT / "migrations" / "20260713_stage28_risetogether_badges.sql").read_text()
+        self.assertIn("rise-badge-mark.svg", component)
+        self.assertIn("Verified by RiseTogether.", (ROOT / "badges.py").read_text())
+        self.assertIn('role="tooltip"', component)
+        self.assertIn("SAFE_USERNAME_RE", auth)
+        self.assertIn("Badge-like symbols are not allowed", auth)
+        self.assertIn("<svg", svg)
+        self.assertIn("migration_stage28_risetogether_badges", migration)
+
 
 if __name__ == "__main__":
     unittest.main()

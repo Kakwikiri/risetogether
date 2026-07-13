@@ -33,6 +33,8 @@
 {% macro point_badge(points, label='points') -%}<span class="point-badge"><strong>{{ points }}</strong> {{ label }}</span>{%- endmacro %}
 {% macro family_level_badge(level, name='Growing Together') -%}<span class="family-level-badge"><span aria-hidden="true">✦</span> Level {{ level }} · {{ name }}</span>{%- endmacro %}
 
+{% macro rise_badges(badges, size='small') -%}{% if feature_enabled('verification_badges') and badges %}<span class="rise-badge-list" aria-label="RiseTogether badges">{% for badge in badges %}<button class="rise-badge rise-badge--{{ badge.tone }} rise-badge--{{ size }}" type="button" aria-label="{{ badge.label }}. {{ badge.explanation }}" title="{{ badge.explanation }}" data-rise-badge><img src="{{ url_for('static', filename='images/rise-badge-mark.svg') }}" alt="" aria-hidden="true" /><span class="rise-badge__symbol" aria-hidden="true">{{ badge.symbol }}</span><span class="rise-badge__tooltip" role="tooltip"><strong>{{ badge.label }}</strong>{{ badge.explanation }}</span></button>{% endfor %}</span>{% endif %}{%- endmacro %}
+
 {% macro reaction_bar(post, csrf) -%}
 {% set choices = [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'), ('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %}
 {% set selected = post.reactions.filter_by(user_id=current_user.id).first() if current_user.is_authenticated else none %}

@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges with context %} {% block content %}
 <section class="profile-page">
   <header class="profile-hero">
     <div class="profile-identity-row">
@@ -11,7 +11,7 @@
         />
       </div>
       <div class="profile-title-block">
-        <h1>{{ profile.display_name }}{% if feature_enabled('verification_badges') and user.is_verified %}<img class="verified-badge large" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</h1>
+        <h1>{{ profile.display_name }}{{ rise_badges(rise_user_badges(user), 'large') }}</h1>
         <p class="profile-username">@{{ user.username }}</p>
       </div>
     </div>
@@ -135,7 +135,7 @@
             alt="Avatar"
           />
           <div>
-            <strong>{{ post.author.profile.display_name }}{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong>
+            <strong>{{ post.author.profile.display_name }}{{ rise_badges(rise_user_badges(post.author)) }}</strong>
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
           </div>
         </div>

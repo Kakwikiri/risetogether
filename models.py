@@ -127,6 +127,35 @@ class Profile(db.Model):
     show_goal_progress = db.Column(db.Boolean, default=False, nullable=False)
 
 
+class RiseBadgeAssignment(db.Model):
+    __tablename__ = "rise_badge_assignments"
+    __table_args__ = (
+        db.UniqueConstraint("badge_type", "user_id", name="uq_rise_badge_user_type"),
+        db.UniqueConstraint("badge_type", "family_id", name="uq_rise_badge_family_type"),
+        db.CheckConstraint(
+            "(user_id IS NOT NULL AND family_id IS NULL) OR (user_id IS NULL AND family_id IS NOT NULL)",
+            name="ck_rise_badge_one_subject",
+        ),
+        db.CheckConstraint(
+            "badge_type IN ('verified_person','official_organization','trusted_family','platform_moderator')",
+            name="ck_rise_badge_assignable_type",
+        ),
+        db.CheckConstraint("status IN ('active','revoked')", name="ck_rise_badge_status"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    badge_type = db.Column(db.String(40), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True)
+    status = db.Column(db.String(16), default="active", nullable=False, index=True)
+    verification_note = db.Column(db.String(500), nullable=False)
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("rise_badge_assignments", lazy="dynamic", cascade="all, delete-orphan"))
+    family = db.relationship("Family", foreign_keys=[family_id], backref=db.backref("rise_badge_assignments", lazy="dynamic", cascade="all, delete-orphan"))
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_id])
+
+
 class Post(db.Model):
     __tablename__ = "posts"
     id = db.Column(db.Integer, primary_key=True)

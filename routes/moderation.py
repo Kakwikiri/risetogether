@@ -15,7 +15,7 @@ from feature_flags import (
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
     AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, HelpRequest, Notification,
-    PointSecurityEvent, PointTransaction, Post, Report, SiteSetting, User,
+    PointSecurityEvent, PointTransaction, Post, Report, RiseBadgeAssignment, SiteSetting, User,
 )
 from points import reverse_completion_rewards_for_user, reverse_reward_group
 
@@ -343,6 +343,39 @@ def admin_family_action(family_id, action):
     return redirect(url_for("moderation.admin_families"))
 
 
+@mod_bp.route("/admin/families/<int:family_id>/badge", methods=["POST"])
+@fresh_login_required
+def set_family_badge(family_id):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    family = Family.query.get_or_404(family_id)
+    badge_action = request.form.get("badge_action", "").strip()
+    note = request.form.get("verification_note", "").strip()
+    if badge_action not in {"assign", "revoke"} or len(note) < 10 or len(note) > 500:
+        flash("Choose a badge action and record a verification reason of 10–500 characters.", "warning")
+        return redirect(url_for("moderation.admin_families"))
+    assignment = RiseBadgeAssignment.query.filter_by(
+        family_id=family.id, badge_type="trusted_family"
+    ).with_for_update().first()
+    if badge_action == "assign":
+        if not assignment:
+            assignment = RiseBadgeAssignment(family_id=family.id, badge_type="trusted_family", verification_note=note)
+            db.session.add(assignment)
+        assignment.status = "active"
+        assignment.verification_note = note
+        assignment.assigned_by_id = current_user.id
+        assignment.assigned_at = datetime.utcnow()
+        assignment.revoked_at = None
+    elif assignment:
+        assignment.status = "revoked"
+        assignment.revoked_at = datetime.utcnow()
+        assignment.verification_note = note
+    record_admin_audit("rise_badge_family_" + badge_action, target_family=family, reason=note, metadata_text="trusted_family")
+    db.session.commit()
+    flash("Trusted Family badge updated.", "success")
+    return redirect(url_for("moderation.admin_families"))
+
+
 @mod_bp.route("/admin/audit-log")
 @login_required
 def admin_audit_log():
@@ -614,6 +647,23 @@ def set_website_role(user_id):
     if new_role:
         user.is_banned = False
         user.ban_until = None
+    moderator_badge = RiseBadgeAssignment.query.filter_by(
+        user_id=user.id, badge_type="platform_moderator"
+    ).with_for_update().first()
+    if new_role in {"moderator", "admin"}:
+        if not moderator_badge:
+            moderator_badge = RiseBadgeAssignment(
+                user_id=user.id, badge_type="platform_moderator",
+                verification_note="Website moderation role assigned by the platform owner.",
+            )
+            db.session.add(moderator_badge)
+        moderator_badge.status = "active"
+        moderator_badge.assigned_by_id = current_user.id
+        moderator_badge.assigned_at = datetime.utcnow()
+        moderator_badge.revoked_at = None
+    elif moderator_badge:
+        moderator_badge.status = "revoked"
+        moderator_badge.revoked_at = datetime.utcnow()
     record_admin_audit(
         "admin_role_change",
         target_user=user,
@@ -622,6 +672,45 @@ def set_website_role(user_id):
     )
     db.session.commit()
     flash("Website role updated.", "success")
+    return redirect(url_for("moderation.admin_users"))
+
+
+@mod_bp.route("/admin/users/<int:user_id>/badge", methods=["POST"])
+@fresh_login_required
+def set_user_badge(user_id):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    user = User.query.get_or_404(user_id)
+    badge_type = request.form.get("badge_type", "").strip()
+    note = request.form.get("verification_note", "").strip()
+    if badge_type not in {"", "verified_person", "official_organization"}:
+        flash("Choose a valid RiseTogether verification badge.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    if len(note) < 10 or len(note) > 500:
+        flash("Record the verification or revocation reason in 10–500 characters.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    assignments = RiseBadgeAssignment.query.filter(
+        RiseBadgeAssignment.user_id == user.id,
+        RiseBadgeAssignment.badge_type.in_(["verified_person", "official_organization"]),
+    ).with_for_update().all()
+    by_type = {assignment.badge_type: assignment for assignment in assignments}
+    for assignment in assignments:
+        assignment.status = "revoked"
+        assignment.revoked_at = datetime.utcnow()
+    if badge_type:
+        assignment = by_type.get(badge_type)
+        if not assignment:
+            assignment = RiseBadgeAssignment(user_id=user.id, badge_type=badge_type, verification_note=note)
+            db.session.add(assignment)
+        assignment.status = "active"
+        assignment.verification_note = note
+        assignment.assigned_by_id = current_user.id
+        assignment.assigned_at = datetime.utcnow()
+        assignment.revoked_at = None
+    user.is_verified = bool(badge_type)
+    record_admin_audit("rise_badge_user_update", target_user=user, reason=note, metadata_text=badge_type or "revoked")
+    db.session.commit()
+    flash("RiseTogether verification badge updated.", "success")
     return redirect(url_for("moderation.admin_users"))
 
 
@@ -676,12 +765,8 @@ def admin_user_action(user_id, action):
         record_admin_audit("unban", target_user=user, reason="Account unbanned")
         flash("User unbanned.", "success")
     elif action == "verify":
-        if not is_feature_enabled("verification_badges"):
-            flash("Verification badges are currently disabled.", "info")
-            return redirect(url_for("moderation.admin_users"))
-        user.is_verified = not user.is_verified
-        record_admin_audit("verification_toggle", target_user=user, metadata_text=f"is_verified={user.is_verified}")
-        flash("Verification badge updated.", "success")
+        flash("Use the audited RiseTogether badge form to verify an account.", "warning")
+        return redirect(url_for("moderation.admin_users"))
     elif action == "hide_directory":
         user.is_hidden_from_directory = not user.is_hidden_from_directory
         record_admin_audit(

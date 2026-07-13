@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import rise_badges with context %} {% block content %}
 <div class="grid-layout">
   <section class="panel" data-live-search data-live-search-singular="person" data-live-search-plural="people">
     <div class="panel-header">
@@ -44,7 +44,7 @@
           <h3>
             <a href="{{ url_for('main.profile', username=user.username) }}"
               >{{ user.profile.display_name }}</a
-            >{% if feature_enabled('verification_badges') and user.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}
+            >{{ rise_badges(rise_user_badges(user)) }}
           </h3>
           <p>@{{ user.username }}</p>
         </div>

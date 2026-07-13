@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import rise_badges with context %} {% block content %}
 <section class="chat-card">
   <header class="chat-header">
     <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back">‹</a>
@@ -77,7 +77,7 @@
       <div class="pinned-message">Pinned</div>
       {% endif %}
       {% if family and message.sender_id != current_user.id %}
-      <span class="chat-user"><img src="{{ user_avatar_url(message.sender) }}" alt="" />{{ message.sender.username }}</span>
+      <span class="chat-user"><img src="{{ user_avatar_url(message.sender) }}" alt="" />{{ message.sender.username }}{{ rise_badges(rise_user_badges(message.sender, family)) }}</span>
       {% endif %}
       {% if message.content and message.media_type != 'call' %}
         {% if message.content.startswith('My location: https://www.google.com/maps?q=') %}
