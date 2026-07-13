@@ -11,6 +11,7 @@ from models import AuditLog, PasswordResetToken
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
+from routes.main import FEED_FILTERS, SUPPORTIVE_PROMPTS
 from security import csrf_token, init_csrf
 from helpers import family_avatar_url, user_avatar_url, validate_upload
 from feature_flags import (
@@ -294,6 +295,31 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("body.nav-menu-open", styles)
         self.assertIn("overscroll-behavior: none", styles)
         self.assertIn(".profile-back-button", styles)
+
+    def test_stage_six_feed_filters_and_prompts_are_complete(self):
+        self.assertEqual(
+            FEED_FILTERS,
+            {"all", "videos", "families", "highlights", "kindness", "trending"},
+        )
+        for prompt in [
+            "What’s on your heart today?",
+            "Share a small win.",
+            "Does anyone need encouragement?",
+            "What did you learn today?",
+            "Write something uplifting or honest.",
+        ]:
+            self.assertIn(prompt, SUPPORTIVE_PROMPTS)
+
+    def test_stage_six_feed_has_loading_empty_and_read_more_states(self):
+        template = (ROOT / "templates" / "feed.html").read_text()
+        script = (ROOT / "static" / "js" / "app.js").read_text()
+        self.assertIn("data-feed-filters", template)
+        self.assertIn("data-feed-loading", template)
+        self.assertIn("empty_messages", template)
+        self.assertIn("data-read-more", template)
+        self.assertIn("data-supportive-prompts", template)
+        self.assertIn("14000", script)
+        self.assertIn('document.activeElement === promptInput', script)
 
 
 if __name__ == "__main__":

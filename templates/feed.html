@@ -1,29 +1,21 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton %} {% block content %}
 <div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
   <section class="panel panel-feed">
     <div class="panel-header">
-      <h2>{{ 'Videos' if video_only else 'Your feed' }}</h2>
-      <div class="feed-tabs">
-        <a class="button secondary" href="{{ url_for('main.home') }}">All</a>
-        <a class="button secondary" href="{{ url_for('main.home', type='videos') }}">Videos only</a>
-        {% if video_only %}
-        <label class="status-pill"><input type="checkbox" data-auto-slide checked /> Auto slide</label>
-        {% endif %}
-      </div>
+      <div><p class="eyebrow">RiseTogether community</p><h2>{{ feed_filter|replace('_', ' ')|title }}</h2></div>
+      {% if video_only %}<label class="status-pill"><input type="checkbox" data-auto-slide checked /> Auto slide</label>{% endif %}
     </div>
-    <nav class="mobile-feed-tabs" aria-label="Feed filters">
-      <a class="{{ 'active' if not video_only else '' }}" href="{{ url_for('main.home') }}">All</a>
-      <a class="{{ 'active' if video_only else '' }}" href="{{ url_for('main.home', type='videos') }}">Videos</a>
-      <a href="#available-families">Families</a>
-      <a href="#community-highlights">Highlights</a>
-      <a href="#kindness-challenge">Kindness</a>
-      <a href="#trending-videos">Trending</a>
+    <nav class="mobile-feed-tabs feed-filter-bar" aria-label="Feed filters" data-feed-filters>
+      {% for key, label in [('all', 'All'), ('videos', 'Videos'), ('families', 'Families'), ('highlights', 'Highlights'), ('kindness', 'Kindness'), ('trending', 'Trending')] %}
+      <a class="{{ 'active' if feed_filter == key else '' }}" href="{{ url_for('main.home', filter=key) }}" {% if feed_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
     </nav>
+    <div class="feed-loading-grid" data-feed-loading hidden>{{ skeleton(3, 'Loading posts') }}{{ skeleton(3, 'Loading posts') }}</div>
     {% if video_only %}
     <div class="video-quick-actions">
       <form action="{{ url_for('main.home') }}" method="get" class="video-search">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <input type="hidden" name="type" value="videos" />
+        <input type="hidden" name="filter" value="videos" />
         <input type="search" name="q" value="{{ query }}" placeholder="Search videos..." />
         <button class="icon-button" type="submit" aria-label="Search videos">⌕</button>
       </form>
@@ -45,7 +37,7 @@
     </section>
     {% endif %}
     {% if not video_only %}
-    <section class="composer-card" data-mobile-composer>
+    <section class="composer-card" data-mobile-composer data-supportive-prompts='{{ supportive_prompts|tojson }}'>
       <h3>Share your story</h3>
       <button class="mobile-composer-trigger" type="button" data-composer-open>
         <img
@@ -53,7 +45,7 @@
           src="{{ user_avatar_url(current_user) }}"
           alt=""
         />
-        <span>Share your story...</span>
+        <span data-composer-prompt>{{ supportive_prompts[0] }}</span>
         <strong aria-label="Add media">＋</strong>
       </button>
       <form
@@ -67,7 +59,8 @@
         <textarea
           name="content"
           rows="4"
-          placeholder="Write something uplifting or honest..."
+          placeholder="{{ supportive_prompts[0] }}"
+          data-supportive-prompt-input
         ></textarea>
         <div class="composer-preview" data-media-preview hidden></div>
         <div class="composer-tools">
@@ -94,13 +87,13 @@
     </section>
     {% endif %}
     {% for post in posts %}
-    <article class="card post-card">
+    <article class="card post-card" data-post-card>
       <header>
         <div class="post-author">
           <img
             class="avatar"
             src="{{ user_avatar_url(post.author) }}"
-            alt="Avatar"
+            alt="{{ post.author.profile.display_name }}"
           />
           <div>
             <strong
@@ -109,7 +102,7 @@
                 >{{ post.author.profile.display_name }}</a
               >{% if feature_enabled('verification_badges') and post.author.is_verified %}<img class="verified-badge" src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="Verified" />{% endif %}</strong
             >
-            <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+            <time datetime="{{ post.created_at.isoformat() }}" title="{{ post.created_at.strftime('%b %d, %Y at %H:%M') }}">{{ post.created_at.strftime('%b %d · %H:%M') }}</time>
             {% if realtime_media_enabled and post.user_id in live_user_ids %}
             <a class="live-inline-badge" href="{{ url_for('main.live_room', session_id=(active_live_sessions|selectattr('user_id', 'equalto', post.user_id)|first).id) }}">LIVE now</a>
             {% endif %}
@@ -117,12 +110,12 @@
           {% if post.user_id != current_user.id %}
           <form action="{{ url_for('main.toggle_follow', user_id=post.user_id) }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="follow-chip" type="submit">+ Follow</button>
+            <button class="follow-chip feed-follow-button" type="submit">Follow</button>
           </form>
           {% endif %}
         </div>
-        <div class="post-family">
-          {{ post.audience|capitalize }}{% if post.is_hidden %} · Hidden{% endif %}
+        <div class="post-family post-audience">
+          <span>{{ post.audience|capitalize }}</span>{% if post.is_hidden %} · Hidden{% endif %}
           {% if post.family %} · Family:
           <a
             href="{{ url_for('family.family_detail', family_id=post.family.id) }}"
@@ -131,7 +124,10 @@
           {% endif %}
         </div>
       </header>
-      <p class="post-content">{{ post.content }}</p>
+      {% if post.content %}<div class="post-copy" data-post-copy>
+        <p class="post-content">{{ post.content }}</p>
+        <button class="post-read-more" type="button" data-read-more aria-expanded="false" hidden>Read more</button>
+      </div>{% endif %}
       {% if post.media_url %} {% if post.media_type == 'image' %}
       <div class="media-frame">
         <img
@@ -204,7 +200,16 @@
       </div>
     </article>
     {% else %}
-    <p>No posts yet. Share your first story.</p>
+    {% set empty_messages = {
+      'all': ('Your feed is ready for its first story', 'Share something honest, hopeful, or small. Your voice belongs here.', '♡'),
+      'videos': ('No videos here yet', 'Share a video when you have a moment worth showing.', '▶'),
+      'families': ('No Family posts yet', 'Join a Family or share something with people growing alongside you.', '⌁'),
+      'highlights': ('Highlights are still growing', 'Posts with meaningful community engagement will appear here.', '✦'),
+      'kindness': ('A little kindness can start here', 'Support or encourage a post and it can appear in this space.', '♡'),
+      'trending': ('Nothing is trending yet', 'As the community connects, active conversations will appear here.', '↗')
+    } %}
+    {% set empty_copy = empty_messages[feed_filter] %}
+    {{ empty_state(empty_copy[0], empty_copy[1], empty_copy[2], url_for('main.home'), 'Return to all posts') }}
     {% endfor %}
   </section>
   {% if not video_only %}

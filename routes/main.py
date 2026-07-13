@@ -34,6 +34,14 @@ from models import (
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
+FEED_FILTERS = {"all", "videos", "families", "highlights", "kindness", "trending"}
+SUPPORTIVE_PROMPTS = (
+    "What’s on your heart today?",
+    "Share a small win.",
+    "Does anyone need encouragement?",
+    "What did you learn today?",
+    "Write something uplifting or honest.",
+)
 MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_]{2,80})")
 
 
@@ -139,7 +147,11 @@ def link_mentions(content):
 @main_bp.route("/")
 def home():
     if current_user.is_authenticated:
-        video_only = request.args.get("type") == "videos"
+        requested_filter = request.args.get("filter", "").strip().lower()
+        if request.args.get("type") == "videos":
+            requested_filter = "videos"
+        feed_filter = requested_filter if requested_filter in FEED_FILTERS else "all"
+        video_only = feed_filter == "videos"
         query = request.args.get("q", "").strip()
         blocked_by = [
             block.blocker_id
@@ -178,9 +190,11 @@ def home():
         posts = [post for post in posts if can_view_post(post)]
         families = [membership.family for membership in current_user.family_memberships]
         available_families = Family.query.order_by(Family.created_at.desc()).limit(8).all()
-        trending_posts = sorted(posts, key=trend_score, reverse=True)[:5]
-        if video_only:
-            posts = [post for post in posts if post.media_type == "video"]
+        all_visible_posts = list(posts)
+        trending_posts = [
+            post for post in sorted(all_visible_posts, key=trend_score, reverse=True)
+            if trend_score(post) > 0
+        ][:5]
         if query:
             posts = [
                 post
@@ -189,6 +203,25 @@ def home():
                 or query.lower() in post.author.username.lower()
                 or query.lower() in post.author.profile.display_name.lower()
             ]
+        if feed_filter == "videos":
+            posts = [post for post in posts if post.media_type == "video"]
+        elif feed_filter == "families":
+            posts = [post for post in posts if post.family_id is not None]
+        elif feed_filter == "highlights":
+            posts = [post for post in posts if trend_score(post) >= 2]
+            posts.sort(key=trend_score, reverse=True)
+        elif feed_filter == "kindness":
+            posts = [
+                post for post in posts
+                if any(
+                    post.reactions.filter_by(type=reaction_type).count()
+                    for reaction_type in ("support", "understand", "keep-going", "inspire")
+                )
+            ]
+            posts.sort(key=trend_score, reverse=True)
+        elif feed_filter == "trending":
+            posts = [post for post in posts if trend_score(post) > 0]
+            posts.sort(key=trend_score, reverse=True)
         active_live_sessions = (
             LiveSession.query.filter_by(status="live")
             .order_by(LiveSession.created_at.desc())
@@ -204,7 +237,9 @@ def home():
             available_families=available_families,
             trending_posts=trending_posts,
             video_only=video_only,
+            feed_filter=feed_filter,
             query=query,
+            supportive_prompts=SUPPORTIVE_PROMPTS,
             active_live_sessions=active_live_sessions,
             live_user_ids=live_user_ids,
         )

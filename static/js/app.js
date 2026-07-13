@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-stage5-mobile-nav";
+  const APP_VERSION = "20260713-stage6-feed";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -438,6 +438,51 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     if (open) open.addEventListener("click", () => setExpanded(true));
     if (cancel) cancel.addEventListener("click", () => setExpanded(false));
+
+    const promptTarget = composer.querySelector("[data-composer-prompt]");
+    const promptInput = composer.querySelector("[data-supportive-prompt-input]");
+    let prompts = [];
+    try {
+      prompts = JSON.parse(composer.dataset.supportivePrompts || "[]");
+    } catch (_error) {
+      prompts = [];
+    }
+    if (prompts.length > 1 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      let promptIndex = 0;
+      window.setInterval(() => {
+        if (document.hidden || !promptInput || promptInput.value || document.activeElement === promptInput) return;
+        promptIndex = (promptIndex + 1) % prompts.length;
+        promptInput.placeholder = prompts[promptIndex];
+        if (promptTarget) promptTarget.textContent = prompts[promptIndex];
+      }, 14000);
+    }
+  });
+
+  document.querySelectorAll("[data-post-copy]").forEach((copy) => {
+    const content = copy.querySelector(".post-content");
+    const button = copy.querySelector("[data-read-more]");
+    if (!content || !button) return;
+    const syncOverflow = () => {
+      if (!copy.classList.contains("is-expanded")) {
+        button.hidden = content.scrollHeight <= content.clientHeight + 2;
+      }
+    };
+    window.requestAnimationFrame(syncOverflow);
+    button.addEventListener("click", () => {
+      const expanded = copy.classList.toggle("is-expanded");
+      button.textContent = expanded ? "Show less" : "Read more";
+      button.setAttribute("aria-expanded", String(expanded));
+    });
+  });
+
+  const feedLoading = document.querySelector("[data-feed-loading]");
+  document.querySelectorAll("[data-feed-filters] a").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (link.getAttribute("aria-current") === "page" || !feedLoading) return;
+      feedLoading.hidden = false;
+      const feedPanel = feedLoading.closest(".panel-feed");
+      if (feedPanel) feedPanel.setAttribute("aria-busy", "true");
+    });
   });
 
   document.querySelectorAll(".password-toggle").forEach((button) => {
