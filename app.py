@@ -151,6 +151,8 @@ def ensure_schema_compatibility():
         FamilyModerationLog,
         FamilyGalleryItem,
         FamilyUpgradePurchase,
+        FamilyCampaignContribution,
+        FamilyContributionCampaign,
         FamilyPoll,
         FamilyPollOption,
         FamilyPollVote,
@@ -172,6 +174,8 @@ def ensure_schema_compatibility():
     FamilyModerationLog.__table__.create(db.engine, checkfirst=True)
     FamilyUpgradePurchase.__table__.create(db.engine, checkfirst=True)
     FamilyGalleryItem.__table__.create(db.engine, checkfirst=True)
+    FamilyContributionCampaign.__table__.create(db.engine, checkfirst=True)
+    FamilyCampaignContribution.__table__.create(db.engine, checkfirst=True)
     FamilyPoll.__table__.create(db.engine, checkfirst=True)
     FamilyPollOption.__table__.create(db.engine, checkfirst=True)
     FamilyPollVote.__table__.create(db.engine, checkfirst=True)

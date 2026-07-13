@@ -5939,6 +5939,22 @@ body.nav-menu-open {
 .family-gallery-grid figure { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .family-gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; }
 .family-gallery-grid figcaption { padding: 0.55rem; color: var(--muted); font-size: 0.82rem; }
+.campaign-card { display: grid; gap: 1rem; margin: 1rem 0; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.campaign-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; }
+.campaign-totals div { display: grid; gap: 0.15rem; padding: 0.7rem; border-radius: var(--radius-md); background: var(--soft); }
+.campaign-totals strong { color: var(--accent-strong); font-size: 1.2rem; }
+.campaign-totals span { color: var(--muted); font-size: 0.78rem; }
+.campaign-contributors { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.campaign-contributors h3 { flex-basis: 100%; margin: 0; }
+.campaign-contribution-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.campaign-contribution-form p,
+.campaign-contribution-form button { grid-column: 1 / -1; }
+@media (max-width: 620px) {
+  .campaign-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .campaign-contribution-form { grid-template-columns: 1fr; }
+  .campaign-contribution-form p,
+  .campaign-contribution-form button { grid-column: auto; }
+}
 @media (max-width: 620px) {
   .family-level-card__heading { display: grid; }
   .family-level-card__balances { justify-content: flex-start; }

@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyChallenge, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -38,6 +38,52 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_stage_eighteen_campaigns_have_safe_unique_accounting(self):
+        constraint_columns = {
+            column.name for constraint in FamilyContributionCampaign.__table__.constraints
+            if constraint.name == "uq_family_active_campaign" for column in constraint.columns
+        }
+        self.assertEqual(constraint_columns, {"family_id", "active_slot"})
+        contribution_constraints = {constraint.name for constraint in FamilyCampaignContribution.__table__.constraints}
+        self.assertIn("uq_campaign_contribution_key", contribution_constraints)
+        point_source = (ROOT / "points.py").read_text()
+        self.assertIn("def spend_personal_points", point_source)
+        self.assertIn('transaction_kind="spend"', point_source)
+        self.assertIn("personal_point_balance(user_id) < amount", point_source)
+
+    def test_stage_eighteen_refunds_and_activation_are_server_controlled(self):
+        source = (ROOT / "routes/family.py").read_text()
+        self.assertIn("def cancel_upgrade_campaign", source)
+        self.assertIn("reverse_reward_group(", source)
+        self.assertIn('campaign.status = "cancelled"', source)
+        self.assertIn("contribution.refunded = True", source)
+        self.assertIn('campaign.status = "activated"', source)
+        self.assertIn("campaign.active_slot = None", source)
+        self.assertIn("family_available + contributed < campaign.points_required", source)
+        self.assertIn("Only Family owners and admins can activate campaign upgrades", source)
+
+    def test_stage_eighteen_ui_is_cooperative_mobile_and_confirmed(self):
+        page = (ROOT / "templates/family_upgrades.html").read_text()
+        styles = (ROOT / "static/css/styles.css").read_text()
+        for label in ["Total required", "Family Points available", "Member contributions", "Still needed", "Contributors"]:
+            self.assertIn(label, page)
+        for amount in ["10 points", "25 points", "50 points", "100 points", "Custom amount"]:
+            self.assertIn(amount, page)
+        self.assertIn("Cancel and refund", page)
+        self.assertIn("data-confirm=", page)
+        self.assertIn("@media (max-width: 620px)", styles)
+        self.assertIn(".campaign-totals", styles)
+
+    def test_stage_eighteen_milestones_and_contribution_messages_are_not_competitive(self):
+        source = (ROOT / "routes/family.py").read_text()
+        self.assertIn("(25, 50, 75, 100)", source)
+        self.assertIn("contributed {amount} points toward", source)
+        self.assertIn("Thank you for helping", source)
+        self.assertIn("Together, {family.name} unlocked", source)
+        self.assertIn("amount > remaining", source)
+        self.assertIn("amount > 500", (ROOT / "points.py").read_text())
+        self.assertIn("optional_family_features_unavailable", source)
+
     def test_stage_seventeen_upgrade_catalog_is_practical_and_capacity_costs_increase(self):
         expected = {
             "custom_banner", "pinned_announcements", "challenge_slots", "family_gallery",

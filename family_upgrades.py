@@ -39,3 +39,23 @@ def open_quiz_limit(family_id):
 
 def pinned_announcement_limit(family_id):
     return 3 if family_has_upgrade(family_id, "pinned_announcements") else 1
+
+
+def next_capacity_target(current_capacity):
+    return next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+
+
+def upgrade_is_available(family, upgrade_key):
+    definition = UPGRADE_CATALOG.get(upgrade_key)
+    if not definition or family_has_upgrade(family.id, upgrade_key):
+        return False
+    capacity = definition.get("capacity")
+    return capacity is None or capacity == next_capacity_target(family.member_limit or 50)
+
+
+def campaign_contributed_points(campaign):
+    return sum(
+        contribution.amount
+        for contribution in campaign.contributions.all()
+        if not contribution.refunded
+    )

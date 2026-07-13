@@ -136,10 +136,15 @@ def reverse_completion_rewards_for_user(user_id, *, reversed_by_id=None):
 
 
 def personal_point_balance(user_id):
-    return db.session.query(func.coalesce(func.sum(PointTransaction.amount), 0)).filter(
+    signed_amount = case(
+        (PointTransaction.transaction_kind == "spend", -PointTransaction.amount),
+        else_=PointTransaction.amount,
+    )
+    balance = db.session.query(func.coalesce(func.sum(signed_amount), 0)).filter(
         PointTransaction.user_id == user_id,
         PointTransaction.reversed.is_(False),
     ).scalar()
+    return max(0, balance)
 
 
 def family_point_balance(family_id):
@@ -180,6 +185,28 @@ def spend_family_points(*, family_id, amount, reason, source_type, source_id,
         unique_reward_key=unique_reward_key,
         transaction_kind="spend",
         awarded_by_id=awarded_by_id,
+    )
+    db.session.add(transaction)
+    return transaction, True
+
+
+def spend_personal_points(*, user_id, amount, reason, source_type, source_id,
+                          unique_reward_key):
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0 or amount > 500:
+        raise ValueError("Contribution must be between 1 and 500 Personal Points.")
+    if personal_point_balance(user_id) < amount:
+        raise PointLimitExceeded("You do not have enough available Personal Points.")
+    existing = PointTransaction.query.filter_by(unique_reward_key=unique_reward_key).first()
+    if existing:
+        return existing, False
+    transaction = PointTransaction(
+        user_id=user_id,
+        amount=amount,
+        reason=(reason or "")[:240],
+        source_type=source_type,
+        source_id=source_id,
+        unique_reward_key=unique_reward_key,
+        transaction_kind="spend",
     )
     db.session.add(transaction)
     return transaction, True

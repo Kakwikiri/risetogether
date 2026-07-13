@@ -1,17 +1,19 @@
 import os
+import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from extensions import db
 from feature_flags import is_feature_enabled
 from family_levels import family_level_summary
 from family_upgrades import (
-    UPGRADE_CATALOG, active_challenge_limit, family_has_upgrade,
-    open_quiz_limit, purchased_upgrade_keys,
+    UPGRADE_CATALOG, active_challenge_limit, campaign_contributed_points,
+    family_has_upgrade, next_capacity_target, open_quiz_limit,
+    purchased_upgrade_keys, upgrade_is_available,
 )
 from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
 from models import (
@@ -25,6 +27,8 @@ from models import (
     FamilyMemberRestriction,
     FamilyModerationLog,
     FamilyGalleryItem,
+    FamilyCampaignContribution,
+    FamilyContributionCampaign,
     FamilyUpgradePurchase,
     FamilyPoll,
     FamilyPollOption,
@@ -33,6 +37,7 @@ from models import (
     Message,
     Notification,
     Post,
+    PointTransaction,
     PointSecurityEvent,
     Profile,
     Quiz,
@@ -45,7 +50,8 @@ from models import (
 )
 from points import (
     PointLimitExceeded, award_challenge_completion_points, family_point_balance,
-    reverse_reward_group, spend_family_points,
+    personal_point_balance, reverse_reward_group, spend_family_points,
+    spend_personal_points,
 )
 
 family_bp = Blueprint("family", __name__)
@@ -1013,6 +1019,26 @@ def family_detail(family_id):
         .order_by(Post.created_at.desc())
         .all()
     )
+    family_level = {
+        "level": 1, "name": "Seed", "lifetime_xp": 0, "available_points": 0,
+        "progress_percent": 0, "xp_to_next": 100, "challenges_completed": 0,
+        "goals_achieved": 0, "encouragement_milestones": 0, "age_days": 0,
+    }
+    has_gallery = False
+    has_advanced_statistics = False
+    has_custom_badge_frame = False
+    try:
+        family_level = family_level_summary(family)
+        if is_feature_enabled("family_upgrades"):
+            purchased = purchased_upgrade_keys(family.id)
+            has_gallery = "family_gallery" in purchased
+            has_advanced_statistics = "advanced_statistics" in purchased
+            has_custom_badge_frame = "custom_badge_frame" in purchased
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception(
+            "optional_family_features_unavailable family_id=%s", family.id
+        )
     return render_template(
         "family_detail.html",
         family=family,
@@ -1044,14 +1070,14 @@ def family_detail(family_id):
         can_suspend_members=family_has_permission(member, "suspend_members"),
         can_invite_members=family_has_permission(member, "invite_members"),
         can_activate_upgrades=family_has_permission(member, "activate_upgrade"),
-        has_family_gallery=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "family_gallery"),
-        has_advanced_statistics=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "advanced_statistics"),
-        has_custom_badge_frame=is_feature_enabled("family_upgrades") and family_has_upgrade(family.id, "custom_badge_frame"),
+        has_family_gallery=has_gallery,
+        has_advanced_statistics=has_advanced_statistics,
+        has_custom_badge_frame=has_custom_badge_frame,
         active_member_count=capacity["member_count"],
         effective_member_limit=capacity["member_limit"],
         family_is_full=capacity["is_full"],
         remaining_slots=capacity["remaining_slots"],
-        family_level=family_level_summary(family),
+        family_level=family_level,
         **family_home_dashboard(family, members, member),
         **poll_dashboard(family, member),
         **challenge_dashboard(family, members, member),
@@ -1072,7 +1098,7 @@ def family_upgrades(family_id):
         return redirect(url_for("family.family_detail", family_id=family.id))
     purchased = purchased_upgrade_keys(family.id)
     current_capacity = effective_family_member_limit(family)
-    next_capacity = next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+    next_capacity = next_capacity_target(current_capacity)
     catalog = []
     for key, definition in UPGRADE_CATALOG.items():
         item = {"key": key, **definition}
@@ -1085,6 +1111,29 @@ def family_upgrades(family_id):
     purchases = FamilyUpgradePurchase.query.filter_by(family_id=family.id).order_by(
         FamilyUpgradePurchase.purchased_at.desc()
     ).all()
+    active_campaign = FamilyContributionCampaign.query.filter_by(
+        family_id=family.id, active_slot=True
+    ).first()
+    campaign_details = None
+    if active_campaign:
+        contributed = campaign_contributed_points(active_campaign)
+        family_available = family_point_balance(family.id)
+        contributors = {}
+        for contribution in active_campaign.contributions.filter_by(refunded=False).order_by(
+            FamilyCampaignContribution.created_at.desc()
+        ).all():
+            if contribution.user_id not in contributors:
+                contributors[contribution.user_id] = {"user": contribution.user, "amount": 0}
+            contributors[contribution.user_id]["amount"] += contribution.amount
+        campaign_details = {
+            "campaign": active_campaign,
+            "upgrade": UPGRADE_CATALOG.get(active_campaign.upgrade_key, {}),
+            "contributed": contributed,
+            "family_available": family_available,
+            "remaining": max(0, active_campaign.points_required - family_available - contributed),
+            "progress": min(100, int(((family_available + contributed) / active_campaign.points_required) * 100)),
+            "contributors": list(contributors.values()),
+        }
     return render_template(
         "family_upgrades.html",
         family=family,
@@ -1096,6 +1145,8 @@ def family_upgrades(family_id):
         available_points=family_point_balance(family.id),
         current_capacity=current_capacity,
         can_purchase=family_has_permission(member, "activate_upgrade"),
+        campaign_details=campaign_details,
+        personal_balance=personal_point_balance(current_user.id),
     )
 
 
@@ -1120,10 +1171,13 @@ def purchase_family_upgrade(family_id):
     ).first():
         flash("This Family already owns that upgrade.", "info")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if FamilyContributionCampaign.query.filter_by(family_id=family.id, active_slot=True).first():
+        flash("Finish or cancel the active contribution campaign before purchasing directly.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
     capacity = definition.get("capacity")
     if capacity:
         current_capacity = effective_family_member_limit(family)
-        next_capacity = next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+        next_capacity = next_capacity_target(current_capacity)
         if capacity != next_capacity:
             flash("Capacity upgrades must be unlocked in order.", "warning")
             return redirect(url_for("family.family_upgrades", family_id=family.id))
@@ -1165,6 +1219,283 @@ def purchase_family_upgrade(family_id):
         flash("This upgrade was already purchased. No points were spent twice.", "info")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     flash(f"{definition['name']} unlocked for {family.name}.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/campaigns", methods=["POST"])
+@login_required
+def create_upgrade_campaign(family_id):
+    if not (is_feature_enabled("family_upgrades") and is_feature_enabled("personal_points")):
+        flash("Member contribution campaigns are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.filter_by(id=family_id).with_for_update().first_or_404()
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade"):
+        flash("Only Family owners and admins can start contribution campaigns.", "danger")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if FamilyContributionCampaign.query.filter_by(family_id=family.id, active_slot=True).first():
+        flash("This Family already has an active contribution campaign.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    upgrade_key = request.form.get("upgrade_key", "").strip()
+    if not upgrade_is_available(family, upgrade_key):
+        flash("Choose an available upgrade. Capacity upgrades must stay in order.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    deadline_raw = request.form.get("deadline", "").strip()
+    deadline = parse_family_date(deadline_raw) if deadline_raw else None
+    if deadline:
+        deadline = deadline.replace(hour=23, minute=59, second=59)
+    if deadline_raw and (not deadline or deadline <= datetime.utcnow() or deadline > datetime.utcnow() + timedelta(days=365)):
+        flash("Campaign deadline must be within the next 365 days.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    definition = UPGRADE_CATALOG[upgrade_key]
+    family_available = family_point_balance(family.id)
+    campaign = FamilyContributionCampaign(
+        family_id=family.id,
+        upgrade_key=upgrade_key,
+        points_required=definition["cost"],
+        created_by_id=current_user.id,
+        deadline=deadline,
+        status="reached" if family_available >= definition["cost"] else "active",
+        highest_milestone=100 if family_available >= definition["cost"] else 0,
+        active_slot=True,
+    )
+    db.session.add(campaign)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("This Family already has an active campaign.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    for membership in family.members:
+        if membership.user_id != current_user.id:
+            add_family_notification(
+                membership.user_id,
+                "contribution_campaign",
+                f"{family.name} started a cooperative campaign for {definition['name']}.",
+                url_for("family.family_upgrades", family_id=family.id),
+            )
+    db.session.commit()
+    flash("Contribution campaign started. Every member can help at their own pace.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/campaigns/<int:campaign_id>/contribute", methods=["POST"])
+@login_required
+def contribute_to_upgrade_campaign(family_id, campaign_id):
+    if not (is_feature_enabled("family_upgrades") and is_feature_enabled("personal_points")):
+        flash("Member contribution campaigns are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    campaign = FamilyContributionCampaign.query.filter_by(
+        id=campaign_id, family_id=family_id
+    ).with_for_update().first_or_404()
+    family = campaign.family
+    if not family_member_for_current_user(family):
+        flash("Only Family members can contribute.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if campaign.status not in {"active", "reached"} or campaign.active_slot is not True:
+        flash("This contribution campaign is no longer accepting points.", "info")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if campaign.deadline and campaign.deadline < datetime.utcnow():
+        flash("This campaign deadline has passed. An admin can cancel it to return all contributions.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    selected = request.form.get("amount", "").strip()
+    amount_raw = request.form.get("custom_amount", "").strip() if selected == "custom" else selected
+    try:
+        amount = int(amount_raw)
+    except (TypeError, ValueError):
+        amount = 0
+    if selected != "custom" and amount not in {10, 25, 50, 100}:
+        flash("Choose a supported contribution amount.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if amount < 1 or amount > 500:
+        flash("Custom contributions must be between 1 and 500 points.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    contributed = campaign_contributed_points(campaign)
+    family_available = family_point_balance(family.id)
+    remaining = max(0, campaign.points_required - family_available - contributed)
+    if remaining <= 0:
+        campaign.status = "reached"
+        db.session.commit()
+        flash("The campaign goal is already reached and ready for admin activation.", "success")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if amount > remaining:
+        flash(f"Only {remaining} more points are needed for this campaign.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    recent_count = FamilyCampaignContribution.query.filter(
+        FamilyCampaignContribution.user_id == current_user.id,
+        FamilyCampaignContribution.created_at >= datetime.utcnow() - timedelta(hours=1),
+    ).count()
+    if recent_count >= 20:
+        flash("You have reached the hourly contribution limit. Please try again later.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    User.query.filter_by(id=current_user.id).with_for_update().first()
+    contribution_key = secrets.token_urlsafe(18)
+    contribution = FamilyCampaignContribution(
+        campaign_id=campaign.id,
+        user_id=current_user.id,
+        amount=amount,
+        contribution_key=contribution_key,
+    )
+    db.session.add(contribution)
+    try:
+        db.session.flush()
+        spend_personal_points(
+            user_id=current_user.id,
+            amount=amount,
+            reason=f"Contributed to {family.name}: {UPGRADE_CATALOG[campaign.upgrade_key]['name']}",
+            source_type="campaign_contribution",
+            source_id=contribution.id,
+            unique_reward_key=f"campaign_contribution:{contribution_key}",
+        )
+        new_total = contributed + amount
+        progress = int(((family_available + new_total) / campaign.points_required) * 100)
+        crossed = max((milestone for milestone in (25, 50, 75, 100) if progress >= milestone), default=0)
+        previous_milestone = campaign.highest_milestone
+        if crossed > campaign.highest_milestone:
+            campaign.highest_milestone = crossed
+        if progress >= 100:
+            campaign.status = "reached"
+        for membership in family.members:
+            if membership.user_id != current_user.id:
+                add_family_notification(
+                    membership.user_id,
+                    "campaign_contribution",
+                    f"{current_user.username} contributed {amount} points toward {UPGRADE_CATALOG[campaign.upgrade_key]['name']}.",
+                    url_for("family.family_upgrades", family_id=family.id),
+                )
+                if crossed > previous_milestone:
+                    add_family_notification(
+                        membership.user_id,
+                        "campaign_milestone",
+                        f"{family.name} reached {crossed}% of its {UPGRADE_CATALOG[campaign.upgrade_key]['name']} campaign!",
+                        url_for("family.family_upgrades", family_id=family.id),
+                    )
+        db.session.commit()
+    except (IntegrityError, PointLimitExceeded, ValueError) as exc:
+        db.session.rollback()
+        flash(str(exc) if not isinstance(exc, IntegrityError) else "This contribution was already recorded.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    flash(f"You contributed {amount} Personal Points. Thank you for helping {family.name} grow.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/campaigns/<int:campaign_id>/cancel", methods=["POST"])
+@login_required
+def cancel_upgrade_campaign(family_id, campaign_id):
+    if not (is_feature_enabled("family_upgrades") and is_feature_enabled("personal_points")):
+        flash("Member contribution campaigns are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    campaign = FamilyContributionCampaign.query.filter_by(
+        id=campaign_id, family_id=family_id
+    ).with_for_update().first_or_404()
+    family = campaign.family
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade"):
+        flash("Only Family owners and admins can cancel campaigns.", "danger")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if campaign.status == "activated":
+        flash("Activated campaign contributions are final and cannot be refunded.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if campaign.status == "cancelled":
+        flash("This campaign was already cancelled and refunded.", "info")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    refund_count = 0
+    for contribution in campaign.contributions.filter_by(refunded=False).all():
+        transaction = PointTransaction.query.filter_by(
+            source_type="campaign_contribution", source_id=contribution.id, reversed=False
+        ).first()
+        if transaction:
+            reverse_reward_group(
+                transaction,
+                reversed_by_id=current_user.id,
+                reason="Contribution returned because the Family campaign was cancelled.",
+            )
+        contribution.refunded = True
+        contribution.refunded_at = datetime.utcnow()
+        refund_count += 1
+    campaign.status = "cancelled"
+    campaign.active_slot = None
+    campaign.cancelled_at = datetime.utcnow()
+    log_family_action(family, "contribution_campaign_cancelled", reason=f"Refunded {refund_count} contributions.")
+    for membership in family.members:
+        add_family_notification(
+            membership.user_id,
+            "contribution_campaign",
+            f"The {UPGRADE_CATALOG[campaign.upgrade_key]['name']} campaign was cancelled. Contributed Personal Points were returned.",
+            url_for("family.family_upgrades", family_id=family.id),
+        )
+    db.session.commit()
+    flash("Campaign cancelled. Every contribution was returned automatically.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/campaigns/<int:campaign_id>/activate", methods=["POST"])
+@login_required
+def activate_upgrade_campaign(family_id, campaign_id):
+    if not (is_feature_enabled("family_upgrades") and is_feature_enabled("personal_points")):
+        flash("Member contribution campaigns are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    campaign = FamilyContributionCampaign.query.filter_by(
+        id=campaign_id, family_id=family_id
+    ).with_for_update().first_or_404()
+    family = Family.query.filter_by(id=family_id).with_for_update().first_or_404()
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade"):
+        flash("Only Family owners and admins can activate campaign upgrades.", "danger")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if campaign.status not in {"active", "reached"} or campaign.active_slot is not True:
+        flash("This campaign cannot be activated.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    if not upgrade_is_available(family, campaign.upgrade_key):
+        flash("This upgrade is no longer available or was already activated.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    definition = UPGRADE_CATALOG[campaign.upgrade_key]
+    contributed = campaign_contributed_points(campaign)
+    family_available = family_point_balance(family.id)
+    if family_available + contributed < campaign.points_required:
+        flash("The campaign has not reached its goal yet.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    capacity = definition.get("capacity")
+    if capacity and (capacity != next_capacity_target(effective_family_member_limit(family)) or capacity < active_family_member_count(family)):
+        flash("The capacity upgrade is not valid for the Family’s current size.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    purchase = FamilyUpgradePurchase(
+        family_id=family.id, upgrade_key=campaign.upgrade_key,
+        cost=campaign.points_required, purchased_by_id=current_user.id,
+    )
+    db.session.add(purchase)
+    try:
+        db.session.flush()
+        family_points_used = max(0, campaign.points_required - contributed)
+        if family_points_used:
+            spend_family_points(
+                family_id=family.id,
+                amount=family_points_used,
+                reason=f"Campaign unlocked {definition['name']}",
+                source_type="family_upgrade",
+                source_id=purchase.id,
+                unique_reward_key=f"family_upgrade:{family.id}:{campaign.upgrade_key}",
+                awarded_by_id=current_user.id,
+            )
+        if capacity:
+            family.member_limit = capacity
+        campaign.status = "activated"
+        campaign.active_slot = None
+        campaign.activated_at = datetime.utcnow()
+        log_family_action(family, "campaign_upgrade_activated", reason=f"{definition['name']} unlocked cooperatively.")
+        for membership in family.members:
+            add_family_notification(
+                membership.user_id,
+                "family_upgrade_unlocked",
+                f"Together, {family.name} unlocked {definition['name']}!",
+                url_for("family.family_detail", family_id=family.id),
+            )
+        db.session.commit()
+    except (IntegrityError, PointLimitExceeded) as exc:
+        db.session.rollback()
+        flash(str(exc) if not isinstance(exc, IntegrityError) else "This upgrade was already activated.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    flash(f"Together, your Family unlocked {definition['name']}!", "success")
     return redirect(url_for("family.family_upgrades", family_id=family.id))
 
 

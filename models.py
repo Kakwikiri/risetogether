@@ -332,6 +332,63 @@ class FamilyGalleryItem(db.Model):
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
 
 
+class FamilyContributionCampaign(db.Model):
+    __tablename__ = "family_contribution_campaigns"
+    __table_args__ = (
+        db.UniqueConstraint("family_id", "active_slot", name="uq_family_active_campaign"),
+        db.CheckConstraint("points_required > 0", name="ck_campaign_positive_goal"),
+        db.CheckConstraint(
+            "status IN ('active', 'reached', 'cancelled', 'activated')",
+            name="ck_campaign_status",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    upgrade_key = db.Column(db.String(64), nullable=False)
+    points_required = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    deadline = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(24), default="active", nullable=False, index=True)
+    active_slot = db.Column(db.Boolean, default=True, nullable=True)
+    highest_milestone = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    family = db.relationship(
+        "Family", backref=db.backref("contribution_campaigns", lazy="dynamic", cascade="all, delete-orphan")
+    )
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+
+class FamilyCampaignContribution(db.Model):
+    __tablename__ = "family_campaign_contributions"
+    __table_args__ = (
+        db.CheckConstraint("amount > 0", name="ck_campaign_contribution_positive"),
+        db.UniqueConstraint("contribution_key", name="uq_campaign_contribution_key"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(
+        db.Integer, db.ForeignKey("family_contribution_campaigns.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    amount = db.Column(db.Integer, nullable=False)
+    contribution_key = db.Column(db.String(120), nullable=False)
+    refunded = db.Column(db.Boolean, default=False, nullable=False)
+    refunded_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    campaign = db.relationship(
+        "FamilyContributionCampaign",
+        backref=db.backref("contributions", lazy="dynamic", cascade="all, delete-orphan"),
+    )
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
 class FamilyMember(db.Model):
     __tablename__ = "family_members"
     __table_args__ = (
