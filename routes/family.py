@@ -822,7 +822,7 @@ def family_home_dashboard(family, members, current_member):
             continue
         stats = stats_by_user[completion.user_id]
         stats["completed_challenges"] += 1
-        stats["challenge_points"] += completion.points_awarded
+        stats["challenge_points"] += completion.points_awarded or 0
         if completion.challenge_id in active_challenge_ids:
             completed_active_by_user[completion.user_id].add(completion.challenge_id)
         if completion.completed_at and completion.completed_at >= week_start:
@@ -838,7 +838,7 @@ def family_home_dashboard(family, members, current_member):
         if attempt.user_id not in stats_by_user:
             continue
         stats = stats_by_user[attempt.user_id]
-        stats["quiz_points"] += attempt.score
+        stats["quiz_points"] += attempt.score or 0
         if attempt.submitted_at and attempt.submitted_at >= week_start:
             stats["weekly_activity"] += 1
             weekly_achievements.append(
@@ -896,13 +896,57 @@ def family_home_dashboard(family, members, current_member):
         )
     member_progress.sort(key=lambda row: row["total_points"], reverse=True)
     weekly_achievements.sort(key=lambda row: row["created_at"], reverse=True)
+    hour = (datetime.utcnow() + timedelta(hours=3)).hour
+    greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 18 else "Good evening")
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_activity = sum(
+        1 for item in weekly_achievements if item["created_at"] and item["created_at"] >= today_start
+    ) + sum(1 for message in family_messages if message.created_at and message.created_at >= today_start)
+    needs_encouragement = next(
+        (
+            post for post in family_posts
+            if post.user_id != current_user.id
+            and post.comments.count() == 0
+            and post.reactions.count() == 0
+        ),
+        None,
+    )
+    new_members = sorted(
+        [membership for membership in members if membership.joined_at and membership.joined_at >= week_start],
+        key=lambda membership: membership.joined_at,
+        reverse=True,
+    )[:5]
+    top_supporter = next(
+        (row for row in member_progress if row["total_points"] or row["completed_challenges"]),
+        member_progress[0] if member_progress else None,
+    )
+    active_campaign = FamilyContributionCampaign.query.filter(
+        FamilyContributionCampaign.family_id == family.id,
+        FamilyContributionCampaign.status.in_(["active", "reached"]),
+    ).order_by(FamilyContributionCampaign.created_at.desc()).first()
+    campaign_summary = None
+    if active_campaign:
+        contributed = campaign_contributed_points(active_campaign)
+        available = family_point_balance(family.id)
+        campaign_summary = {
+            "campaign": active_campaign,
+            "upgrade": UPGRADE_CATALOG.get(active_campaign.upgrade_key, {}),
+            "progress": min(100, round(((available + contributed) / active_campaign.points_required) * 100)),
+            "remaining": max(0, active_campaign.points_required - available - contributed),
+        }
     return {
+        "dashboard_greeting": greeting,
+        "dashboard_today_activity": today_activity,
         "dashboard_active_challenges": active_challenges[:5],
         "dashboard_member_progress": member_progress,
         "dashboard_recent_posts": family_posts[:4],
         "dashboard_recent_messages": family_messages[:5],
         "dashboard_upcoming_quiz": upcoming_quiz,
         "dashboard_weekly_achievements": weekly_achievements[:6],
+        "dashboard_needs_encouragement": needs_encouragement,
+        "dashboard_new_members": new_members,
+        "dashboard_top_supporter": top_supporter,
+        "dashboard_campaign": campaign_summary,
     }
 
 
@@ -1012,6 +1056,10 @@ def family_detail(family_id):
     member = FamilyMember.query.filter_by(
         family_id=family.id, user_id=current_user.id
     ).first()
+    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    if family.privacy != "public" and not member and not is_super_admin:
+        flash("This Family is private. Join through an invitation to enter.", "warning")
+        return redirect(url_for("family.families"))
     members = FamilyMember.query.filter_by(family_id=family.id).all()
     capacity = family_capacity_status(family)
     posts = (
@@ -1070,6 +1118,7 @@ def family_detail(family_id):
         can_suspend_members=family_has_permission(member, "suspend_members"),
         can_invite_members=family_has_permission(member, "invite_members"),
         can_activate_upgrades=family_has_permission(member, "activate_upgrade"),
+        is_super_admin_view=is_super_admin,
         has_family_gallery=has_gallery,
         has_advanced_statistics=has_advanced_statistics,
         has_custom_badge_frame=has_custom_badge_frame,

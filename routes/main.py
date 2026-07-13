@@ -19,6 +19,7 @@ from helpers import (
 )
 from feature_flags import is_feature_enabled
 from models import (
+    AuditLog,
     Block,
     Comment,
     CommentReaction,
@@ -182,6 +183,10 @@ def home():
             ),
             Post.audience == "friends",
         ]
+        if website_moderator_role(current_user) == "super_admin":
+            # Super admins moderate website content across Family boundaries. This
+            # deliberately does not affect any chat query or chat authorization.
+            visibility_filters.append(Post.id != None)
         if shared_post_ids:
             visibility_filters.append(Post.id.in_(shared_post_ids))
         posts = (
@@ -321,6 +326,14 @@ def user_family_ids(user):
     return [membership.family_id for membership in user.family_memberships]
 
 
+def website_moderator_role(user):
+    """Resolve current and legacy website roles without granting chat access."""
+    role = (getattr(user, "admin_role", "") or "").strip()
+    if role in {"super_admin", "admin", "moderator"}:
+        return role
+    return "admin" if getattr(user, "is_admin", False) else ""
+
+
 def users_are_friends(user_id, other_id):
     return (
         FriendRequest.query.filter(
@@ -339,6 +352,8 @@ def users_are_friends(user_id, other_id):
 def can_view_post(post):
     if post.original_post is not None and not can_view_post(post.original_post):
         return False
+    if current_user.is_authenticated and website_moderator_role(current_user) == "super_admin":
+        return True
     if post.is_hidden and (
         not current_user.is_authenticated or post.user_id != current_user.id
     ):
@@ -909,11 +924,29 @@ def post_detail(post_id):
 @main_bp.route("/post/<int:post_id>/<action>", methods=["POST"])
 @login_required
 def manage_post(post_id, action):
-    post = Post.query.filter_by(id=post_id, user_id=current_user.id).first_or_404()
+    post = Post.query.get_or_404(post_id)
+    moderator_role = website_moderator_role(current_user)
+    owns_post = post.user_id == current_user.id
+    if not owns_post and moderator_role not in {"super_admin", "admin", "moderator"}:
+        abort(403)
     if action == "delete":
+        if not owns_post:
+            db.session.add(
+                AuditLog(
+                    actor_user_id=current_user.id,
+                    actor_role=moderator_role,
+                    action_type="post_delete",
+                    target_user_id=post.user_id,
+                    target_family_id=post.family_id,
+                    target_content_id=post.id,
+                    reason=(request.form.get("reason", "") or "Harmful content moderation")[:500],
+                    metadata_text="Post removed directly by website moderation.",
+                    ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
+                )
+            )
         db.session.delete(post)
         db.session.commit()
-        flash("Post deleted.", "info")
+        flash("Post removed and recorded in the audit log." if not owns_post else "Post deleted.", "info")
         return redirect(url_for("main.home"))
     if action == "hide":
         post.is_hidden = not post.is_hidden

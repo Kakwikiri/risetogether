@@ -37,7 +37,7 @@ ADMIN_ROLE_RANK = {
 
 def website_role(user):
     role = getattr(user, "admin_role", "") or ""
-    if role in ADMIN_ROLE_RANK:
+    if role in ADMIN_ROLE_RANK and role:
         return role
     return "admin" if getattr(user, "is_admin", False) else ""
 

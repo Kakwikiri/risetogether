@@ -17,6 +17,7 @@
           {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
           {% if family_is_full %} · Family is full{% endif %}
         </p>
+        {% if feature_enabled('family_levels') %}<div class="family-header-level">{{ family_level_badge(family_level.level, family_level.name) }}</div>{% endif %}
       </div>
     </div>
     <div class="family-actions">
@@ -38,6 +39,7 @@
       {% if can_edit_family or can_change_family_image %}
       <a class="button secondary" href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>
       {% endif %}
+      {% if is_super_admin_view and not member %}<span class="status-pill">Super Admin view · chat remains private</span>{% endif %}
       {% endif %}
     </div>
   </header>
@@ -74,7 +76,7 @@
   {% endif %}
 
   <section id="family-home" class="family-section" data-family-panel>
-    <h3>Family Home</h3>
+    <div class="family-welcome"><p class="eyebrow">Family Home</p><h3>{{ dashboard_greeting }}, {{ current_user.profile.display_name if current_user.profile and current_user.profile.display_name else current_user.username }}.</h3><p>Here’s what your family is growing through today.</p></div>
     {% if feature_enabled('family_levels') %}
     <section class="family-level-card" aria-label="{{ family.name }} Family level">
       <div class="family-level-card__heading"><div><p class="eyebrow">Growing together</p><h4>{{ family_level_badge(family_level.level, family_level.name) }}</h4></div><div class="family-level-card__balances">{{ point_badge(family_level.lifetime_xp, 'lifetime XP') }}{% if feature_enabled('family_points') %}{{ point_badge(family_level.available_points, 'available Family Points') }}{% endif %}</div></div>
@@ -84,94 +86,19 @@
     </section>
     {% endif %}
     {% if has_advanced_statistics %}<section class="family-dashboard-panel"><h4>Advanced statistics</h4><div class="family-level-stats"><div><strong>{{ ((family_level.challenges_completed / active_member_count) if active_member_count else 0)|round(1) }}</strong><span>Completions per active member</span></div><div><strong>{{ family.gallery_items.count() }}</strong><span>Gallery memories</span></div><div><strong>{{ family.upgrade_purchases.count() }}</strong><span>Upgrades unlocked</span></div><div><strong>{{ dashboard_member_progress|length }}</strong><span>Members tracked</span></div></div></section>{% endif %}
-    <div class="family-dashboard-grid">
-      <section class="family-dashboard-panel family-dashboard-goal">
-        <span class="eyebrow">
-          {{ categories.get(family.category, family.category|replace('_', ' ')|title) }}{% if family.category == 'custom' and family.custom_category %} · {{ family.custom_category }}{% endif %}
-        </span>
-        <strong>{{ family.goal_title or 'Shared goal not set yet' }}</strong>
-        <p>{{ family.goal_description or 'Admins can add a shared purpose for this Family.' }}</p>
-        <div class="muted-meta">
-          {% if family.start_date %}Starts {{ family.start_date.strftime('%b %d, %Y') }}{% endif %}
-          {% if family.target_date %} · Target {{ family.target_date.strftime('%b %d, %Y') }}{% endif %}
-          {% if not family.start_date and not family.target_date %}No date target set.{% endif %}
-        </div>
-      </section>
-
-      <section class="family-dashboard-panel">
-        <h4>Active challenges</h4>
-        <ul class="dashboard-list">
-          {% for challenge in dashboard_active_challenges %}
-          <li>
-            <a href="#family-challenges" data-family-tab>{{ challenge.title }}</a>
-            <small>{{ reward_values.get(challenge.reward_tier, challenge.points) }} pts{% if challenge.ends_at %} · ends {{ challenge.ends_at.strftime('%b %d') }}{% endif %}</small>
-          </li>
-          {% else %}
-          <li><span>No active challenges yet.</span></li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      <section class="family-dashboard-panel">
-        <h4>Upcoming quiz</h4>
-        {% if dashboard_upcoming_quiz %}
-        <p><strong><a href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) }}">{{ dashboard_upcoming_quiz.title }}</a></strong></p>
-        <p class="muted-meta">
-          {{ dashboard_upcoming_quiz.questions.count() }} questions
-          {% if dashboard_upcoming_quiz.opens_at %} · opens {{ dashboard_upcoming_quiz.opens_at.strftime('%b %d') }}{% endif %}
-          {% if dashboard_upcoming_quiz.closes_at %} · closes {{ dashboard_upcoming_quiz.closes_at.strftime('%b %d') }}{% endif %}
-        </p>
-        {% if member %}
-        <a class="text-button" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) }}">Open quiz</a>
-        {% endif %}
-        {% else %}
-        <p class="muted-meta">No open quiz is scheduled.</p>
-        {% endif %}
-      </section>
-
-      <section class="family-dashboard-panel">
-        <h4><a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Recent chat</a></h4>
-        <ul class="dashboard-list">
-          {% for message in dashboard_recent_messages %}
-          <li>
-            <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">{{ message.sender.username }}</a>
-            <small>
-              {% if message.media_type in ['audio', 'video'] %}{{ message.media_type|title }} note{% else %}{{ message.content|truncate(48) }}{% endif %}
-            </small>
-          </li>
-          {% else %}
-          <li><span>No family chat activity yet.</span></li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      <section class="family-dashboard-panel">
-        <h4>Recent posts</h4>
-        <ul class="dashboard-list">
-          {% for post in dashboard_recent_posts %}
-          <li>
-            <a href="#family-posts" data-family-tab>{{ post.author.username }}</a>
-            <small>{{ post.content|truncate(54) }}</small>
-          </li>
-          {% else %}
-          <li><span>No Family posts yet.</span></li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      {% if feature_enabled('weekly_reports') %}<section class="family-dashboard-panel">
-        <h4>This week</h4>
-        <ul class="dashboard-list">
-          {% for achievement in dashboard_weekly_achievements %}
-          <li>
-            <span>{{ achievement.user.username }}</span>
-            <small>{{ achievement.label }}</small>
-          </li>
-          {% else %}
-          <li><span>No weekly achievements yet.</span></li>
-          {% endfor %}
-        </ul>
-      </section>{% endif %}
+    <div class="family-dashboard-grid family-dashboard-grid--living">
+      <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">☀</span><h4>Today in the Family</h4><p>{{ dashboard_today_activity }} meaningful {{ 'moment' if dashboard_today_activity == 1 else 'moments' }} today.</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-challenges" data-family-tab><span class="dashboard-icon">✓</span><h4>Active Challenge</h4><p>{% if dashboard_active_challenges %}{{ dashboard_active_challenges[0].title }}{% else %}A new shared challenge can begin here.{% endif %}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-goal" data-family-tab><span class="dashboard-icon">◎</span><h4>Family Goal</h4><p>{{ family.goal_title or 'Shape a shared goal together.' }}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('main.post_detail', post_id=dashboard_needs_encouragement.id) if dashboard_needs_encouragement else '#family-posts' }}"{% if not dashboard_needs_encouragement %} data-family-tab{% endif %}><span class="dashboard-icon">♡</span><h4>Someone Needs Encouragement</h4><p>{% if dashboard_needs_encouragement %}{{ dashboard_needs_encouragement.author.username }} shared something awaiting support.{% else %}Everyone’s recent posts have received support.{% endif %}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}"><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('chat.family_chat', family_id=family.id) }}"><span class="dashboard-icon">◌</span><h4>Recent Chat</h4><p>{% if dashboard_recent_messages %}{{ dashboard_recent_messages[0].sender.username }}: {{ dashboard_recent_messages[0].content|default('Shared a message', true)|truncate(55) }}{% else %}The conversation is ready when your Family is.{% endif %}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">▤</span><h4>Recent Posts</h4><p>{% if dashboard_recent_posts %}{{ dashboard_recent_posts|length }} recent Family {{ 'post' if dashboard_recent_posts|length == 1 else 'posts' }}.{% else %}Be the first to share with this Family.{% endif %}</p></a>
+      <section class="family-dashboard-panel"><span class="dashboard-icon">↗</span><h4>Weekly Activity</h4><p>{{ dashboard_weekly_achievements|length }} growth {{ 'moment' if dashboard_weekly_achievements|length == 1 else 'moments' }} this week.</p></section>
+      <a class="family-dashboard-panel dashboard-link" href="#family-members" data-family-tab><span class="dashboard-icon">+</span><h4>New Members</h4><p>{% if dashboard_new_members %}Welcome {{ dashboard_new_members|map(attribute='user.username')|join(', ') }}.{% else %}No new arrivals this week.{% endif %}</p></a>
+      <section class="family-dashboard-panel"><span class="dashboard-icon">✦</span><h4>Family Level Progress</h4><p>Level {{ family_level.level }} · {{ family_level.name }} · {{ family_level.progress_percent }}% toward the next level.</p></section>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_upgrades', family_id=family.id) if feature_enabled('family_upgrades') else '#family-home' }}"><span class="dashboard-icon">◇</span><h4>Upgrade Campaign</h4><p>{% if dashboard_campaign %}{{ dashboard_campaign.upgrade.get('name', 'Family upgrade') }} · {{ dashboard_campaign.remaining }} points remaining.{% else %}No active campaign. Grow at your own pace.{% endif %}</p></a>
+      <section class="family-dashboard-panel"><span class="dashboard-icon">☆</span><h4>Top Supporter of the Week</h4><p>{% if dashboard_top_supporter %}{{ dashboard_top_supporter.membership.user.username }} has been showing up for the Family.{% else %}Kind support this week can begin with anyone.{% endif %}</p></section>
     </div>
 
     {% if feature_enabled('family_leaderboards') %}<section class="family-dashboard-panel">

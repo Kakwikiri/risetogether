@@ -190,6 +190,12 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button danger" type="submit">Delete</button>
         </form>
+        {% elif current_user.is_admin %}
+        <form action="{{ url_for('main.manage_post', post_id=post.id, action='delete') }}" method="post" data-confirm="Remove this post as website moderation? This action is audited.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="reason" value="Harmful content moderation" />
+          <button class="button danger" type="submit">Remove post</button>
+        </form>
         {% endif %}
       </div>
     </article>

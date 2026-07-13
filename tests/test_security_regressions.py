@@ -723,6 +723,33 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("14000", script)
         self.assertIn('document.activeElement === promptInput', script)
 
+    def test_stage_nineteen_family_home_has_living_dashboard_cards(self):
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        for heading in [
+            "Today in the Family", "Active Challenge", "Family Goal",
+            "Someone Needs Encouragement", "Upcoming Quiz", "Recent Chat",
+            "Recent Posts", "Weekly Activity", "New Members",
+            "Family Level Progress", "Upgrade Campaign", "Top Supporter of the Week",
+        ]:
+            self.assertIn(heading, template)
+        self.assertIn("Here’s what your family is growing through today.", template)
+        self.assertIn("family-dashboard-grid--living", template)
+
+    def test_website_moderation_can_remove_posts_without_expanding_chat_access(self):
+        main_routes = (ROOT / "routes" / "main.py").read_text()
+        chat_routes = (ROOT / "routes" / "chat.py").read_text()
+        self.assertIn('action_type="post_delete"', main_routes)
+        self.assertIn("website_moderator_role(current_user)", main_routes)
+        self.assertIn("Post removed directly by website moderation.", main_routes)
+        self.assertNotIn("website_moderator_role", chat_routes)
+
+    def test_legacy_admin_flag_and_super_admin_family_feed_are_supported(self):
+        moderation_routes = (ROOT / "routes" / "moderation.py").read_text()
+        main_routes = (ROOT / "routes" / "main.py").read_text()
+        self.assertIn("if role in ADMIN_ROLE_RANK and role", moderation_routes)
+        self.assertIn('website_moderator_role(current_user) == "super_admin"', main_routes)
+        self.assertIn("Post.id != None", main_routes)
+
 
 if __name__ == "__main__":
     unittest.main()
