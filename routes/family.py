@@ -539,7 +539,7 @@ def challenge_dashboard(family, members, current_member):
         if completion.verification_status == "completed":
             completion_counts[completion.challenge_id] = completion_counts.get(completion.challenge_id, 0) + 1
         if completion.user_id in member_points and completion.verification_status == "completed":
-            member_points[completion.user_id] += completion.points_awarded
+            member_points[completion.user_id] += completion.points_awarded or 0
             member_completed[completion.user_id] += 1
     progress_by_challenge = {}
     family_participant_count = 0
@@ -640,7 +640,7 @@ def quiz_dashboard(family, members, current_member):
     quiz_points = {membership.user_id: 0 for membership in members}
     for attempt in attempts:
         if attempt.user_id in quiz_points:
-            quiz_points[attempt.user_id] += attempt.score
+            quiz_points[attempt.user_id] += attempt.score or 0
     quiz_history = [
         attempt
         for attempt in sorted(attempts, key=lambda item: item.submitted_at, reverse=True)
@@ -950,6 +950,120 @@ def family_home_dashboard(family, members, current_member):
     }
 
 
+TIMELINE_FILTERS = {"all", "challenges", "goals", "members", "upgrades"}
+
+
+def family_activity_timeline(family, current_member, is_super_admin=False):
+    """Build a quiet, privacy-aware timeline from existing authoritative records."""
+    selected_filter = request.args.get("activity", "all").strip().lower()
+    if selected_filter not in TIMELINE_FILTERS:
+        selected_filter = "all"
+    if not current_member and not is_super_admin:
+        return {"family_activity_events": [], "family_activity_filter": selected_filter,
+                "family_activity_visible": False}
+
+    events = []
+
+    def add(category, title, detail, created_at, icon="✦", major=False):
+        if created_at:
+            events.append({"category": category, "title": title, "detail": detail,
+                           "created_at": created_at, "icon": icon, "major": major})
+
+    for membership in family.members.order_by(FamilyMember.joined_at.desc()).limit(30).all():
+        add("members", "Member joined", f"{membership.user.username} joined the Family.",
+            membership.joined_at, "+")
+
+    participants = ChallengeParticipant.query.join(FamilyChallenge).filter(
+        FamilyChallenge.family_id == family.id
+    ).order_by(ChallengeParticipant.joined_at.desc()).limit(80).all()
+    joined_groups = {}
+    for participant in participants:
+        key = participant.joined_at.date() if participant.joined_at else None
+        if key:
+            joined_groups.setdefault(key, []).append(participant)
+    for day, rows in joined_groups.items():
+        label = "today" if day == datetime.utcnow().date() else day.strftime("%b %d")
+        add("challenges", "Challenge participation",
+            f"{len(rows)} {'member' if len(rows) == 1 else 'members'} joined challenges {label}.",
+            max(row.joined_at for row in rows), "✓")
+
+    completions = ChallengeCompletion.query.join(FamilyChallenge).filter(
+        FamilyChallenge.family_id == family.id,
+        ChallengeCompletion.verification_status == "completed",
+    ).order_by(ChallengeCompletion.completed_at.desc()).limit(120).all()
+    completion_groups = {}
+    for completion in completions:
+        key = completion.completed_at.date() if completion.completed_at else None
+        if key:
+            completion_groups.setdefault(key, []).append(completion)
+    for day, rows in completion_groups.items():
+        label = "today" if day == datetime.utcnow().date() else f"on {day.strftime('%b %d')}"
+        add("challenges", "Challenges completed",
+            f"{len(rows)} {'member completed a challenge' if len(rows) == 1 else 'members completed challenges'} {label}.",
+            max(row.completed_at for row in rows), "★", len(rows) >= 5)
+
+    attempts = QuizAttempt.query.join(Quiz).filter(
+        Quiz.family_id == family.id, QuizAttempt.submitted_at != None
+    ).order_by(QuizAttempt.submitted_at.desc()).limit(30).all()
+    for attempt in attempts:
+        add("challenges", "Quiz completed",
+            f"{attempt.user.username} completed {attempt.quiz.title}.", attempt.submitted_at, "?")
+
+    for poll in FamilyPoll.query.filter_by(family_id=family.id).order_by(FamilyPoll.created_at.desc()).limit(20):
+        add("goals", "Poll created", poll.question, poll.created_at, "◉")
+
+    achievement_labels = {
+        "goal_achieved": ("goals", "Family goal achieved", "◎"),
+        "family_level_increased": ("upgrades", "Family level increased", "✦"),
+        "weekly_family_milestone": ("goals", "Family milestone reached", "★"),
+        "encouragement_milestone": ("goals", "Encouragement milestone reached", "♡"),
+    }
+    achievements = Post.query.filter(
+        Post.family_id == family.id,
+        Post.post_type == "achievement",
+        Post.achievement_type.in_(list(achievement_labels)),
+    ).order_by(Post.created_at.desc()).limit(30).all()
+    for post in achievements:
+        category, title, icon = achievement_labels[post.achievement_type]
+        add(category, title, post.content or post.encouraging_message or "A major Family moment.",
+            post.created_at, icon, True)
+
+    campaigns = FamilyContributionCampaign.query.filter_by(family_id=family.id).order_by(
+        FamilyContributionCampaign.created_at.desc()).limit(20).all()
+    for campaign in campaigns:
+        upgrade = UPGRADE_CATALOG.get(campaign.upgrade_key, {})
+        add("upgrades", "Upgrade campaign started",
+            f"The Family began working toward {upgrade.get('name', 'an upgrade')}.",
+            campaign.created_at, "◇")
+        for contribution in campaign.contributions.filter_by(refunded=False).order_by(
+            FamilyCampaignContribution.created_at.desc()).limit(30).all():
+            contributor = contribution.user.username if contribution.user else "A member"
+            add("upgrades", "Points contributed",
+                f"{contributor} contributed {contribution.amount} points toward the shared upgrade.",
+                contribution.created_at, "♡")
+        if campaign.highest_milestone:
+            add("upgrades", "Campaign milestone reached",
+                f"The campaign reached {campaign.highest_milestone}% of its journey.",
+                campaign.activated_at or campaign.created_at, "★", campaign.highest_milestone == 100)
+
+    for purchase in family.upgrade_purchases.order_by(FamilyUpgradePurchase.purchased_at.desc()).limit(20):
+        upgrade = UPGRADE_CATALOG.get(purchase.upgrade_key, {})
+        add("upgrades", "Family upgrade unlocked",
+            f"Together, the Family unlocked {upgrade.get('name', 'a new upgrade')}.",
+            purchase.purchased_at, "◆", True)
+
+    for log in family.moderation_logs.filter_by(action="goal_progress_updated").order_by(
+        FamilyModerationLog.created_at.desc()).limit(20).all():
+        add("goals", "Goal progress updated", log.reason or "The shared Family goal was updated.",
+            log.created_at, "◎")
+
+    events.sort(key=lambda event: event["created_at"], reverse=True)
+    if selected_filter != "all":
+        events = [event for event in events if event["category"] == selected_filter]
+    return {"family_activity_events": events[:60], "family_activity_filter": selected_filter,
+            "family_activity_visible": True}
+
+
 def validate_family_payload(form):
     name = form.get("name", "").strip()
     description = form.get("description", "").strip()
@@ -1127,6 +1241,7 @@ def family_detail(family_id):
         family_is_full=capacity["is_full"],
         remaining_slots=capacity["remaining_slots"],
         family_level=family_level,
+        **family_activity_timeline(family, member, is_super_admin),
         **family_home_dashboard(family, members, member),
         **poll_dashboard(family, member),
         **challenge_dashboard(family, members, member),
@@ -1666,9 +1781,19 @@ def edit_family(family_id):
                 "warning",
             )
             return redirect(url_for("family.edit_family", family_id=family.id))
+        goal_changed = (
+            payload.get("goal_title") != family.goal_title
+            or payload.get("goal_description") != family.goal_description
+            or payload.get("target_date") != family.target_date
+        )
         for key, value in payload.items():
             setattr(family, key, value)
         family.is_active = request.form.get("is_active", "1") == "1"
+        if goal_changed:
+            log_family_action(
+                family, "goal_progress_updated",
+                reason=f"The shared goal is now: {family.goal_title or 'Growing together'}.",
+            )
         db.session.commit()
         flash("Family updated.", "success")
         return redirect(url_for("family.family_detail", family_id=family.id))

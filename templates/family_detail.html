@@ -87,7 +87,7 @@
     {% endif %}
     {% if has_advanced_statistics %}<section class="family-dashboard-panel"><h4>Advanced statistics</h4><div class="family-level-stats"><div><strong>{{ ((family_level.challenges_completed / active_member_count) if active_member_count else 0)|round(1) }}</strong><span>Completions per active member</span></div><div><strong>{{ family.gallery_items.count() }}</strong><span>Gallery memories</span></div><div><strong>{{ family.upgrade_purchases.count() }}</strong><span>Upgrades unlocked</span></div><div><strong>{{ dashboard_member_progress|length }}</strong><span>Members tracked</span></div></div></section>{% endif %}
     <div class="family-dashboard-grid family-dashboard-grid--living">
-      <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">☀</span><h4>Today in the Family</h4><p>{{ dashboard_today_activity }} meaningful {{ 'moment' if dashboard_today_activity == 1 else 'moments' }} today.</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-activity"><span class="dashboard-icon">☀</span><h4>Today in the Family</h4><p>{{ dashboard_today_activity }} meaningful {{ 'moment' if dashboard_today_activity == 1 else 'moments' }} today.</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-challenges" data-family-tab><span class="dashboard-icon">✓</span><h4>Active Challenge</h4><p>{% if dashboard_active_challenges %}{{ dashboard_active_challenges[0].title }}{% else %}A new shared challenge can begin here.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-goal" data-family-tab><span class="dashboard-icon">◎</span><h4>Family Goal</h4><p>{{ family.goal_title or 'Shape a shared goal together.' }}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('main.post_detail', post_id=dashboard_needs_encouragement.id) if dashboard_needs_encouragement else '#family-posts' }}"{% if not dashboard_needs_encouragement %} data-family-tab{% endif %}><span class="dashboard-icon">♡</span><h4>Someone Needs Encouragement</h4><p>{% if dashboard_needs_encouragement %}{{ dashboard_needs_encouragement.author.username }} shared something awaiting support.{% else %}Everyone’s recent posts have received support.{% endif %}</p></a>
@@ -133,6 +133,29 @@
         {% endfor %}
       </div>
     </section>{% endif %}
+  </section>
+
+  <section id="family-activity" class="family-section family-activity-section">
+    <div class="split-header"><div><p class="eyebrow">Growing together</p><h3>Family activity</h3></div><span class="muted-meta">Meaningful moments, without the noise</span></div>
+    {% if family_activity_visible %}
+    <nav class="activity-filters" aria-label="Filter Family activity">
+      {% for key, label in [('all', 'All'), ('challenges', 'Challenges'), ('goals', 'Goals'), ('members', 'Members'), ('upgrades', 'Upgrades')] %}
+      <a href="{{ url_for('family.family_detail', family_id=family.id, activity=key) }}#family-activity" class="status-chip{% if family_activity_filter == key %} is-active{% endif %}" {% if family_activity_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="family-timeline">
+      {% for event in family_activity_events %}
+      <article class="family-timeline-event{% if event.major %} is-major{% endif %}">
+        <span class="family-timeline-icon" aria-hidden="true">{{ event.icon }}</span>
+        <div><div class="timeline-event-heading"><strong>{{ event.title }}</strong><time datetime="{{ event.created_at.isoformat() }}">{{ event.created_at.strftime('%b %d · %H:%M') }}</time></div><p>{{ event.detail }}</p></div>
+      </article>
+      {% else %}
+      <div class="empty-state-card"><span aria-hidden="true">♡</span><h4>No {{ family_activity_filter if family_activity_filter != 'all' else '' }} activity yet</h4><p>Meaningful Family moments will gently appear here as everyone grows together.</p></div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state-card"><span aria-hidden="true">⌁</span><h4>Family activity stays with the Family</h4><p>Join this Family to see its shared journey.</p></div>
+    {% endif %}
   </section>
 
   {% if has_family_gallery %}<section id="family-gallery" class="family-section"><div class="split-header"><div><p class="eyebrow">Shared memories</p><h3>Family gallery</h3></div><span class="muted-meta">{{ family.gallery_items.count() }} / 30 memories</span></div>{% if member %}<form action="{{ url_for('family.add_family_gallery_item', family_id=family.id) }}" method="post" enctype="multipart/form-data" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Photo<input type="file" name="gallery_image" accept="image/png,image/jpeg,image/gif" required></label><label>Caption<input type="text" name="caption" maxlength="240" placeholder="A small memory worth keeping"></label><button class="button" type="submit">Add to gallery</button></form>{% endif %}<div class="family-gallery-grid">{% for item in family.gallery_items.all()|reverse %}<figure><img src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ item.caption or family.name ~ ' memory' }}" loading="lazy">{% if item.caption %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>{% else %}<p class="muted-meta">The gallery is ready for its first Family memory.</p>{% endfor %}</div></section>{% endif %}
@@ -604,7 +627,7 @@
     {% endif %}
     {% for post in posts %}
     <article class="card post-card">
-      <strong>{{ post.author.profile.display_name }}</strong>
+      <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}</strong>
       <p>{{ post.content }}</p>
       {% if post.media_url %}
         {% if post.media_type == 'image' %}

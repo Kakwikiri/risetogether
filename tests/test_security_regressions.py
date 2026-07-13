@@ -750,6 +750,24 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn('website_moderator_role(current_user) == "super_admin"', main_routes)
         self.assertIn("Post.id != None", main_routes)
 
+    def test_stage_twenty_timeline_is_private_grouped_and_filterable(self):
+        routes = (ROOT / "routes" / "family.py").read_text()
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        self.assertIn('TIMELINE_FILTERS = {"all", "challenges", "goals", "members", "upgrades"}', routes)
+        self.assertIn("if not current_member and not is_super_admin", routes)
+        self.assertIn("completion_groups", routes)
+        self.assertNotIn('"reactions"', routes[routes.index("def family_activity_timeline"):routes.index("def validate_family_payload")])
+        for label in ["All", "Challenges", "Goals", "Members", "Upgrades"]:
+            self.assertIn(label, template)
+        self.assertIn("Meaningful moments, without the noise", template)
+
+    def test_family_dashboard_handles_legacy_null_scores_and_missing_profiles(self):
+        routes = (ROOT / "routes" / "family.py").read_text()
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        self.assertGreaterEqual(routes.count("completion.points_awarded or 0"), 2)
+        self.assertGreaterEqual(routes.count("attempt.score or 0"), 2)
+        self.assertIn("post.author.profile and post.author.profile.display_name", template)
+
 
 if __name__ == "__main__":
     unittest.main()
