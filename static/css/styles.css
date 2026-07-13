@@ -2576,6 +2576,17 @@ body.media-viewer-open {
 @media (max-width: 480px) { .weekly-report__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .weekly-report__hero { padding: .85rem; } }
 @media (prefers-reduced-motion: reduce) { .weekly-report * { scroll-behavior: auto; } }
 
+.privacy-toggle-list { display: grid; gap: .65rem; margin-block: .75rem; }
+.privacy-toggle-list label { display: flex; align-items: flex-start; gap: .6rem; padding: .7rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.privacy-toggle-list input { margin-top: .2rem; }
+.profile-growth-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: .75rem; margin-top: 1rem; }
+.profile-growth-grid article, .profile-streak-list article, .profile-checkin-list article { display: grid; gap: .2rem; padding: .85rem; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.profile-growth-grid strong { color: var(--brand); font-size: 1.35rem; }
+.profile-growth-grid span, .profile-streak-list span, .profile-streak-list small, .profile-checkin-list span { color: var(--muted); }
+.profile-badge-cloud { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
+.profile-achievement-list, .profile-streak-list, .profile-checkin-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
+@media (max-width: 420px) { .profile-growth-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .notification-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -119,6 +119,12 @@ class Profile(db.Model):
     notification_previews_enabled = db.Column(db.Boolean, default=True)
     auto_share_completed_challenges = db.Column(db.Boolean, default=False, nullable=False)
     timezone = db.Column(db.String(64), default="Africa/Kampala", nullable=False)
+    show_point_balance = db.Column(db.Boolean, default=False, nullable=False)
+    show_streaks = db.Column(db.Boolean, default=True, nullable=False)
+    show_achievements = db.Column(db.Boolean, default=True, nullable=False)
+    show_family_memberships = db.Column(db.Boolean, default=True, nullable=False)
+    show_checkins = db.Column(db.Boolean, default=False, nullable=False)
+    show_goal_progress = db.Column(db.Boolean, default=False, nullable=False)
 
 
 class Post(db.Model):

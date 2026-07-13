@@ -914,6 +914,33 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("without comparing or shaming anyone", template)
         self.assertNotIn("inactive member ranking", (service + template).lower())
 
+    def test_stage_twenty_seven_profile_privacy_is_server_enforced(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "main.py").read_text()
+        for field in ["show_point_balance", "show_streaks", "show_achievements",
+                      "show_family_memberships", "show_checkins", "show_goal_progress"]:
+            self.assertIn(field, models)
+            self.assertIn(field, routes)
+        self.assertIn('membership.family.privacy == "public"', routes)
+        self.assertIn('checkin_query.filter_by(privacy="public")', routes)
+        self.assertIn('goals_query.filter_by(visibility="public")', routes)
+
+    def test_stage_twenty_seven_uses_verified_growth_not_kindness_score(self):
+        routes = (ROOT / "routes" / "main.py").read_text()
+        template = (ROOT / "templates" / "profile.html").read_text()
+        self.assertIn('verification_status="completed"', routes)
+        self.assertIn("StreakMilestone.query", routes)
+        self.assertIn("People encouraged", template)
+        self.assertIn("No kindness score", template)
+        self.assertNotIn("kindness_score", routes + (ROOT / "models.py").read_text())
+
+    def test_stage_twenty_seven_migration_and_defaults_preserve_privacy(self):
+        migration = (ROOT / "migrations" / "20260713_stage27_growth_profiles.sql").read_text()
+        self.assertIn("show_point_balance BOOLEAN NOT NULL DEFAULT FALSE", migration)
+        self.assertIn("show_checkins BOOLEAN NOT NULL DEFAULT FALSE", migration)
+        self.assertIn("show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE", migration)
+        self.assertIn("migration_stage27_growth_profiles", migration)
+
 
 if __name__ == "__main__":
     unittest.main()

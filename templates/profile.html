@@ -26,6 +26,7 @@
       <span>{{ follower_count }} followers</span>
       <span>{{ following_count }} following</span>
       <span>{{ posts|length }} posts</span>
+      <span>Joined {{ user.created_at.strftime('%b %Y') }}</span>
     </div>
     <div class="profile-hero-actions">
       {% if current_user.is_authenticated and current_user.id == user.id %}
@@ -67,8 +68,33 @@
     <a href="{{ url_for('main.notifications') }}">Notifications</a>
   </nav>
 
+  {% if show_achievements or show_points or show_streaks or show_goals %}<section class="profile-section profile-growth-overview">
+    <div class="split-header"><div><p class="eyebrow">Positive growth</p><h2>Growth and milestones</h2></div><span class="status-pill">No kindness score</span></div>
+    <p class="muted-meta">These are separate, verified milestones—not a permanent judgment or moral ranking.</p>
+    <div class="profile-growth-grid">
+      {% if show_achievements %}<article><strong>{{ completed_challenges }}</strong><span>Challenges completed</span></article><article><strong>{{ people_supported }}</strong><span>People encouraged</span></article>{% endif %}
+      {% if show_goals %}<article><strong>{{ goals_achieved }}</strong><span>Goals achieved</span></article>{% endif %}
+      {% if show_points %}<article><strong>{{ personal_balance }}</strong><span>Personal Points</span></article>{% endif %}
+    </div>
+  </section>{% endif %}
+
+  {% if show_achievements %}<section class="profile-section">
+    <h2>Achievements and badges</h2>
+    {% if profile_badges %}<div class="profile-badge-cloud">{% for badge in profile_badges %}<span class="status-chip status-chip--success">✦ {{ badge }}</span>{% endfor %}</div>{% endif %}
+    <div class="profile-achievement-list">{% for item in achievement_posts %}{{ achievement_post_card(item) }}{% else %}<p class="muted-meta">No shared achievements yet. Growth can be private too.</p>{% endfor %}</div>
+  </section>{% endif %}
+
+  {% if show_streaks and feature_enabled('streaks') %}<section class="profile-section">
+    <h2>Current streaks</h2><div class="profile-streak-list">{% for row in streak_rows %}<article><strong>{{ row.current }} days</strong><span>{{ row.label }}</span><small>Best: {{ row.record.best_count }} days</small></article>{% else %}<p class="muted-meta">Today can be a fresh start.</p>{% endfor %}</div>
+  </section>{% endif %}
+
+  {% if show_goals %}<section class="profile-section"><h2>Goal progress</h2><div class="family-button-list">{% for goal in visible_goals %}<a class="family-button" href="{{ url_for('goals.goal_detail', goal_id=goal.id) }}"><strong>{{ goal.title }}</strong><span>{{ goal.current_progress|round(2) }} of {{ goal.target_amount|round(2) }} · {{ goal.status|capitalize }}</span></a>{% else %}<p class="muted-meta">No goal progress is being shared.</p>{% endfor %}</div></section>{% endif %}
+
+  {% if show_checkins %}<section class="profile-section"><h2>Shared reflections</h2><div class="profile-checkin-list">{% for checkin in recent_checkins %}<article><strong>{{ checkin.mood.replace('_', ' ')|title }}</strong><span>{{ checkin.checkin_date.strftime('%b %d, %Y') }}</span>{% if checkin.note %}<p>{{ checkin.note }}</p>{% endif %}</article>{% else %}<p class="muted-meta">No public reflections are being shown.</p>{% endfor %}</div></section>{% endif %}
+
   <section class="profile-section">
     <h2>Families</h2>
+    {% if show_families %}
     <div class="family-button-list">
       {% for membership in memberships %}
       <a class="family-button" href="{{ url_for('family.family_detail', family_id=membership.family.id) }}">
@@ -79,6 +105,7 @@
       <p>No families yet.</p>
       {% endfor %}
     </div>
+    {% else %}<p class="muted-meta">This person keeps their Family memberships private.</p>{% endif %}
   </section>
 
   <section class="profile-section">

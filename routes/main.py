@@ -25,18 +25,24 @@ from models import (
     Comment,
     CommentReaction,
     CheckInResponse,
+    ChallengeCompletion,
     DailyCheckIn,
+    EncouragementRequest,
+    EncouragementResponse,
     Family,
     FamilyMember,
     FamilyMemberRestriction,
     Follow,
     FriendRequest,
+    Goal,
     LiveSession,
     Notification,
     PointTransaction,
     Post,
     PostShare,
     Reaction,
+    StreakMilestone,
+    UserStreak,
     User,
 )
 from points import family_point_balance, personal_point_balance, reverse_completion_rewards_for_user
@@ -533,7 +539,16 @@ def profile(username):
     ):
         abort(404)
     profile = user.profile
-    family_memberships = FamilyMember.query.filter_by(user_id=user.id).all()
+    is_owner_view = current_user.is_authenticated and current_user.id == user.id
+    viewer_family_ids = set(user_family_ids(current_user)) if current_user.is_authenticated else set()
+    all_memberships = FamilyMember.query.filter_by(user_id=user.id).all()
+    family_memberships = []
+    if is_owner_view or profile.show_family_memberships:
+        family_memberships = [
+            membership for membership in all_memberships
+            if is_owner_view or membership.family.privacy == "public"
+            or membership.family_id in viewer_family_ids
+        ]
     friend_status = None
     friend_request = None
     is_following = False
@@ -554,8 +569,10 @@ def profile(username):
             is not None
         )
     posts_query = Post.query.filter_by(user_id=user.id)
-    if not (current_user.is_authenticated and current_user.id == user.id):
+    if not is_owner_view:
         posts_query = posts_query.filter_by(audience="public", is_hidden=False)
+        if not profile.show_achievements:
+            posts_query = posts_query.filter(Post.post_type != "achievement")
     posts = posts_query.order_by(Post.created_at.desc()).all()
     following = [
         follow.followed
@@ -573,11 +590,57 @@ def profile(username):
             and Block.query.filter_by(blocker_id=current_user.id, blocked_id=user.id).first() is None
             and Block.query.filter_by(blocker_id=user.id, blocked_id=current_user.id).first() is None
         )
+    show_achievements = is_owner_view or profile.show_achievements
+    show_streaks = is_owner_view or profile.show_streaks
+    show_points = is_owner_view or profile.show_point_balance
+    show_goals = is_owner_view or profile.show_goal_progress
+    show_checkins = is_owner_view or profile.show_checkins
+    completed_challenges = ChallengeCompletion.query.filter_by(
+        user_id=user.id, verification_status="completed"
+    ).count() if show_achievements else None
+    achievements_query = Post.query.filter_by(user_id=user.id, post_type="achievement", is_hidden=False)
+    if not is_owner_view:
+        achievements_query = achievements_query.filter_by(audience="public")
+    achievement_posts = achievements_query.order_by(Post.created_at.desc()).limit(6).all() if show_achievements else []
+    goals_query = Goal.query.filter_by(owner_user_id=user.id)
+    if not is_owner_view:
+        goals_query = goals_query.filter_by(visibility="public")
+    goals_achieved = goals_query.filter_by(status="completed").count() if show_goals else None
+    visible_goals = goals_query.order_by(Goal.created_at.desc()).limit(6).all() if show_goals else []
+    streak_rows = []
+    if show_streaks and is_feature_enabled("streaks"):
+        today = local_activity_date(user)
+        for streak in user.streaks.all():
+            protected = streak.grace_days_available > 0 and streak.last_activity_date == today - timedelta(days=2)
+            expired = streak.last_activity_date and streak.last_activity_date < today - timedelta(days=1) and not protected
+            definition = STREAK_DEFINITIONS.get(streak.streak_type)
+            streak_rows.append({"record": streak, "current": 0 if expired else streak.current_count,
+                                "label": definition[0] if definition else streak.streak_type.replace("_", " ").title()})
+    supported_ids = {
+        row.request.user_id for row in EncouragementResponse.query.filter_by(user_id=user.id).all()
+        if row.request and row.request.user_id != user.id
+    }
+    supported_ids.update(
+        row.checkin.user_id for row in CheckInResponse.query.filter_by(user_id=user.id).all()
+        if row.checkin and row.checkin.user_id != user.id
+    )
+    badges = []
+    if show_achievements:
+        badges.extend(sorted({post.achievement_type.replace("_", " ").title() for post in achievement_posts if post.achievement_type}))
+        badges.extend(row.badge_name for row in StreakMilestone.query.join(UserStreak).filter(UserStreak.user_id == user.id).all())
+        badges = list(dict.fromkeys(badges))[:8]
+    recent_checkins = []
+    if show_checkins and is_feature_enabled("daily_checkins"):
+        checkin_query = DailyCheckIn.query.filter_by(user_id=user.id)
+        if not is_owner_view:
+            checkin_query = checkin_query.filter_by(privacy="public")
+        recent_checkins = checkin_query.order_by(DailyCheckIn.checkin_date.desc()).limit(3).all()
     return render_template(
         "profile.html",
         user=user,
         profile=profile,
         memberships=family_memberships,
+        show_families=is_owner_view or profile.show_family_memberships,
         friend_status=friend_status,
         friend_request=friend_request,
         is_following=is_following,
@@ -587,6 +650,21 @@ def profile(username):
         following=following,
         live_session=live_session,
         can_message_user=can_message_user,
+        is_owner_view=is_owner_view,
+        show_achievements=show_achievements,
+        show_streaks=show_streaks,
+        show_points=show_points and is_feature_enabled("personal_points"),
+        show_goals=show_goals,
+        show_checkins=show_checkins and is_feature_enabled("daily_checkins"),
+        completed_challenges=completed_challenges,
+        achievement_posts=achievement_posts,
+        visible_goals=visible_goals,
+        goals_achieved=goals_achieved,
+        streak_rows=streak_rows,
+        people_supported=len(supported_ids),
+        profile_badges=badges,
+        recent_checkins=recent_checkins,
+        personal_balance=personal_point_balance(user.id) if show_points and is_feature_enabled("personal_points") else None,
     )
 
 
@@ -615,6 +693,12 @@ def edit_profile():
         profile.display_name = display_name or profile.display_name
         profile.bio = bio
         profile.privacy_posts = privacy if privacy in POST_AUDIENCES else "public"
+        profile.show_point_balance = request.form.get("show_point_balance") == "1"
+        profile.show_streaks = request.form.get("show_streaks") == "1"
+        profile.show_achievements = request.form.get("show_achievements") == "1"
+        profile.show_family_memberships = request.form.get("show_family_memberships") == "1"
+        profile.show_checkins = request.form.get("show_checkins") == "1"
+        profile.show_goal_progress = request.form.get("show_goal_progress") == "1"
         if wants_password_change:
             if not current_user.check_password(current_password):
                 flash("Current password is incorrect.", "danger")
