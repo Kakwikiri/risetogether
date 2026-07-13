@@ -270,6 +270,31 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("macro user_avatar", combined)
         self.assertIn("macro family_avatar", combined)
 
+    def test_stage_five_mobile_navigation_is_accessible(self):
+        base = (ROOT / "templates" / "base.html").read_text()
+        for snippet in [
+            'aria-label="Open menu"',
+            'aria-controls="primary-navigation"',
+            'id="primary-navigation"',
+            'data-nav-scrim',
+            'data-message-badge',
+            'data-notification-badge',
+        ]:
+            self.assertIn(snippet, base)
+        script = (ROOT / "static" / "js" / "app.js").read_text()
+        self.assertIn("closeNavigation", script)
+        self.assertIn('event.key === "Escape"', script)
+        self.assertIn('document.body.classList.add("nav-menu-open")', script)
+        self.assertIn('navLinks.querySelectorAll("a")', script)
+
+    def test_stage_five_mobile_tap_targets_and_back_spacing(self):
+        styles = (ROOT / "static" / "css" / "styles.css").read_text()
+        self.assertIn("min-width: 44px", styles)
+        self.assertIn("min-height: 44px", styles)
+        self.assertIn("body.nav-menu-open", styles)
+        self.assertIn("overscroll-behavior: none", styles)
+        self.assertIn(".profile-back-button", styles)
+
 
 if __name__ == "__main__":
     unittest.main()

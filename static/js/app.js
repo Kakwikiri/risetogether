@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-stage4-avatars";
+  const APP_VERSION = "20260713-stage5-mobile-nav";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -269,11 +269,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const navToggle = document.querySelector(".nav-toggle");
   const navLinks = document.querySelector(".nav-links");
+  const navScrim = document.querySelector("[data-nav-scrim]");
   if (navToggle && navLinks) {
+    const navToggleLabel = navToggle.querySelector(".nav-toggle-label");
+    const closeNavigation = ({ restoreFocus = false } = {}) => {
+      if (!navLinks.classList.contains("open")) return;
+      navLinks.classList.remove("open");
+      navToggle.classList.remove("active");
+      navToggle.setAttribute("aria-expanded", "false");
+      navToggle.setAttribute("aria-label", "Open menu");
+      navToggle.title = "Open menu";
+      if (navToggleLabel) navToggleLabel.textContent = "Menu";
+      document.body.classList.remove("nav-menu-open");
+      if (navScrim) navScrim.hidden = true;
+      if (restoreFocus) navToggle.focus();
+    };
+    const openNavigation = () => {
+      navLinks.classList.add("open");
+      navToggle.classList.add("active");
+      navToggle.setAttribute("aria-expanded", "true");
+      navToggle.setAttribute("aria-label", "Close menu");
+      navToggle.title = "Close menu";
+      if (navToggleLabel) navToggleLabel.textContent = "Close";
+      document.body.classList.add("nav-menu-open");
+      if (navScrim) navScrim.hidden = false;
+      const firstLink = navLinks.querySelector("a, button:not([hidden])");
+      if (firstLink) window.setTimeout(() => firstLink.focus(), 120);
+    };
     navToggle.addEventListener("click", () => {
-      const isOpen = navLinks.classList.toggle("open");
-      navToggle.classList.toggle("active", isOpen);
-      navToggle.setAttribute("aria-expanded", String(isOpen));
+      if (navLinks.classList.contains("open")) closeNavigation();
+      else openNavigation();
+    });
+    navLinks.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => closeNavigation());
+    });
+    if (navScrim) navScrim.addEventListener("click", () => closeNavigation({ restoreFocus: true }));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && navLinks.classList.contains("open")) {
+        closeNavigation({ restoreFocus: true });
+      }
+    });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 900) closeNavigation();
     });
   }
 

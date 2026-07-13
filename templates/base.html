@@ -59,16 +59,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage4-avatars"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage5-mobile-nav"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-stage4-avatars"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-stage5-mobile-nav"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260713-stage4-avatars"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260713-stage5-mobile-nav"
     ></script>
   </head>
   <body>
@@ -79,14 +79,15 @@
           <span>RiseTogether</span>
         </a>
       </div>
-      <button class="nav-toggle" type="button" aria-label="Open menu" title="Menu" aria-expanded="false">
+      <button class="nav-toggle" type="button" aria-label="Open menu" title="Open menu" aria-expanded="false" aria-controls="primary-navigation">
         <svg aria-hidden="true" viewBox="0 0 24 24">
           <path d="M4 6h16"></path>
           <path d="M4 12h16"></path>
           <path d="M4 18h16"></path>
         </svg>
+        <span class="nav-toggle-label">Menu</span>
       </button>
-      <nav class="nav-links">
+      <nav class="nav-links" id="primary-navigation" aria-label="Primary navigation">
         {% if current_user.is_authenticated %}
         <a href="{{ url_for('main.home') }}" data-icon="⌂"><span>Feed</span></a>
         <a href="{{ url_for('main.people') }}" data-icon="☻"><span>People</span></a>
@@ -130,6 +131,7 @@
         <button class="install-button" type="button" hidden>Install</button>
       </nav>
     </header>
+    <button class="nav-scrim" type="button" data-nav-scrim aria-label="Close menu" tabindex="-1" hidden></button>
     <div class="toast" data-toast data-tone="info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <div class="app-update-notice" data-update-notice hidden>
       <span>A new version of RiseTogether is available.</span>
@@ -174,7 +176,7 @@
         </div>
       </div>
     </div>
-    {% if request.endpoint != 'main.profile' %}
+    {% if request.endpoint not in ['main.profile', 'chat.direct_chat', 'chat.family_chat', 'main.live_room'] %}
     <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
     {% endif %}
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
