@@ -814,6 +814,29 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("cannot provide emergency or professional mental-health care", template)
         self.assertIn("WHO crisis and suicide-prevention guidance", template)
 
+    def test_stage_twenty_three_streaks_only_use_constructive_server_actions(self):
+        service = (ROOT / "streaks.py").read_text()
+        main_routes = (ROOT / "routes" / "main.py").read_text()
+        family_routes = (ROOT / "routes" / "family.py").read_text()
+        for streak_type in ["challenge_progress", "habit", "reflection", "encouragement", "learning"]:
+            self.assertIn(streak_type, service)
+        self.assertIn("len(note) >= 10", main_routes)
+        self.assertIn("len(comment) >= 10", family_routes)
+        self.assertNotIn("record_streak_activity", main_routes[main_routes.index("def home"):main_routes.index("def get_reaction_counts")])
+
+    def test_stage_twenty_three_timezone_grace_and_rewards_are_idempotent(self):
+        models = (ROOT / "models.py").read_text()
+        service = (ROOT / "streaks.py").read_text()
+        template = (ROOT / "templates" / "streaks.html").read_text()
+        self.assertIn('timezone = db.Column(db.String(64)', models)
+        self.assertIn('db.UniqueConstraint("unique_activity_key"', models)
+        self.assertIn('db.UniqueConstraint("streak_id", "milestone"', models)
+        self.assertIn("grace_days_available", models + service)
+        self.assertIn("ZoneInfo", service)
+        self.assertIn("MILESTONE_REWARDS", service)
+        self.assertIn("Today is a fresh start.", template)
+        self.assertIn("only if it feels supportive", service)
+
 
 if __name__ == "__main__":
     unittest.main()

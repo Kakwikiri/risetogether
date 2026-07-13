@@ -2279,6 +2279,17 @@ body.media-viewer-open {
 .needs-urgent-care { border-color: color-mix(in srgb, #dc2626 40%, var(--line)); }
 @media (max-width: 520px) { .encouragement-request header { display: grid; } }
 
+.streak-page, .streak-grid { display: grid; gap: 1rem; }
+.streak-page { max-width: 950px; margin: 0 auto; }
+.streak-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.streak-card header { display: flex; align-items: flex-start; gap: 0.75rem; }
+.streak-card h2, .streak-card header p { margin: 0 0 0.3rem; }
+.streak-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 0.8rem 0; }
+.streak-counts div { display: grid; padding: 0.8rem; text-align: center; background: var(--soft); border-radius: 12px; }
+.streak-counts strong { color: var(--accent-strong); font-size: 1.8rem; }
+.streak-counts span { color: var(--muted); font-size: 0.82rem; }
+.fresh-start { padding: 0.75rem; background: var(--soft); border-left: 3px solid var(--accent); border-radius: 8px; }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-link { transition: none; }
   .dashboard-link:hover { transform: none; }

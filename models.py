@@ -118,6 +118,7 @@ class Profile(db.Model):
     notifications_enabled = db.Column(db.Boolean, default=True)
     notification_previews_enabled = db.Column(db.Boolean, default=True)
     auto_share_completed_challenges = db.Column(db.Boolean, default=False, nullable=False)
+    timezone = db.Column(db.String(64), default="Africa/Kampala", nullable=False)
 
 
 class Post(db.Model):
@@ -900,6 +901,51 @@ class EncouragementRequestReport(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     request = db.relationship("EncouragementRequest", backref=db.backref("reports", lazy="dynamic", cascade="all, delete-orphan"))
     reporter = db.relationship("User", backref=db.backref("encouragement_reports", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class UserStreak(db.Model):
+    __tablename__ = "user_streaks"
+    __table_args__ = (db.UniqueConstraint("user_id", "streak_type", name="uq_user_streak_type"),)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    streak_type = db.Column(db.String(32), nullable=False)
+    current_count = db.Column(db.Integer, default=0, nullable=False)
+    best_count = db.Column(db.Integer, default=0, nullable=False)
+    previous_count = db.Column(db.Integer, default=0, nullable=False)
+    last_activity_date = db.Column(db.Date, nullable=True)
+    grace_days_available = db.Column(db.Integer, default=1, nullable=False)
+    last_warning_date = db.Column(db.Date, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("streaks", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class StreakActivity(db.Model):
+    __tablename__ = "streak_activities"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "streak_type", "activity_date", name="uq_streak_activity_day"),
+        db.UniqueConstraint("unique_activity_key", name="uq_streak_activity_key"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    streak_type = db.Column(db.String(32), nullable=False)
+    activity_date = db.Column(db.Date, nullable=False, index=True)
+    source_type = db.Column(db.String(48), nullable=False)
+    source_id = db.Column(db.Integer, nullable=True)
+    unique_activity_key = db.Column(db.String(160), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("streak_activities", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class StreakMilestone(db.Model):
+    __tablename__ = "streak_milestones"
+    __table_args__ = (db.UniqueConstraint("streak_id", "milestone", name="uq_streak_milestone_claim"),)
+    id = db.Column(db.Integer, primary_key=True)
+    streak_id = db.Column(db.Integer, db.ForeignKey("user_streaks.id", ondelete="CASCADE"), nullable=False, index=True)
+    milestone = db.Column(db.Integer, nullable=False)
+    badge_name = db.Column(db.String(80), nullable=False)
+    bonus_points = db.Column(db.Integer, default=0, nullable=False)
+    awarded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    streak = db.relationship("UserStreak", backref=db.backref("milestones", lazy="dynamic", cascade="all, delete-orphan"))
 
 
 class PushSubscription(db.Model):

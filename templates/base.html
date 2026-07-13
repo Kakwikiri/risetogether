@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage22-encouragement"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage23-streaks"
     />
     <script
       defer
@@ -107,6 +107,7 @@
           data-icon="◉"><span>Profile</span></a
         >
         {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
+        {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗"><span>Streaks</span></a>{% endif %}
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}

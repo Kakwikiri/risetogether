@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
@@ -39,6 +40,7 @@ from models import (
     User,
 )
 from points import family_point_balance, personal_point_balance, reverse_completion_rewards_for_user
+from streaks import STREAK_DEFINITIONS, local_activity_date, queue_expiring_streak_warning, record_streak_activity
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
@@ -165,6 +167,8 @@ def link_mentions(content):
 @main_bp.route("/")
 def home():
     if current_user.is_authenticated:
+        if queue_expiring_streak_warning(current_user):
+            db.session.commit()
         requested_filter = request.args.get("filter", "").strip().lower()
         if request.args.get("type") == "videos":
             requested_filter = "videos"
@@ -444,6 +448,13 @@ def daily_checkins():
         checkin.privacy = privacy
         checkin.family_id = family_id
         db.session.add(checkin)
+        if len(note) >= 10:
+            db.session.flush()
+            record_streak_activity(
+                current_user, "reflection", source_type="daily_checkin",
+                source_id=checkin.id, unique_key=f"reflection-checkin:{checkin.id}",
+                occurred_at=checkin.created_at,
+            )
         try:
             db.session.commit()
         except IntegrityError:
@@ -1471,10 +1482,46 @@ def settings():
         current_user.profile.auto_share_completed_challenges = (
             request.form.get("auto_share_completed_challenges") == "on"
         )
+        timezone_name = request.form.get("timezone", "Africa/Kampala").strip()
+        try:
+            if not timezone_name or len(timezone_name) > 64:
+                raise ZoneInfoNotFoundError
+            ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            flash("Choose a valid IANA time zone, such as Africa/Kampala.", "warning")
+            return redirect(url_for("main.settings"))
+        current_user.profile.timezone = timezone_name
         db.session.commit()
         flash("Settings saved.", "success")
         return redirect(url_for("main.settings"))
     return render_template("settings.html")
+
+
+@main_bp.route("/streaks")
+@login_required
+@feature_required("streaks")
+def streak_dashboard():
+    today = local_activity_date(current_user)
+    streaks = {}
+    for streak in current_user.streaks.all():
+        protected_by_grace = bool(
+            streak.grace_days_available > 0
+            and streak.last_activity_date == today - timedelta(days=2)
+        )
+        expired = bool(
+            streak.last_activity_date
+            and streak.last_activity_date < today - timedelta(days=1)
+            and not protected_by_grace
+        )
+        streaks[streak.streak_type] = {
+            "record": streak, "current": 0 if expired else streak.current_count,
+            "best": streak.best_count,
+            "previous": streak.current_count if expired else streak.previous_count,
+        }
+    return render_template(
+        "streaks.html", definitions=STREAK_DEFINITIONS, streaks=streaks,
+        timezone_name=current_user.profile.timezone or "Africa/Kampala",
+    )
 
 
 @main_bp.route("/account/delete", methods=["POST"])

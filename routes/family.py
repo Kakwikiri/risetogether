@@ -57,6 +57,7 @@ from points import (
     personal_point_balance, reverse_reward_group, spend_family_points,
     spend_personal_points,
 )
+from streaks import record_challenge_streaks, record_streak_activity
 
 family_bp = Blueprint("family", __name__)
 
@@ -1294,13 +1295,21 @@ def respond_to_encouragement(family_id, request_id):
     if response:
         response.reaction, response.comment = reaction, comment
     else:
-        db.session.add(EncouragementResponse(
-            request_id=item.id, user_id=current_user.id, reaction=reaction, comment=comment))
+        response = EncouragementResponse(
+            request_id=item.id, user_id=current_user.id, reaction=reaction, comment=comment)
+        db.session.add(response)
     if is_new and item.user_id != current_user.id:
         add_family_notification(
             item.user_id, "encouragement_response",
             f"Someone in {family.name} responded supportively to your request.",
             url_for("family.family_encouragement", family_id=family.id),
+        )
+    if len(comment) >= 10:
+        db.session.flush()
+        record_streak_activity(
+            current_user, "encouragement", source_type="encouragement_response",
+            source_id=response.id,
+            unique_key=f"encouragement-response:{item.id}:{current_user.id}",
         )
     db.session.commit()
     flash("Your support was shared.", "success")
@@ -2498,6 +2507,7 @@ def complete_challenge(family_id, challenge_id):
                     details=reward_limit_message,
                     ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
                 ))
+            record_challenge_streaks(completion)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -2711,6 +2721,7 @@ def review_challenge_completion(family_id, completion_id, action):
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     completion.verification_status = "completed"
     award_challenge_completion_points(completion, awarded_by_id=current_user.id)
+    record_challenge_streaks(completion)
     achievement = None
     if (
         completion.challenge.allow_achievement_sharing
@@ -2985,6 +2996,11 @@ def take_quiz(family_id, quiz_id):
             )
         attempt.score = min(score, 25)
         attempt.submitted_at = datetime.utcnow()
+        record_streak_activity(
+            current_user, "learning", source_type="quiz_attempt",
+            source_id=attempt.id, unique_key=f"learning-quiz:{attempt.id}",
+            occurred_at=attempt.submitted_at,
+        )
         db.session.commit()
         flash("Quiz submitted.", "success")
         return redirect(
