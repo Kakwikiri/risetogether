@@ -1,0 +1,27 @@
+{% extends 'base.html' %} {% block content %}
+<main class="encouragement-page">
+  <a class="page-back-button" href="{{ url_for('family.family_detail', family_id=family.id) }}">← Back to {{ family.name }}</a>
+  <section class="card encouragement-composer">
+    <p class="eyebrow">A caring space inside {{ family.name }}</p><h1>Someone needs encouragement</h1>
+    <p>Ask for listening, support, or kind perspective. RiseTogether members are peers, not professional crisis services.</p>
+    <form method="post" class="checkin-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label>What kind of encouragement would help?<select name="category" required><option value="">Choose a category</option>{% for value, label in categories.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+      <label>What would you like to share?<textarea name="content" minlength="10" maxlength="3000" rows="5" required placeholder="Share only what feels safe. People can listen without judging."></textarea></label>
+      <fieldset><legend>How should this be shared?</legend><label><input type="radio" name="visibility" value="identity" checked /> With my identity</label><label><input type="radio" name="visibility" value="anonymous" /> Anonymous to normal Family members</label><label><input type="radio" name="visibility" value="admins" /> Privately to Family admins</label></fieldset>
+      <button class="button" type="submit">Ask for encouragement</button>
+    </form>
+    <aside class="crisis-guidance"><strong>If you may be in immediate danger</strong><p>RiseTogether cannot provide emergency or professional mental-health care. Contact local emergency services or go to the nearest hospital, and reach a trusted person who can stay with you.</p><a href="https://www.who.int/health-topics/suicide" target="_blank" rel="noopener">WHO crisis and suicide-prevention guidance</a></aside>
+  </section>
+  <section class="encouragement-list">
+    {% for item in items %}<article class="card encouragement-request{% if item.needs_crisis_guidance %} needs-urgent-care{% endif %}">
+      <header><div><span class="status-chip">{{ categories[item.category] }}</span><strong>{% if item.visibility == 'anonymous' and not can_review_identity and item.user_id != current_user.id %}Anonymous Family member{% else %}{{ item.requester.profile.display_name if item.requester.profile and item.requester.profile.display_name else item.requester.username }}{% endif %}</strong>{% if item.visibility == 'anonymous' %}<small> · Anonymous to normal members</small>{% elif item.visibility == 'admins' %}<small> · Family admins only</small>{% endif %}</div><time datetime="{{ item.created_at.isoformat() }}">{{ item.created_at.strftime('%b %d · %H:%M') }}</time></header>
+      {% if can_review_identity and item.visibility in ['anonymous', 'admins'] %}<p class="moderator-identity">Safety identity: @{{ item.requester.username }} · visible only to Family moderators/admins</p>{% endif %}
+      <p class="encouragement-content">{{ item.content }}</p>
+      {% if item.needs_crisis_guidance %}<aside class="crisis-guidance"><strong>Immediate support may be important</strong><p>If there is immediate danger, contact local emergency services or the nearest hospital and tell a trusted person now. Community replies here are not professional crisis care.</p></aside>{% endif %}
+      <div class="encouragement-responses">{% for response in item.responses.all()|sort(attribute='created_at') %}<p><b>{{ response.user.username }}</b> · {{ reactions[response.reaction] }}{% if response.comment %}<br>{{ response.comment }}{% endif %}</p>{% else %}<p class="muted-meta">Be the first to respond with care.</p>{% endfor %}</div>
+      <details><summary>Respond supportively</summary><form action="{{ url_for('family.respond_to_encouragement', family_id=family.id, request_id=item.id) }}" method="post" class="checkin-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><label>Response<select name="reaction">{% for value, label in reactions.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>Thoughtful comment<textarea name="comment" maxlength="1000" rows="3" placeholder="Listen first. Avoid pressure or promises."></textarea></label><button class="button secondary" type="submit">Send encouragement</button></form></details>
+      {% if item.user_id != current_user.id %}<details class="report-widget"><summary>Report for moderator review</summary><form action="{{ url_for('family.report_encouragement', family_id=family.id, request_id=item.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><textarea name="reason" minlength="5" maxlength="500" required placeholder="What should moderators review?"></textarea><button class="button danger" type="submit">Send report</button></form></details>{% endif %}
+    </article>{% else %}<div class="empty-state-card"><span aria-hidden="true">♡</span><h3>No encouragement requests yet</h3><p>This space is ready to listen whenever someone needs it.</p></div>{% endfor %}
+  </section>
+</main>
+{% endblock %}

@@ -14,7 +14,7 @@ from feature_flags import (
 )
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
-    AuditLog, Block, ChallengeCompletion, Family, HelpRequest, Notification,
+    AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, HelpRequest, Notification,
     PointSecurityEvent, PointTransaction, Post, Report, SiteSetting, User,
 )
 from points import reverse_completion_rewards_for_user, reverse_reward_group
@@ -205,6 +205,43 @@ def admin_reports():
         return redirect(url_for("main.home"))
     reports = Report.query.order_by(Report.created_at.desc()).all()
     return render_template("admin_reports.html", reports=reports)
+
+
+@mod_bp.route("/admin/encouragement-reports")
+@login_required
+def admin_encouragement_reports():
+    if not require_admin_role("moderator"):
+        return redirect(url_for("main.home"))
+    reports = EncouragementRequestReport.query.order_by(
+        EncouragementRequestReport.status.asc(), EncouragementRequestReport.created_at.desc()
+    ).limit(200).all()
+    return render_template("admin_encouragement_reports.html", reports=reports)
+
+
+@mod_bp.route("/admin/encouragement-reports/<int:report_id>/<action>", methods=["POST"])
+@login_required
+def review_encouragement_report(report_id, action):
+    if not require_admin_role("moderator"):
+        return redirect(url_for("main.home"))
+    report = EncouragementRequestReport.query.get_or_404(report_id)
+    if action == "remove":
+        report.request.status = "removed"
+        report.status = "removed"
+        outcome = "Encouragement request removed."
+    elif action == "dismiss":
+        report.status = "dismissed"
+        outcome = "Report dismissed."
+    else:
+        flash("Unknown review action.", "warning")
+        return redirect(url_for("moderation.admin_encouragement_reports"))
+    record_admin_audit(
+        "encouragement_report_review", target_user=report.request.requester,
+        target_family=report.request.family, target_content_id=report.request_id,
+        reason=report.reason, metadata_text=f"Outcome: {action}",
+    )
+    db.session.commit()
+    flash(outcome, "success")
+    return redirect(url_for("moderation.admin_encouragement_reports"))
 
 
 @mod_bp.route("/admin/users")

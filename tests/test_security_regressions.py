@@ -794,6 +794,26 @@ class SecurityRegressionTests(unittest.TestCase):
         for mood in ["Happy", "Peaceful", "Motivated", "Okay", "Tired", "Worried", "Struggling", "Prefer not to say"]:
             self.assertIn(mood.lower().replace(" ", "_") if mood == "Prefer not to say" else mood.lower(), (ROOT / "routes" / "main.py").read_text().lower())
 
+    def test_stage_twenty_two_anonymous_identity_and_admin_privacy_are_server_enforced(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "family.py").read_text()
+        self.assertIn("class EncouragementRequest", models)
+        self.assertIn("user_id = db.Column", models)
+        self.assertIn('if item.visibility == "admins"', routes)
+        self.assertIn('family_role(member) in {"owner", "admin"}', routes)
+        self.assertIn('@feature_required("anonymous_support_posts")', routes)
+        self.assertIn("EncouragementRequestReport", routes)
+
+    def test_stage_twenty_two_crisis_guidance_and_support_options_are_complete(self):
+        routes = (ROOT / "routes" / "family.py").read_text()
+        template = (ROOT / "templates" / "family_encouragement.html").read_text()
+        for label in ["I need someone to listen", "Motivation", "Advice", "Celebration", "Grief or sadness", "Feeling alone", "Study/work encouragement", "Other"]:
+            self.assertIn(label, routes)
+        for label in ["Support", "I Understand", "Keep Going", "You Inspire Me", "Thoughtful comment"]:
+            self.assertIn(label, routes + template)
+        self.assertIn("cannot provide emergency or professional mental-health care", template)
+        self.assertIn("WHO crisis and suicide-prevention guidance", template)
+
 
 if __name__ == "__main__":
     unittest.main()

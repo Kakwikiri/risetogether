@@ -2262,6 +2262,23 @@ body.media-viewer-open {
   .checkin-card header .status-chip { grid-column: 1 / -1; width: fit-content; }
 }
 
+.encouragement-page,
+.encouragement-list,
+.encouragement-composer,
+.admin-report-list { display: grid; gap: 1rem; }
+.encouragement-page { max-width: 900px; margin: 0 auto; }
+.encouragement-request header { display: flex; justify-content: space-between; gap: 0.75rem; }
+.encouragement-request header strong { display: block; margin-top: 0.45rem; }
+.encouragement-request time { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+.encouragement-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+.encouragement-responses { display: grid; gap: 0.45rem; margin: 0.7rem 0; }
+.encouragement-responses p { margin: 0; padding: 0.65rem; background: var(--soft); border-radius: 10px; }
+.moderator-identity { padding: 0.55rem; color: var(--muted); background: var(--soft); border-radius: 8px; font-size: 0.82rem; }
+.crisis-guidance { padding: 0.85rem; background: color-mix(in srgb, #dc2626 8%, var(--surface)); border: 1px solid color-mix(in srgb, #dc2626 38%, var(--line)); border-radius: 12px; }
+.crisis-guidance p { margin: 0.35rem 0; }
+.needs-urgent-care { border-color: color-mix(in srgb, #dc2626 40%, var(--line)); }
+@media (max-width: 520px) { .encouragement-request header { display: grid; } }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-link { transition: none; }
   .dashboard-link:hover { transform: none; }

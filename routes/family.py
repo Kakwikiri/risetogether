@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from extensions import db
-from feature_flags import is_feature_enabled
+from feature_flags import feature_required, is_feature_enabled
 from family_levels import family_level_summary
 from family_upgrades import (
     UPGRADE_CATALOG, active_challenge_limit, campaign_contributed_points,
@@ -20,6 +20,9 @@ from models import (
     ChallengeCompletion,
     ChallengeParticipant,
     DailyCheckIn,
+    EncouragementRequest,
+    EncouragementRequestReport,
+    EncouragementResponse,
     AuditLog,
     Block,
     Family,
@@ -72,6 +75,21 @@ FAMILY_CATEGORIES = {
 }
 
 FAMILY_PRIVACY_OPTIONS = {"public", "private", "invite_only"}
+ENCOURAGEMENT_CATEGORIES = {
+    "listen": "I need someone to listen", "motivation": "Motivation",
+    "advice": "Advice", "celebration": "Celebration",
+    "grief": "Grief or sadness", "alone": "Feeling alone",
+    "study_work": "Study/work encouragement", "other": "Other",
+}
+ENCOURAGEMENT_REACTIONS = {
+    "support": "Support", "understand": "I Understand",
+    "keep_going": "Keep Going", "inspire": "You Inspire Me",
+}
+CRISIS_PHRASES = (
+    "kill myself", "end my life", "want to die", "going to die",
+    "hurt myself", "harm myself", "suicide", "not safe right now",
+    "immediate danger",
+)
 
 CHALLENGE_TYPES = {
     "task": "Task",
@@ -1196,6 +1214,126 @@ def family_detail(family_id):
         .order_by(Post.created_at.desc())
         .all()
     )
+    return render_family_detail_page(
+        family, member, members, capacity, posts, is_super_admin,
+        encouragement_checkin_count,
+    )
+
+
+def encouragement_request_visible(item, member):
+    if not member or item.status != "active":
+        return False
+    if item.user_id == current_user.id:
+        return True
+    if item.visibility == "admins":
+        return family_role(member) in {"owner", "admin"}
+    return True
+
+
+@family_bp.route("/family/<int:family_id>/encouragement", methods=["GET", "POST"])
+@login_required
+@feature_required("anonymous_support_posts")
+def family_encouragement(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member:
+        flash("Join this Family before using encouragement requests.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if request.method == "POST":
+        category = request.form.get("category", "").strip()
+        content = request.form.get("content", "").strip()
+        visibility = request.form.get("visibility", "identity").strip()
+        if category not in ENCOURAGEMENT_CATEGORIES:
+            flash("Choose an encouragement category.", "warning")
+            return redirect(request.url)
+        if visibility not in {"identity", "anonymous", "admins"}:
+            visibility = "identity"
+        if len(content) < 10 or len(content) > 3000:
+            flash("Share between 10 and 3,000 characters so others can respond thoughtfully.", "warning")
+            return redirect(request.url)
+        lowered = content.casefold()
+        item = EncouragementRequest(
+            family_id=family.id, user_id=current_user.id, category=category,
+            content=content, visibility=visibility,
+            needs_crisis_guidance=any(phrase in lowered for phrase in CRISIS_PHRASES),
+        )
+        db.session.add(item)
+        db.session.commit()
+        flash(
+            "Your request was shared. If you may be in immediate danger, please also contact emergency help now."
+            if item.needs_crisis_guidance else "Your encouragement request was shared with care.",
+            "warning" if item.needs_crisis_guidance else "success",
+        )
+        return redirect(url_for("family.family_encouragement", family_id=family.id))
+    items = EncouragementRequest.query.filter_by(family_id=family.id, status="active").order_by(
+        EncouragementRequest.created_at.desc()).limit(80).all()
+    items = [item for item in items if encouragement_request_visible(item, member)]
+    return render_template(
+        "family_encouragement.html", family=family, member=member, items=items,
+        categories=ENCOURAGEMENT_CATEGORIES, reactions=ENCOURAGEMENT_REACTIONS,
+        can_review_identity=family_has_permission(member, "warn_members"),
+    )
+
+
+@family_bp.route("/family/<int:family_id>/encouragement/<int:request_id>/respond", methods=["POST"])
+@login_required
+@feature_required("anonymous_support_posts")
+def respond_to_encouragement(family_id, request_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    item = EncouragementRequest.query.filter_by(id=request_id, family_id=family.id).first_or_404()
+    if not encouragement_request_visible(item, member):
+        abort(403)
+    reaction = request.form.get("reaction", "").strip()
+    comment = request.form.get("comment", "").strip()
+    if reaction not in ENCOURAGEMENT_REACTIONS or len(comment) > 1000:
+        flash("Choose a supportive response and keep comments under 1,000 characters.", "warning")
+        return redirect(url_for("family.family_encouragement", family_id=family.id))
+    response = EncouragementResponse.query.filter_by(request_id=item.id, user_id=current_user.id).first()
+    is_new = response is None
+    if response:
+        response.reaction, response.comment = reaction, comment
+    else:
+        db.session.add(EncouragementResponse(
+            request_id=item.id, user_id=current_user.id, reaction=reaction, comment=comment))
+    if is_new and item.user_id != current_user.id:
+        add_family_notification(
+            item.user_id, "encouragement_response",
+            f"Someone in {family.name} responded supportively to your request.",
+            url_for("family.family_encouragement", family_id=family.id),
+        )
+    db.session.commit()
+    flash("Your support was shared.", "success")
+    return redirect(url_for("family.family_encouragement", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/encouragement/<int:request_id>/report", methods=["POST"])
+@login_required
+@feature_required("anonymous_support_posts")
+def report_encouragement(family_id, request_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    item = EncouragementRequest.query.filter_by(id=request_id, family_id=family.id).first_or_404()
+    if not encouragement_request_visible(item, member):
+        abort(403)
+    reason = request.form.get("reason", "").strip()
+    if len(reason) < 5 or len(reason) > 500:
+        flash("Please provide a brief report reason.", "warning")
+        return redirect(url_for("family.family_encouragement", family_id=family.id))
+    existing = EncouragementRequestReport.query.filter_by(request_id=item.id, reporter_id=current_user.id).first()
+    if existing:
+        flash("You already reported this request for review.", "info")
+    else:
+        db.session.add(EncouragementRequestReport(request_id=item.id, reporter_id=current_user.id, reason=reason))
+        db.session.commit()
+        flash("The request was sent to website moderators.", "success")
+    return redirect(url_for("family.family_encouragement", family_id=family.id))
+
+
+def render_family_detail_page(
+    family, member, members, capacity, posts, is_super_admin,
+    encouragement_checkin_count,
+):
     family_level = {
         "level": 1, "name": "Seed", "lifetime_xp": 0, "available_points": 0,
         "progress_percent": 0, "xp_to_next": 100, "challenges_completed": 0,

@@ -850,6 +850,58 @@ class CheckInResponse(db.Model):
     user = db.relationship("User", backref=db.backref("checkin_responses", lazy="dynamic", cascade="all, delete-orphan"))
 
 
+class EncouragementRequest(db.Model):
+    __tablename__ = "encouragement_requests"
+    __table_args__ = (
+        db.CheckConstraint("visibility IN ('identity','anonymous','admins')", name="ck_encouragement_visibility"),
+        db.CheckConstraint("status IN ('active','removed')", name="ck_encouragement_status"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = db.Column(db.String(48), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    visibility = db.Column(db.String(16), default="identity", nullable=False)
+    needs_crisis_guidance = db.Column(db.Boolean, default=False, nullable=False)
+    status = db.Column(db.String(16), default="active", nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    family = db.relationship("Family", backref=db.backref("encouragement_requests", lazy="dynamic", cascade="all, delete-orphan"))
+    requester = db.relationship("User", backref=db.backref("encouragement_requests", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class EncouragementResponse(db.Model):
+    __tablename__ = "encouragement_responses"
+    __table_args__ = (
+        db.UniqueConstraint("request_id", "user_id", name="uq_encouragement_response_user"),
+        db.CheckConstraint("reaction IN ('support','understand','keep_going','inspire')", name="ck_encouragement_response_reaction"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("encouragement_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reaction = db.Column(db.String(24), nullable=False)
+    comment = db.Column(db.String(1000), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    request = db.relationship("EncouragementRequest", backref=db.backref("responses", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("encouragement_responses", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class EncouragementRequestReport(db.Model):
+    __tablename__ = "encouragement_request_reports"
+    __table_args__ = (
+        db.UniqueConstraint("request_id", "reporter_id", name="uq_encouragement_report_user"),
+        db.CheckConstraint("status IN ('open','dismissed','removed')", name="ck_encouragement_report_status"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("encouragement_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reason = db.Column(db.String(500), nullable=False)
+    status = db.Column(db.String(16), default="open", nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    request = db.relationship("EncouragementRequest", backref=db.backref("reports", lazy="dynamic", cascade="all, delete-orphan"))
+    reporter = db.relationship("User", backref=db.backref("encouragement_reports", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class PushSubscription(db.Model):
     __tablename__ = "push_subscriptions"
     __table_args__ = (
