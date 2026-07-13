@@ -86,6 +86,42 @@ const createVoiceNoteElement = (url, options = {}) => {
 
 const isLocationMessage = (content = "") => content.startsWith("My location: https://www.google.com/maps?q=");
 
+const messageDateKey = (createdAt = "") => {
+  const raw = String(createdAt || "");
+  return raw.includes(" ") ? raw.split(" ")[0] : new Date().toISOString().slice(0, 10);
+};
+
+const messageTimeText = (createdAt = "") => {
+  const raw = String(createdAt || "");
+  if (raw.includes(" ")) return raw.split(" ").slice(1).join(" ") || raw;
+  return raw;
+};
+
+const messageDayLabel = (dateKey = "") => {
+  const today = new Date();
+  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const parts = dateKey.split("-").map(Number);
+  const messageDate = parts.length === 3
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : localToday;
+  const diffDays = Math.round((localToday - messageDate) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) {
+    return messageDate.toLocaleDateString(undefined, { weekday: "long" });
+  }
+  return messageDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+const ensureDateSeparator = (chatLog, dateKey) => {
+  if (!chatLog || !dateKey || chatLog.querySelector(`[data-chat-date="${dateKey}"]`)) return;
+  const separator = document.createElement("div");
+  separator.className = "chat-date-separator";
+  separator.dataset.chatDate = dateKey;
+  separator.textContent = messageDayLabel(dateKey);
+  chatLog.appendChild(separator);
+};
+
 const createLocationCardElement = (content = "") => {
   const url = content.replace("My location: ", "");
   const query = url.includes("q=") ? url.split("q=").pop() : "";
@@ -161,6 +197,8 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   if (data.message_id && chatLog.querySelector(`[data-message-id="${data.message_id}"]`)) {
     return;
   }
+  const dateKey = messageDateKey(data.created_at);
+  ensureDateSeparator(chatLog, dateKey);
   const message = document.createElement("div");
   message.className = `chat-message${isOwn ? " own" : ""}`;
   if (data.message_id) {
@@ -170,6 +208,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
     message.dataset.senderId = data.sender_id;
   }
   message.dataset.messageText = data.content || "";
+  message.dataset.messageDate = dateKey;
 
   const user = document.createElement("span");
   user.className = "chat-user";
@@ -235,7 +274,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
 
   const time = document.createElement("small");
   time.className = "message-meta";
-  time.textContent = data.created_at || "";
+  time.textContent = messageTimeText(data.created_at || "");
   if (isOwn) {
     const ticks = document.createElement("span");
     ticks.className = "message-ticks";
@@ -339,6 +378,15 @@ socket.on("new_family_message", (data) => {
 
 socket.on("room_joined", (data) => {
   console.log("Joined room", data);
+});
+
+socket.on("messages_delivered", (data) => {
+  const ids = Array.isArray(data.message_ids) ? data.message_ids : [];
+  ids.forEach((messageId) => {
+    const message = document.querySelector(`.chat-message[data-message-id="${messageId}"]`);
+    const ticks = message && message.querySelector(".message-ticks");
+    if (ticks) ticks.textContent = "✓✓";
+  });
 });
 
 const incrementBadge = (selector, linkHref) => {
@@ -500,6 +548,11 @@ if (typeof chatConfig !== "undefined") {
           reply_to_id: replyToId,
         });
       }
+    };
+
+    const markOpenPrivateChatDelivered = () => {
+      if (!chatConfig.targetUserId || chatConfig.familyId) return;
+      socket.emit("mark_messages_delivered", { sender_id: chatConfig.targetUserId });
     };
 
     const uploadChatFile = async (file, content = "", options = {}) => {
@@ -765,6 +818,7 @@ if (typeof chatConfig !== "undefined") {
       if (chatLog) {
         chatLog.scrollTop = chatLog.scrollHeight;
       }
+      markOpenPrivateChatDelivered();
 
       chatForm.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -805,6 +859,10 @@ if (typeof chatConfig !== "undefined") {
         sendTextMessage(content);
         chatInput.value = "";
         clearComposerState();
+        window.setTimeout(() => {
+          chatInput.focus({ preventScroll: true });
+          syncChatBottomSpace();
+        }, 0);
       });
     }
 
@@ -1517,6 +1575,9 @@ if (typeof chatConfig !== "undefined") {
         [data.sender_id, data.recipient_id].includes(chatConfig.targetUserId);
       if (belongsToChat) {
         appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
+        if (data.sender_id === chatConfig.targetUserId) {
+          markOpenPrivateChatDelivered();
+        }
       }
     });
 

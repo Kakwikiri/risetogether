@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 from urllib.parse import urljoin
@@ -287,8 +287,23 @@ def inject_navigation_counts():
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
         "is_hevc_upload": is_hevc_upload,
+        "chat_day_label": chat_day_label,
         "realtime_media_enabled": app.config["REALTIME_MEDIA_ENABLED"],
     }
+
+
+def chat_day_label(value):
+    if not value:
+        return ""
+    message_day = value.date()
+    today = datetime.utcnow().date()
+    if message_day == today:
+        return "Today"
+    if message_day == today - timedelta(days=1):
+        return "Yesterday"
+    if message_day > today - timedelta(days=7):
+        return value.strftime("%A")
+    return value.strftime("%b %d, %Y")
 
 
 def find_user_by_identifier(identifier):

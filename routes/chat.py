@@ -259,6 +259,31 @@ def emit_chat_message(message, room, event_name=None, recipient_ids=None):
     return payload
 
 
+def mark_private_messages_delivered(sender_id, recipient_id):
+    messages = Message.query.filter_by(
+        sender_id=sender_id,
+        recipient_id=recipient_id,
+        delivered=False,
+    ).all()
+    if not messages:
+        return []
+    message_ids = [message.id for message in messages]
+    for message in messages:
+        message.delivered = True
+    db.session.commit()
+    socketio.emit(
+        "messages_delivered",
+        {"message_ids": message_ids, "reader_id": recipient_id},
+        room=user_room(sender_id),
+    )
+    socketio.emit(
+        "messages_delivered",
+        {"message_ids": message_ids, "reader_id": recipient_id},
+        room=room_for_private_chat(sender_id, recipient_id),
+    )
+    return message_ids
+
+
 def create_call_history(sender_id, recipient_id, mode, status):
     label = "audio" if mode == "audio" else "video"
     messages = {
@@ -343,9 +368,7 @@ def direct_chat(user_id):
         .order_by(Message.created_at.asc())
         .all()
     )
-    Message.query.filter_by(
-        sender_id=other.id, recipient_id=current_user.id, delivered=False
-    ).update({"delivered": True})
+    mark_private_messages_delivered(other.id, current_user.id)
     Notification.query.filter(
         Notification.user_id == current_user.id,
         Notification.category.in_(["message", "call"]),
@@ -771,6 +794,14 @@ def private_message(data):
     db.session.commit()
     emit_notification(recipient_id, notification)
     emit_chat_message(message, room, "new_private_message", [current_user.id, recipient_id])
+
+
+@socketio.on("mark_messages_delivered")
+def mark_messages_delivered(data):
+    sender_id = parse_user_id(data.get("sender_id"))
+    if not sender_id:
+        return
+    mark_private_messages_delivered(sender_id, current_user.id)
 
 
 @socketio.on("family_message")

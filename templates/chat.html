@@ -56,12 +56,19 @@
     {% endfor %}
   </button>
   <div id="chat-log" class="chat-log">
+    {% set date_state = namespace(last_day='') %}
     {% for message in messages %}
+    {% set message_day = message.created_at.strftime('%Y-%m-%d') %}
+    {% if message_day != date_state.last_day %}
+    <div class="chat-date-separator" data-chat-date="{{ message_day }}">{{ chat_day_label(message.created_at) }}</div>
+    {% set date_state.last_day = message_day %}
+    {% endif %}
     <div
       class="chat-message {% if message.sender_id == current_user.id %}own{% endif %}{% if message.pinned_until %} is-pinned{% endif %}"
       data-message-id="{{ message.id }}"
       data-sender-id="{{ message.sender_id }}"
       data-message-text="{{ message.content }}"
+      data-message-date="{{ message_day }}"
     >
       {% if message.reply_to %}
       <div class="quoted-message">{{ message.reply_to.sender.username }}: {{ message.reply_to.content or message.reply_to.media_type }}</div>
