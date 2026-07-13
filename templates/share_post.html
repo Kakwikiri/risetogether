@@ -5,7 +5,7 @@
       <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">Back</a>
       <div>
         <p class="eyebrow">Share post</p>
-        <h2>Choose who should receive this post</h2>
+        <h2>Share encouragement while respecting its audience</h2>
       </div>
     </div>
 
@@ -31,7 +31,25 @@
       {% endif %}
     </article>
 
-    <form method="post" class="share-form">
+    <div class="share-destinations">
+      <form method="post" class="share-destination-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="destination" value="public" />
+        <strong>Public feed</strong><p>Share with clear attribution to the original creator.</p>
+        <button class="button" type="submit"{% if not can_share_publicly %} disabled aria-disabled="true"{% endif %}>Share publicly</button>
+        {% if not can_share_publicly %}<small>This post’s audience or Family privacy prevents public sharing.</small>{% endif %}
+      </form>
+      <form method="post" class="share-destination-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="destination" value="family" />
+        <strong>One of your Families</strong><p>Only eligible Families appear here.</p>
+        <select name="family_id" required aria-label="Choose a Family"><option value="">Choose Family</option>{% for family in families %}{% if family.id in allowed_family_ids %}<option value="{{ family.id }}">{{ family.name }}</option>{% endif %}{% endfor %}</select>
+        <button class="button" type="submit"{% if not allowed_family_ids %} disabled aria-disabled="true"{% endif %}>Share to Family</button>
+      </form>
+      <section class="share-destination-card"><strong>Copy post link</strong><p>The recipient must still have permission to open the post.</p><button class="button secondary" type="button" data-copy-post-link data-share-url="{{ share_url }}">Copy link</button></section>
+    </div>
+
+    <form method="post" class="share-form"><input type="hidden" name="destination" value="people" />
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       {% if recipients %}
       <div class="share-recipient-grid">

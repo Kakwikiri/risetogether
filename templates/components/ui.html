@@ -32,3 +32,46 @@
 {% macro status_chip(label, tone='neutral') -%}<span class="status-chip status-chip--{{ tone }}">{{ label }}</span>{%- endmacro %}
 {% macro point_badge(points, label='points') -%}<span class="point-badge"><strong>{{ points }}</strong> {{ label }}</span>{%- endmacro %}
 {% macro family_level_badge(level, name='Growing Together') -%}<span class="family-level-badge"><span aria-hidden="true">✦</span> Level {{ level }} · {{ name }}</span>{%- endmacro %}
+
+{% macro reaction_bar(post, csrf) -%}
+{% set choices = [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'), ('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %}
+{% set selected = post.reactions.filter_by(user_id=current_user.id).first() if current_user.is_authenticated else none %}
+<form action="{{ url_for('main.react_post', post_id=post.id) }}" method="post" class="reaction-form" data-reactors-url="{{ url_for('main.post_reactors', post_id=post.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+  {% for key, icon, label in choices %}
+  {% set count = post.reactions.filter_by(type=key).count() %}
+  <span class="reaction-choice{% if selected and selected.type == key %} is-selected{% endif %}" data-reaction-choice data-reaction-type="{{ key }}">
+    <button type="submit" name="reaction_type" value="{{ key }}" class="reaction-button" data-reaction-button aria-pressed="{{ 'true' if selected and selected.type == key else 'false' }}" aria-label="{{ label }}. {{ count }} reaction{{ '' if count == 1 else 's' }}{% if selected and selected.type == key %}. Selected{% endif %}">
+      <span class="reaction-icon" aria-hidden="true">{{ icon }}</span><span class="reaction-label">{{ label }}</span>
+    </button>
+    <button type="button" class="reaction-count" data-reaction-list data-reaction-type="{{ key }}" aria-label="See who reacted with {{ label }}"><span data-reaction-count>{{ count }}</span></button>
+  </span>
+  {% endfor %}
+</form>
+{%- endmacro %}
+
+{% macro achievement_post_card(post) -%}
+{% set labels = {
+  'challenge_completed': ('✓', 'Challenge completed'),
+  'goal_achieved': ('★', 'Goal achieved'),
+  'streak_milestone': ('🔥', 'Streak milestone'),
+  'quiz_passed': ('✎', 'Quiz passed'),
+  'family_level_increased': ('↗', 'Family level increased'),
+  'family_upgrade_unlocked': ('✦', 'Family upgrade unlocked'),
+  'encouragement_milestone': ('♡', 'Encouragement milestone'),
+  'weekly_family_milestone': ('☀', 'Weekly Family milestone')
+} %}
+{% set achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
+<section class="achievement-post-card achievement-post-card--{{ post.achievement_type }}">
+  <div class="achievement-post-glow" aria-hidden="true"></div>
+  <header><span class="achievement-post-icon" aria-hidden="true">{{ achievement[0] }}</span><div><p class="eyebrow">RiseTogether achievement</p><h3>{{ achievement[1] }}</h3></div></header>
+  {% if post.challenge_completion %}
+  {% set completion = post.challenge_completion %}
+  <div class="achievement-person"><img class="user-avatar user-avatar--medium" src="{{ user_avatar_url(completion.user) }}" alt="" /><div><strong>{{ completion.user.profile.display_name if completion.user.profile else completion.user.username }}</strong><span>@{{ completion.user.username }}</span></div></div>
+  <div class="achievement-details"><div><span>Challenge</span><strong>{{ completion.challenge.title }}</strong></div><div><span>Family</span><strong>{{ completion.challenge.family.name }}</strong></div><div><span>Points earned</span><strong>{{ completion.points_awarded }}</strong></div><div><span>Completed</span><strong>{{ completion.completed_at.strftime('%b %d, %Y') }}</strong></div></div>
+  {% if completion.evidence_media_url %}<div class="achievement-evidence"><span class="status-chip">Evidence</span>{% set evidence_type = get_media_type(completion.evidence_media_url) %}{% if evidence_type == 'image' %}<img src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}" alt="Challenge completion evidence" loading="lazy" />{% elif evidence_type == 'video' %}<video controls playsinline preload="metadata" src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"></video>{% else %}<a class="button secondary" href="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}" target="_blank" rel="noopener">View completion evidence</a>{% endif %}</div>{% endif %}
+  {% if completion.evidence_text %}<blockquote class="achievement-note"><span>Completion note</span>{{ completion.evidence_text }}</blockquote>{% endif %}
+  {% endif %}
+  <p class="achievement-encouragement">{{ post.encouraging_message or 'A meaningful step forward deserves to be celebrated.' }}</p>
+</section>
+{%- endmacro %}

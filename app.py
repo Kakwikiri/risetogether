@@ -140,6 +140,7 @@ def ensure_schema_compatibility():
     db.create_all()
     from models import (
         ChallengeCompletion,
+        ChallengeParticipant,
         FamilyChallenge,
         MediaAsset,
         MessageDeletion,
@@ -156,6 +157,7 @@ def ensure_schema_compatibility():
         QuizAttempt,
         QuizChoice,
         QuizQuestion,
+        PointTransaction,
     )
     from helpers import get_media_type, mimetype_for_filename
 
@@ -170,11 +172,13 @@ def ensure_schema_compatibility():
     FamilyPollVote.__table__.create(db.engine, checkfirst=True)
     FamilyChallenge.__table__.create(db.engine, checkfirst=True)
     ChallengeCompletion.__table__.create(db.engine, checkfirst=True)
+    ChallengeParticipant.__table__.create(db.engine, checkfirst=True)
     Quiz.__table__.create(db.engine, checkfirst=True)
     QuizQuestion.__table__.create(db.engine, checkfirst=True)
     QuizChoice.__table__.create(db.engine, checkfirst=True)
     QuizAttempt.__table__.create(db.engine, checkfirst=True)
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
+    PointTransaction.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
     platform_owner_literal = platform_owner_username.replace("'", "''")
@@ -182,6 +186,9 @@ def ensure_schema_compatibility():
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE",
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP",
+        "ALTER TABLE comment_reactions ADD COLUMN IF NOT EXISTS type VARCHAR(32) NOT NULL DEFAULT 'support'",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS original_post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(32) DEFAULT 'text'",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255) DEFAULT ''",
@@ -198,6 +205,31 @@ def ensure_schema_compatibility():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_hidden_from_directory BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS notification_previews_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS auto_share_completed_challenges BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(32) NOT NULL DEFAULT 'standard'",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS achievement_type VARCHAR(48) DEFAULT ''",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS challenge_completion_id INTEGER REFERENCES challenge_completions(id) ON DELETE CASCADE",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS encouraging_message VARCHAR(240) DEFAULT ''",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS reward_tier VARCHAR(32) NOT NULL DEFAULT 'easy'",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS completion_frequency VARCHAR(24) NOT NULL DEFAULT 'one_time'",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS custom_frequency_days INTEGER",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS evidence_requirement VARCHAR(24) NOT NULL DEFAULT 'none'",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS participant_scope VARCHAR(32) NOT NULL DEFAULT 'all_members'",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS max_participants INTEGER",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS visibility VARCHAR(24) NOT NULL DEFAULT 'family'",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS requires_admin_approval BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS allow_achievement_sharing BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE family_challenges ADD COLUMN IF NOT EXISTS mandatory_all_members BOOLEAN NOT NULL DEFAULT FALSE",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM site_settings WHERE key = 'migration_stage12_participants') THEN INSERT INTO challenge_participants (challenge_id, user_id, joined_at) SELECT challenge_id, user_id, MIN(completed_at) FROM challenge_completions GROUP BY challenge_id, user_id ON CONFLICT (challenge_id, user_id) DO NOTHING; INSERT INTO site_settings (key, value, updated_at) VALUES ('migration_stage12_participants', 'complete', CURRENT_TIMESTAMP); END IF; END $$",
+        "UPDATE family_challenges SET completion_frequency = 'daily' WHERE challenge_type IN ('daily_check_in', 'habit') AND completion_frequency = 'one_time'",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_family_challenges_max_participants') THEN ALTER TABLE family_challenges ADD CONSTRAINT ck_family_challenges_max_participants CHECK (max_participants IS NULL OR max_participants >= 1); END IF; END $$",
+        "ALTER TABLE challenge_completions ADD COLUMN IF NOT EXISTS period_key VARCHAR(32) NOT NULL DEFAULT 'once'",
+        "ALTER TABLE challenge_completions ADD COLUMN IF NOT EXISTS points_awarded INTEGER NOT NULL DEFAULT 0",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM site_settings WHERE key = 'migration_stage10_rewards') THEN UPDATE challenge_completions SET points_awarded = family_challenges.points FROM family_challenges WHERE challenge_completions.challenge_id = family_challenges.id; UPDATE challenge_completions SET period_key = TO_CHAR(completed_at, 'YYYY-MM-DD') FROM family_challenges WHERE challenge_completions.challenge_id = family_challenges.id AND family_challenges.challenge_type IN ('daily_check_in', 'habit') AND challenge_completions.period_key = 'once'; UPDATE family_challenges SET reward_tier = CASE WHEN points <= 5 THEN 'small' WHEN points <= 10 THEN 'easy' WHEN points <= 25 THEN 'medium' WHEN points <= 50 THEN 'hard' ELSE 'major' END; UPDATE family_challenges SET reward_tier = 'small' WHERE challenge_type = 'daily_check_in'; UPDATE family_challenges SET reward_tier = 'easy' WHERE challenge_type = 'task'; UPDATE family_challenges SET reward_tier = 'easy' WHERE challenge_type = 'habit' AND reward_tier NOT IN ('small', 'easy'); UPDATE family_challenges SET reward_tier = 'medium' WHERE challenge_type IN ('learning_lesson', 'quiz') AND reward_tier NOT IN ('small', 'easy', 'medium'); UPDATE family_challenges SET points = CASE reward_tier WHEN 'small' THEN 5 WHEN 'easy' THEN 10 WHEN 'medium' THEN 25 WHEN 'hard' THEN 50 WHEN 'major' THEN 100 ELSE 10 END; INSERT INTO site_settings (key, value, updated_at) VALUES ('migration_stage10_rewards', 'complete', CURRENT_TIMESTAMP); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM site_settings WHERE key = 'migration_stage14_point_ledger') THEN INSERT INTO point_transactions (user_id, family_id, amount, reason, source_type, source_id, unique_reward_key, reversed, created_at, awarded_by_id) SELECT cc.user_id, NULL, cc.points_awarded, LEFT('Completed ' || fc.title, 240), 'challenge_completion', cc.id, 'challenge_completion:' || cc.id || ':' || 'personal', FALSE, cc.completed_at, NULL FROM challenge_completions cc JOIN family_challenges fc ON fc.id = cc.challenge_id WHERE cc.verification_status = 'completed' AND cc.points_awarded > 0 ON CONFLICT (unique_reward_key) DO NOTHING; INSERT INTO point_transactions (user_id, family_id, amount, reason, source_type, source_id, unique_reward_key, reversed, created_at, awarded_by_id) SELECT NULL, fc.family_id, cc.points_awarded, LEFT('Completed ' || fc.title, 240), 'challenge_completion', cc.id, 'challenge_completion:' || cc.id || ':' || 'family', FALSE, cc.completed_at, NULL FROM challenge_completions cc JOIN family_challenges fc ON fc.id = cc.challenge_id WHERE cc.verification_status = 'completed' AND cc.points_awarded > 0 ON CONFLICT (unique_reward_key) DO NOTHING; INSERT INTO site_settings (key, value, updated_at) VALUES ('migration_stage14_point_ledger', 'complete', CURRENT_TIMESTAMP); END IF; END $$",
+        "ALTER TABLE challenge_completions DROP CONSTRAINT IF EXISTS uq_challenge_completion_user",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_challenge_completion_period') THEN CREATE UNIQUE INDEX uq_challenge_completion_period ON challenge_completions (challenge_id, user_id, period_key); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_posts_challenge_completion') THEN CREATE UNIQUE INDEX uq_posts_challenge_completion ON posts (challenge_completion_id) WHERE challenge_completion_id IS NOT NULL; END IF; END $$",
         "ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'open'",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS privacy VARCHAR(20) NOT NULL DEFAULT 'public'",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'friendship_and_support'",
@@ -218,6 +250,12 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_until TIMESTAMP",
         "ALTER TABLE post_shares ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "DELETE FROM reactions r USING reactions newer WHERE r.post_id = newer.post_id AND r.user_id = newer.user_id AND r.id < newer.id",
+        "ALTER TABLE reactions DROP CONSTRAINT IF EXISTS uq_reaction_user_type",
+        "DROP INDEX IF EXISTS uq_reaction_user_type",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_reaction_post_user') THEN CREATE UNIQUE INDEX uq_reaction_post_user ON reactions (post_id, user_id); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_public_post_reshare') THEN CREATE UNIQUE INDEX uq_public_post_reshare ON posts (original_post_id, user_id) WHERE original_post_id IS NOT NULL AND audience = 'public'; END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_family_post_reshare') THEN CREATE UNIQUE INDEX uq_family_post_reshare ON posts (original_post_id, user_id, family_id) WHERE original_post_id IS NOT NULL AND family_id IS NOT NULL; END IF; END $$",
         "UPDATE family_members SET role = 'owner' FROM families WHERE family_members.family_id = families.id AND family_members.user_id = families.owner_id AND family_members.role != 'owner'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_families_member_limit_min') THEN ALTER TABLE families ADD CONSTRAINT ck_families_member_limit_min CHECK (member_limit >= 2); END IF; END $$",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_family_member_user_idx') AND NOT EXISTS (SELECT 1 FROM (SELECT family_id, user_id FROM family_members GROUP BY family_id, user_id HAVING COUNT(*) > 1) duplicates) THEN CREATE UNIQUE INDEX uq_family_member_user_idx ON family_members (family_id, user_id); END IF; END $$",
@@ -278,7 +316,7 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_navigation_counts():
-    from helpers import family_avatar_url, is_hevc_upload, user_avatar_url
+    from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
     from models import Message, Notification
 
     unread_notifications = 0
@@ -295,6 +333,7 @@ def inject_navigation_counts():
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
         "is_hevc_upload": is_hevc_upload,
+        "get_media_type": get_media_type,
         "chat_day_label": chat_day_label,
         "realtime_media_enabled": app.config["REALTIME_MEDIA_ENABLED"],
         "user_avatar_url": user_avatar_url,

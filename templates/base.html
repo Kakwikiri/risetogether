@@ -59,13 +59,13 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage6-feed"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260713-stage14-point-ledger"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-stage6-feed"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260713-stage14-point-ledger"></script>
     <script
       defer
       src="{{ url_for('static', filename='js/socket.js') }}?v=20260713-stage6-feed"
@@ -106,6 +106,9 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
+        {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
+        <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
+        {% endif %}
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('moderation.admin_dashboard') }}" data-icon="▣"><span>Admin</span></a>
@@ -157,6 +160,12 @@
         <h2 id="celebration-title" data-celebration-title>Beautiful progress</h2>
         <p id="celebration-message" data-celebration-message>Your effort matters. Keep growing, one gentle step at a time.</p>
         <button class="button" type="button" data-celebration-close>Keep going</button>
+      </div>
+    </dialog>
+    <dialog class="ui-modal reaction-people-modal" data-reaction-modal aria-labelledby="reaction-people-title">
+      <div class="ui-modal__card">
+        <div class="reaction-people-header"><h2 id="reaction-people-title" data-reaction-modal-title>People who reacted</h2><button class="icon-button" type="button" data-reaction-modal-close aria-label="Close reaction list">×</button></div>
+        <div class="reaction-people-list" data-reaction-people role="list"></div>
       </div>
     </dialog>
     <div class="install-panel" data-install-panel hidden>

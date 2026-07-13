@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card with context %} {% block content %}
 <div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
   <section class="panel panel-feed">
     <div class="panel-header">
@@ -87,6 +87,7 @@
     </section>
     {% endif %}
     {% for post in posts %}
+    {% set content_post = post.original_post or post %}
     <article class="card post-card" data-post-card>
       <header>
         <div class="post-author">
@@ -124,55 +125,48 @@
           {% endif %}
         </div>
       </header>
-      {% if post.content %}<div class="post-copy" data-post-copy>
-        <p class="post-content">{{ post.content }}</p>
+      {% if post.original_post %}<div class="reshare-attribution">↗ {{ post.author.profile.display_name }} shared a post by <a href="{{ url_for('main.profile', username=content_post.author.username) }}">@{{ content_post.author.username }}</a>. The original remains unchanged.</div>{% endif %}
+      {% if content_post.post_type == 'achievement' %}
+      {{ achievement_post_card(content_post) }}
+      {% else %}
+      {% if content_post.content %}<div class="post-copy" data-post-copy>
+        <p class="post-content">{{ content_post.content }}</p>
         <button class="post-read-more" type="button" data-read-more aria-expanded="false" hidden>Read more</button>
       </div>{% endif %}
-      {% if post.media_url %} {% if post.media_type == 'image' %}
+      {% if content_post.media_url %} {% if content_post.media_type == 'image' %}
       <div class="media-frame">
         <img
           class="post-media"
-          src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+          src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
           alt="Post media"
         />
-        <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download image">↓</a>
       </div>
-      {% elif post.media_type == 'video' %}
+      {% elif content_post.media_type == 'video' %}
       <div class="media-frame">
-      <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}">
+      <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(content_post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=content_post.media_url) }}">
           <source
-            src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+            src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
             type="video/mp4"
           />
           Your browser cannot play this video.
         </video>
-        <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download video">↓</a>
       </div>
-      {% elif post.media_type == 'audio' %}
+      {% elif content_post.media_type == 'audio' %}
       <audio
         controls
-        src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+        src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
       ></audio>
-      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download audio</a>
-      {% elif post.media_type == 'file' %}
-      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" target="_blank" rel="noopener" download>
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download>Download audio</a>
+      {% elif content_post.media_type == 'file' %}
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" target="_blank" rel="noopener" download>
         Download attachment
       </a>
       {% endif %} {% endif %}
+      {% endif %}
       <div class="post-actions">
-        <form
-          action="{{ url_for('main.react_post', post_id=post.id) }}"
-          method="post"
-          class="reaction-form"
-        >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          {% for key,label in reactions.items() %}
-          <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}" data-reaction-button data-reaction-type="{{ key }}">
-            <span data-reaction-count>{{ post.reactions.filter_by(type=key).count() }}</span>
-            <span data-reaction-label>{{ label }}</span>
-          </button>
-          {% endfor %}
-        </form>
+        {{ reaction_bar(post, csrf_token()) }}
         <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">
           Comments {{ post.comments.count() }}
         </a>

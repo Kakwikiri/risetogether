@@ -117,6 +117,7 @@ class Profile(db.Model):
     privacy_posts = db.Column(db.String(20), default="public")
     notifications_enabled = db.Column(db.Boolean, default=True)
     notification_previews_enabled = db.Column(db.Boolean, default=True)
+    auto_share_completed_challenges = db.Column(db.Boolean, default=False, nullable=False)
 
 
 class Post(db.Model):
@@ -133,6 +134,29 @@ class Post(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     family_id = db.Column(
         db.Integer, db.ForeignKey("families.id", ondelete="SET NULL"), nullable=True
+    )
+    original_post_id = db.Column(
+        db.Integer, db.ForeignKey("posts.id", ondelete="CASCADE"), nullable=True
+    )
+    post_type = db.Column(db.String(32), default="standard", nullable=False)
+    achievement_type = db.Column(db.String(48), default="")
+    challenge_completion_id = db.Column(
+        db.Integer,
+        db.ForeignKey("challenge_completions.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=True,
+    )
+    encouraging_message = db.Column(db.String(240), default="")
+    original_post = db.relationship(
+        "Post",
+        remote_side=[id],
+        backref=db.backref(
+            "feed_reshares",
+            lazy="dynamic",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+        foreign_keys=[original_post_id],
     )
     reactions = db.relationship(
         "Reaction", backref="post", lazy="dynamic", cascade="all, delete-orphan"
@@ -181,7 +205,7 @@ class MediaAsset(db.Model):
 class Reaction(db.Model):
     __tablename__ = "reactions"
     __table_args__ = (
-        db.UniqueConstraint("post_id", "user_id", "type", name="uq_reaction_user_type"),
+        db.UniqueConstraint("post_id", "user_id", name="uq_reaction_post_user"),
     )
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(
@@ -192,6 +216,7 @@ class Reaction(db.Model):
     )
     type = db.Column(db.String(32), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.relationship("User", backref=db.backref("post_reactions", lazy="dynamic"))
 
 
 class Comment(db.Model):
@@ -208,6 +233,7 @@ class Comment(db.Model):
         db.Integer, db.ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
     )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    edited_at = db.Column(db.DateTime, nullable=True)
     user = db.relationship("User", backref="comments", foreign_keys=[user_id])
     replies = db.relationship(
         "Comment",
@@ -230,6 +256,7 @@ class CommentReaction(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    type = db.Column(db.String(32), default="support", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     comment = db.relationship("Comment", backref=db.backref("likes", lazy="dynamic"))
     user = db.relationship("User", backref="comment_likes")
@@ -277,6 +304,42 @@ class FamilyMember(db.Model):
     )
     role = db.Column(db.String(20), default="member")
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PointTransaction(db.Model):
+    __tablename__ = "point_transactions"
+    __table_args__ = (
+        db.CheckConstraint(
+            "(user_id IS NOT NULL AND family_id IS NULL) OR "
+            "(user_id IS NULL AND family_id IS NOT NULL)",
+            name="ck_point_transaction_single_recipient",
+        ),
+        db.CheckConstraint("amount > 0", name="ck_point_transaction_positive_amount"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    amount = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(240), nullable=False)
+    source_type = db.Column(db.String(64), nullable=False, index=True)
+    source_id = db.Column(db.Integer, nullable=True)
+    unique_reward_key = db.Column(db.String(180), unique=True, nullable=False)
+    reversed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    awarded_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    user = db.relationship(
+        "User", foreign_keys=[user_id], backref=db.backref("point_transactions", lazy="dynamic")
+    )
+    family = db.relationship(
+        "Family", foreign_keys=[family_id], backref=db.backref("point_transactions", lazy="dynamic")
+    )
+    awarded_by = db.relationship("User", foreign_keys=[awarded_by_id])
 
 
 class FamilyModerationLog(db.Model):
@@ -389,6 +452,16 @@ class FamilyChallenge(db.Model):
     description = db.Column(db.Text, default="")
     challenge_type = db.Column(db.String(40), default="task", nullable=False)
     points = db.Column(db.Integer, default=10, nullable=False)
+    reward_tier = db.Column(db.String(32), default="easy", nullable=False)
+    completion_frequency = db.Column(db.String(24), default="one_time", nullable=False)
+    custom_frequency_days = db.Column(db.Integer, nullable=True)
+    evidence_requirement = db.Column(db.String(24), default="none", nullable=False)
+    participant_scope = db.Column(db.String(32), default="all_members", nullable=False)
+    max_participants = db.Column(db.Integer, nullable=True)
+    visibility = db.Column(db.String(24), default="family", nullable=False)
+    requires_admin_approval = db.Column(db.Boolean, default=False, nullable=False)
+    allow_achievement_sharing = db.Column(db.Boolean, default=True, nullable=False)
+    mandatory_all_members = db.Column(db.Boolean, default=False, nullable=False)
     starts_at = db.Column(db.DateTime, nullable=True)
     ends_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default="active", nullable=False)
@@ -397,10 +470,35 @@ class FamilyChallenge(db.Model):
     creator = db.relationship("User", backref=db.backref("created_family_challenges", lazy="dynamic"))
 
 
+class ChallengeParticipant(db.Model):
+    __tablename__ = "challenge_participants"
+    __table_args__ = (
+        db.UniqueConstraint("challenge_id", "user_id", name="uq_challenge_participant_user"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("family_challenges.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    challenge = db.relationship(
+        "FamilyChallenge",
+        backref=db.backref("participants", lazy="dynamic", cascade="all, delete-orphan"),
+    )
+    user = db.relationship(
+        "User", backref=db.backref("challenge_participations", lazy="dynamic", cascade="all, delete-orphan")
+    )
+
+
 class ChallengeCompletion(db.Model):
     __tablename__ = "challenge_completions"
     __table_args__ = (
-        db.UniqueConstraint("challenge_id", "user_id", name="uq_challenge_completion_user"),
+        db.UniqueConstraint(
+            "challenge_id", "user_id", "period_key",
+            name="uq_challenge_completion_period",
+        ),
     )
     id = db.Column(db.Integer, primary_key=True)
     challenge_id = db.Column(
@@ -413,8 +511,18 @@ class ChallengeCompletion(db.Model):
     evidence_text = db.Column(db.Text, default="")
     evidence_media_url = db.Column(db.String(255), default="")
     verification_status = db.Column(db.String(20), default="completed", nullable=False)
+    period_key = db.Column(db.String(32), default="once", nullable=False)
+    points_awarded = db.Column(db.Integer, default=0, nullable=False)
     challenge = db.relationship("FamilyChallenge", backref=db.backref("completions", lazy="dynamic", cascade="all, delete-orphan"))
     user = db.relationship("User", backref=db.backref("challenge_completions", lazy="dynamic", cascade="all, delete-orphan"))
+    achievement_post = db.relationship(
+        "Post",
+        backref="challenge_completion",
+        uselist=False,
+        foreign_keys="Post.challenge_completion_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class Quiz(db.Model):

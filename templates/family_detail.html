@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack %} {% block content %}
 <section class="card family-detail-card">
   <header class="family-hero">
     <div class="family-identity-row">
@@ -93,7 +93,7 @@
           {% for challenge in dashboard_active_challenges %}
           <li>
             <a href="#family-challenges" data-family-tab>{{ challenge.title }}</a>
-            <small>{{ challenge.points }} pts{% if challenge.ends_at %} · ends {{ challenge.ends_at.strftime('%b %d') }}{% endif %}</small>
+            <small>{{ reward_values.get(challenge.reward_tier, challenge.points) }} pts{% if challenge.ends_at %} · ends {{ challenge.ends_at.strftime('%b %d') }}{% endif %}</small>
           </li>
           {% else %}
           <li><span>No active challenges yet.</span></li>
@@ -315,7 +315,7 @@
     {% if family_progress is not none %}
     <div class="family-goal-summary">
       <strong>Family progress</strong>
-      <p>{{ family_progress }}% of active member challenge slots are complete.</p>
+      <p>{{ family_completed_count }} of {{ family_participant_count }} participants completed their active challenge.</p>
     </div>
     {% endif %}
 
@@ -327,69 +327,110 @@
     >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <h4>Create official challenge</h4>
-      <input type="text" name="title" placeholder="Challenge title" required />
-      <textarea name="description" rows="3" placeholder="What should members do?"></textarea>
+      <label>Challenge title<input type="text" name="title" maxlength="160" placeholder="Example: Seven days of kind check-ins" required /></label>
+      <label>Clear instructions<textarea name="description" rows="4" maxlength="5000" placeholder="Explain exactly what participants should do and what completion looks like." required></textarea></label>
       <div class="form-grid two-column">
         <label>
           Type
-          <select name="challenge_type">
+          <select name="challenge_type" data-challenge-type>
             {% for key,label in challenge_types.items() %}
-            <option value="{{ key }}">{{ label }}</option>
+            <option value="{{ key }}" data-reward-tiers="{{ allowed_reward_tiers[key]|join(',') }}">{{ label }}</option>
             {% endfor %}
           </select>
         </label>
         <label>
-          Points
-          <input type="number" name="points" min="0" value="10" />
+          Reward level
+          <select name="reward_tier" required data-challenge-reward-tier>
+            {% for key, label in reward_tiers.items() %}<option value="{{ key }}">{{ label }} · {{ reward_values[key] }} points</option>{% endfor %}
+          </select>
+          <small class="muted-meta">The server applies the points and recommended limit for the selected challenge type.</small>
         </label>
       </div>
-      <div class="form-grid two-column">
+      <div class="form-grid two-column" data-challenge-schedule>
         <label>
-          Starts
+          Start date
           <input type="date" name="starts_at" />
         </label>
         <label>
-          Ends
+          End date
           <input type="date" name="ends_at" />
         </label>
+        <label>Completion frequency<select name="completion_frequency" data-completion-frequency><option value="one_time">One time</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="custom">Custom schedule</option></select></label>
+        <label data-custom-frequency hidden>Repeat every<input type="number" name="custom_frequency_days" min="1" max="365" inputmode="numeric" /><span class="muted-meta">days</span></label>
       </div>
+      <button class="button secondary challenge-advanced-toggle" type="button" data-challenge-advanced-toggle aria-expanded="false">More challenge settings</button>
+      <section class="challenge-advanced-fields" data-challenge-advanced hidden>
+        <div class="form-grid two-column">
+          <label>Evidence requirement<select name="evidence_requirement"><option value="none">None</option><option value="completion_note">Completion note</option><option value="photo">Photo</option><option value="video">Video</option><option value="audio">Audio</option><option value="file">File</option><option value="admin_approval">Admin approval</option></select></label>
+          <label>Who can participate<select name="participant_scope"><option value="all_members">All Family members</option><option value="admins_moderators">Admins and moderators</option><option value="owners_admins">Owners and admins</option></select></label>
+          <label data-participant-limit>Maximum participants, optional<input type="number" name="max_participants" min="1" max="10000" inputmode="numeric" /></label>
+          <label>Visibility<select name="visibility"><option value="family">Family members</option>{% if family.privacy == 'public' %}<option value="public">Public</option>{% endif %}<option value="admins_only">Family admins only</option></select></label>
+        </div>
+        <label class="settings-check"><input type="checkbox" name="requires_admin_approval" /> Completion needs admin approval</label>
+        <label class="settings-check"><input type="checkbox" name="allow_achievement_sharing" checked /> Achievements may be shared</label>
+        <label class="settings-check"><input type="checkbox" name="mandatory_all_members" data-mandatory-challenge /> Mandatory for every eligible active member</label>
+      </section>
       <button class="button" type="submit">Create challenge</button>
     </form>
     {% endif %}
 
     <div class="challenge-list">
       {% for challenge in active_challenges %}
+      {% set challenge_progress = progress_by_challenge[challenge.id] %}
       <article class="challenge-card">
         <div class="challenge-card-main">
-          <span class="status-pill">{{ challenge.challenge_type|replace('_', ' ')|title }} · {{ challenge.points }} pts</span>
+          <span class="status-pill">{{ challenge.challenge_type|replace('_', ' ')|title }} · {{ reward_values.get(challenge.reward_tier, challenge.points) }} pts</span>
           <h4>{{ challenge.title }}</h4>
           <p>{{ challenge.description or 'No description.' }}</p>
           <p class="muted-meta">
-            {{ completion_counts.get(challenge.id, 0) }} completions
+            {% if challenge.mandatory_all_members %}<span class="status-chip">Mandatory</span> · {% endif %}{{ challenge_progress.time_remaining }}
             {% if challenge.ends_at %} · Ends {{ challenge.ends_at.strftime('%b %d, %Y') }}{% endif %}
           </p>
+          <section class="challenge-progress-panel" aria-label="{{ challenge.title }} progress">
+            <div class="challenge-progress-heading"><strong>{{ challenge_progress.percentage }}%</strong><span>{{ challenge_progress.completed_count }} of {{ challenge_progress.participant_count }} participants completed</span></div>
+            {{ progress_bar(challenge_progress.percentage, challenge.title ~ ' progress') }}
+            <p>{{ challenge_progress.working_count }} still working</p>
+            {% if challenge_progress.completed_users %}<div class="challenge-progress-people"><span>Completed</span>{{ avatar_stack(challenge_progress.completed_users, 5, 'Completed participants') }}</div>{% endif %}
+            {% if challenge_progress.working_users %}<div class="challenge-progress-people"><span>Still working</span>{{ avatar_stack(challenge_progress.working_users, 5, 'Participants still working') }}</div>{% endif %}
+          </section>
+          {% if can_create_challenges %}
+          <form action="{{ url_for('family.update_challenge_reward', family_id=family.id, challenge_id=challenge.id) }}" method="post" class="challenge-reward-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <label>Reward for future completions<select name="reward_tier">{% for tier in allowed_reward_tiers.get(challenge.challenge_type, []) %}<option value="{{ tier }}" {% if challenge.reward_tier == tier %}selected{% endif %}>{{ reward_tiers[tier] }} · {{ reward_values[tier] }} points</option>{% endfor %}</select></label>
+            <button class="button secondary" type="submit">Update future reward</button>
+          </form>
+          {% endif %}
         </div>
         {% if member %}
-          {% if challenge.id in completed_challenge_ids %}
-          <span class="status-pill">Completed</span>
-          {% else %}
+          {% if member_can_participate(challenge, member) %}
+            {% if challenge.mandatory_all_members %}<span class="status-pill">Mandatory · You’re participating</span>
+            {% elif not challenge_progress.current_joined %}<form action="{{ url_for('family.challenge_participation', family_id=family.id, challenge_id=challenge.id, action='join') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button" type="submit">Join challenge</button></form>
+            {% elif not challenge_progress.current_completed and not challenge_progress.current_pending %}<form action="{{ url_for('family.challenge_participation', family_id=family.id, challenge_id=challenge.id, action='leave') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button secondary" type="submit">Leave challenge</button></form>{% endif %}
+          {% endif %}
+          {% if challenge_progress.current_pending %}<span class="status-pill">Awaiting approval</span>
+          {% elif challenge_progress.current_completed %}<span class="status-pill">Completed this period</span>
+          {% elif challenge_progress.current_joined and member_can_participate(challenge, member) %}
           <form
             action="{{ url_for('family.complete_challenge', family_id=family.id, challenge_id=challenge.id) }}"
             method="post"
             enctype="multipart/form-data"
             class="challenge-complete-form"
+            data-challenge-completion-form
           >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <strong>Complete challenge</strong>
-            <input type="text" name="evidence_text" placeholder="What did you do? Optional" />
-            <label class="file-pill">
-              Evidence
-              <input type="file" name="evidence_media" accept="image/*,audio/*,video/*,.pdf,.doc,.docx" />
-            </label>
-            <button class="button secondary" type="submit">Mark complete</button>
+            <label>What did you do?<textarea name="evidence_text" rows="2" maxlength="3000" placeholder="Share an optional completion note" {% if challenge.evidence_requirement == 'completion_note' %}required{% endif %}></textarea></label>
+            {% if challenge.evidence_requirement in ['photo', 'video', 'audio', 'file'] %}<label class="file-pill">
+              Add {{ challenge.evidence_requirement }} evidence
+              <input type="file" name="evidence_media" data-challenge-evidence data-max-bytes="{{ upload_limits[challenge.evidence_requirement] * 1024 * 1024 }}" {% if challenge.evidence_requirement == 'photo' %}accept="image/png,image/jpeg,image/gif"{% elif challenge.evidence_requirement == 'video' %}accept="video/mp4,video/webm,video/quicktime,video/3gpp"{% elif challenge.evidence_requirement == 'audio' %}accept="audio/mpeg,audio/wav,audio/mp4"{% else %}accept="image/png,image/jpeg,image/gif,audio/mpeg,audio/wav,audio/mp4,video/mp4,video/webm,video/quicktime,video/3gpp,.pdf,.doc,.docx"{% endif %} required />
+            </label><small class="muted-meta">Supported: {% if challenge.evidence_requirement == 'photo' %}PNG, JPG, GIF{% elif challenge.evidence_requirement == 'video' %}MP4, WebM, MOV, 3GP{% elif challenge.evidence_requirement == 'audio' %}MP3, WAV, M4A{% else %}images, video, audio, PDF, DOC and DOCX{% endif %}. Maximum {{ upload_limits[challenge.evidence_requirement] }} MB.</small><div class="challenge-evidence-preview" data-challenge-evidence-preview hidden></div><button class="text-button" type="button" data-challenge-evidence-remove hidden>Remove evidence</button>{% endif %}
+            <div class="challenge-upload-progress" data-challenge-upload-progress hidden><span><span data-challenge-upload-bar></span></span><small data-challenge-upload-label>Preparing upload…</small></div>
+            <button class="button secondary" type="submit">{% if challenge.requires_admin_approval %}Submit for approval{% else %}Mark complete{% endif %}</button>
           </form>
+          {% elif not member_can_participate(challenge, member) %}<span class="muted-meta">Participation is limited for this challenge.</span>
           {% endif %}
         {% endif %}
+        {% if can_create_challenges %}{% for pending in challenge.completions.filter_by(verification_status='pending').all() %}<article class="challenge-approval-card"><div><strong>{{ pending.user.profile.display_name if pending.user.profile else pending.user.username }}</strong><span>@{{ pending.user.username }} · {{ pending.completed_at.strftime('%b %d, %Y %H:%M') }}</span>{% if pending.evidence_text %}<p>{{ pending.evidence_text }}</p>{% endif %}{% if pending.evidence_media_url %}<a href="{{ url_for('api.serve_upload', filename=pending.evidence_media_url) }}" target="_blank" rel="noopener">Review evidence</a>{% endif %}</div><form action="{{ url_for('family.review_challenge_completion', family_id=family.id, completion_id=pending.id, action='approve') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button" type="submit">Approve</button></form><form action="{{ url_for('family.review_challenge_completion', family_id=family.id, completion_id=pending.id, action='reject') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button secondary" type="submit">Return</button></form></article>{% endfor %}{% endif %}
       </article>
       {% else %}
       <p class="muted-meta">No active challenges yet.</p>

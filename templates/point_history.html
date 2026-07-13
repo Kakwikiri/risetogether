@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import empty_state, point_badge %}
+{% block title %}Points · RiseTogether{% endblock %}
+{% block content %}
+<section class="page-shell points-page">
+  <header class="page-heading">
+    <p class="eyebrow">Growth you can trace</p>
+    <h1>Your points</h1>
+    <p>Personal Points celebrate your participation. Family Points reflect the shared progress of each Family.</p>
+  </header>
+  {% if coming_soon %}
+    {{ empty_state('✦', 'Points are coming soon', 'This feature is currently paused. Your existing progress remains safe.') }}
+  {% else %}
+  <div class="point-balance-grid">
+    {% if personal_enabled %}
+    <article class="point-balance-card point-balance-card--personal">
+      <span class="status-chip">Personal Points</span>
+      <strong>{{ personal_balance }}</strong>
+      <p>Your approved participation across RiseTogether.</p>
+    </article>
+    {% endif %}
+    {% if family_enabled %}
+      {% for row in family_balances %}
+      <article class="point-balance-card point-balance-card--family">
+        <span class="status-chip">Family Points</span>
+        <strong>{{ row.balance }}</strong>
+        <p>{{ row.family.name }}’s shared growth.</p>
+      </article>
+      {% else %}
+      <article class="point-balance-card point-balance-card--family">
+        <span class="status-chip">Family Points</span><strong>0</strong>
+        <p>Join a Family to grow together.</p>
+      </article>
+      {% endfor %}
+    {% endif %}
+  </div>
+  <section class="card point-history-card">
+    <div class="section-heading"><div><p class="eyebrow">Accountable by design</p><h2>Point history</h2></div></div>
+    {% if transactions.items %}
+    <div class="point-history-list">
+      {% for transaction in transactions.items %}
+      <article class="point-history-row">
+        <div>
+          <strong>{{ transaction.reason }}</strong>
+          <span>{{ 'Personal Points' if transaction.user_id else transaction.family.name ~ ' Family Points' }} · {{ transaction.created_at.strftime('%b %d, %Y at %H:%M') }}</span>
+          <small>{{ transaction.source_type|replace('_', ' ')|title }} · Awarded by {{ transaction.awarded_by.username if transaction.awarded_by else 'RiseTogether' }}</small>
+        </div>
+        {{ point_badge('+' ~ transaction.amount, 'pts') }}
+      </article>
+      {% endfor %}
+    </div>
+    <nav class="pagination" aria-label="Point history pages">
+      {% if transactions.has_prev %}<a class="button secondary" href="{{ url_for('main.point_history', page=transactions.prev_num) }}">Newer</a>{% endif %}
+      <span>Page {{ transactions.page }} of {{ transactions.pages }}</span>
+      {% if transactions.has_next %}<a class="button secondary" href="{{ url_for('main.point_history', page=transactions.next_num) }}">Older</a>{% endif %}
+    </nav>
+    {% else %}
+      {{ empty_state('✦', 'Your point history starts here', 'Complete an approved activity and the reward will appear here automatically.') }}
+    {% endif %}
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

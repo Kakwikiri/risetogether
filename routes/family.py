@@ -1,16 +1,18 @@
 import os
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from feature_flags import is_feature_enabled
-from helpers import get_media_type, save_media, send_device_push, validate_upload
+from helpers import get_media_type, get_upload_limit, save_media, send_device_push, validate_upload
+from points import award_challenge_completion_points
 from models import (
     ChallengeCompletion,
+    ChallengeParticipant,
     Block,
     Family,
     FamilyChallenge,
@@ -30,6 +32,7 @@ from models import (
     QuizAttempt,
     QuizChoice,
     QuizQuestion,
+    SiteSetting,
     User,
 )
 
@@ -57,7 +60,47 @@ CHALLENGE_TYPES = {
     "learning_lesson": "Learning lesson",
     "habit": "Habit",
     "quiz": "Quiz",
+    "team": "Team challenge",
+    "major": "Major one-time challenge",
+    "reading": "Reading",
+    "fitness": "Fitness",
+    "saving": "Saving",
+    "reflection": "Reflection",
+    "creative": "Creative",
 }
+
+REWARD_TIER_DEFAULTS = {
+    "small": 5,
+    "easy": 10,
+    "medium": 25,
+    "hard": 50,
+    "major": 100,
+}
+REWARD_TIER_LABELS = {
+    "small": "Small action",
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard",
+    "major": "Major milestone",
+}
+CHALLENGE_ALLOWED_REWARD_TIERS = {
+    "daily_check_in": {"small"},
+    "habit": {"small", "easy"},
+    "task": {"easy"},
+    "learning_lesson": {"easy", "medium"},
+    "quiz": {"small", "easy", "medium"},
+    "team": {"small", "easy", "medium", "hard"},
+    "major": {"small", "easy", "medium", "hard", "major"},
+    "reading": {"easy", "medium"},
+    "fitness": {"small", "easy", "medium"},
+    "saving": {"easy", "medium", "hard"},
+    "reflection": {"small", "easy"},
+    "creative": {"easy", "medium", "hard"},
+}
+COMPLETION_FREQUENCIES = {"one_time", "daily", "weekly", "custom"}
+EVIDENCE_REQUIREMENTS = {"none", "completion_note", "photo", "video", "audio", "file", "admin_approval"}
+PARTICIPANT_SCOPES = {"all_members", "admins_moderators", "owners_admins"}
+CHALLENGE_VISIBILITIES = {"family", "public", "admins_only"}
 
 CHALLENGE_STATUSES = {"active", "draft", "closed"}
 
@@ -70,6 +113,17 @@ QUIZ_CAPABLE_CATEGORIES = {
 }
 
 QUIZ_STATUSES = {"open", "draft", "closed"}
+
+ACHIEVEMENT_TYPES = {
+    "challenge_completed",
+    "goal_achieved",
+    "streak_milestone",
+    "quiz_passed",
+    "family_level_increased",
+    "family_upgrade_unlocked",
+    "encouragement_milestone",
+    "weekly_family_milestone",
+}
 
 FAMILY_ROLES = {"owner", "admin", "moderator", "member"}
 FAMILY_ROLE_LABELS = {
@@ -322,6 +376,76 @@ def parse_points(value):
     return min(points, 10000)
 
 
+def challenge_reward_values():
+    values = dict(REWARD_TIER_DEFAULTS)
+    settings = SiteSetting.query.filter(
+        SiteSetting.key.in_([f"challenge_reward_{key}" for key in values])
+    ).all()
+    for setting in settings:
+        tier = setting.key.removeprefix("challenge_reward_")
+        try:
+            configured = int(setting.value)
+        except (TypeError, ValueError):
+            continue
+        if tier in values and 1 <= configured <= 1000:
+            values[tier] = configured
+    return values
+
+
+def challenge_completion_period(challenge, moment=None):
+    moment = moment or datetime.utcnow()
+    frequency = getattr(challenge, "completion_frequency", None)
+    if not frequency:
+        frequency = "daily" if challenge.challenge_type in {"daily_check_in", "habit"} else "one_time"
+    if frequency == "daily":
+        return moment.strftime("%Y-%m-%d")
+    if frequency == "weekly":
+        iso_year, iso_week, _ = moment.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    if frequency == "custom":
+        days = challenge.custom_frequency_days or 1
+        origin = challenge.starts_at or challenge.created_at or moment
+        elapsed_days = max(0, (moment.date() - origin.date()).days)
+        return f"custom-{elapsed_days // days}"
+    return "once"
+
+
+def member_can_participate(challenge, membership):
+    if not membership:
+        return False
+    if challenge.participant_scope == "admins_moderators":
+        return membership.role in {"owner", "admin", "moderator"}
+    if challenge.participant_scope == "owners_admins":
+        return membership.role in {"owner", "admin"}
+    return True
+
+
+def eligible_challenge_members(challenge):
+    memberships = active_family_members_query(challenge.family_id).all()
+    return [
+        membership for membership in memberships
+        if member_can_participate(challenge, membership)
+        and not active_family_restriction(challenge.family_id, membership.user_id, "suspend")
+    ]
+
+
+def challenge_time_remaining(challenge):
+    if not challenge.ends_at:
+        return "No deadline"
+    remaining = challenge.ends_at - datetime.utcnow()
+    if remaining.total_seconds() <= 0:
+        return "Ended"
+    if remaining.days >= 1:
+        return f"{remaining.days} day{'s' if remaining.days != 1 else ''} remaining"
+    hours = max(1, int(remaining.total_seconds() // 3600))
+    return f"{hours} hour{'s' if hours != 1 else ''} remaining"
+
+
+def reward_for_challenge(challenge):
+    values = challenge_reward_values()
+    return values.get(challenge.reward_tier, values["easy"])
+
+
 def parse_optional_int(value, minimum=0, maximum=100000):
     value = (value or "").strip()
     if not value:
@@ -363,6 +487,15 @@ def family_supports_quizzes(family):
 
 def challenge_dashboard(family, members, current_member):
     challenges = family.challenges.order_by(FamilyChallenge.created_at.desc()).all()
+    can_manage = family_has_permission(current_member, "create_challenge")
+    challenges = [
+        challenge for challenge in challenges
+        if (
+            (challenge.visibility == "public" and family.privacy == "public")
+            or (challenge.visibility == "family" and current_member is not None)
+            or (challenge.visibility == "admins_only" and can_manage)
+        )
+    ]
     active_challenges = [challenge for challenge in challenges if challenge_is_current(challenge)]
     completions = ChallengeCompletion.query.join(FamilyChallenge).filter(
         FamilyChallenge.family_id == family.id
@@ -371,30 +504,110 @@ def challenge_dashboard(family, members, current_member):
         completion.challenge_id
         for completion in completions
         if completion.user_id == current_user.id
+        and completion.period_key == challenge_completion_period(completion.challenge)
+        and completion.verification_status == "completed"
+    }
+    pending_challenge_ids = {
+        completion.challenge_id for completion in completions
+        if completion.user_id == current_user.id
+        and completion.period_key == challenge_completion_period(completion.challenge)
+        and completion.verification_status == "pending"
     }
     completion_counts = {}
     member_points = {membership.user_id: 0 for membership in members}
     member_completed = {membership.user_id: 0 for membership in members}
-    challenge_points = {challenge.id: challenge.points for challenge in challenges}
     for completion in completions:
-        completion_counts[completion.challenge_id] = completion_counts.get(completion.challenge_id, 0) + 1
-        if completion.user_id in member_points:
-            member_points[completion.user_id] += challenge_points.get(completion.challenge_id, 0)
+        if completion.verification_status == "completed":
+            completion_counts[completion.challenge_id] = completion_counts.get(completion.challenge_id, 0) + 1
+        if completion.user_id in member_points and completion.verification_status == "completed":
+            member_points[completion.user_id] += completion.points_awarded
             member_completed[completion.user_id] += 1
-    total_possible = len(active_challenges) * max(len(members), 1)
-    completed_total = sum(
-        completion_counts.get(challenge.id, 0) for challenge in active_challenges
+    progress_by_challenge = {}
+    family_participant_count = 0
+    family_completed_count = 0
+    for challenge in active_challenges:
+        eligible_members = eligible_challenge_members(challenge)
+        eligible_by_user = {membership.user_id: membership for membership in eligible_members}
+        if challenge.mandatory_all_members:
+            participant_members = eligible_members
+            joined_user_ids = set(eligible_by_user)
+        else:
+            joined_user_ids = {
+                participant.user_id for participant in challenge.participants.all()
+                if participant.user_id in eligible_by_user
+            }
+            participant_members = [eligible_by_user[user_id] for user_id in joined_user_ids]
+        period_key = challenge_completion_period(challenge)
+        period_completions = [
+            completion for completion in completions
+            if completion.challenge_id == challenge.id
+            and completion.period_key == period_key
+        ]
+        completed_user_ids = {
+            completion.user_id for completion in period_completions
+            if completion.verification_status == "completed"
+            and completion.user_id in joined_user_ids
+        }
+        pending_user_ids = {
+            completion.user_id for completion in period_completions
+            if completion.verification_status == "pending"
+            and completion.user_id in joined_user_ids
+        }
+        def user_visible_in_stack(user):
+            return (
+                not user.is_hidden_from_directory
+                or user.id == current_user.id
+                or current_user.is_admin
+            )
+        completed_users = [
+            eligible_by_user[user_id].user for user_id in completed_user_ids
+            if user_visible_in_stack(eligible_by_user[user_id].user)
+        ]
+        working_users = [
+            membership.user for membership in participant_members
+            if membership.user_id not in completed_user_ids
+            and user_visible_in_stack(membership.user)
+        ]
+        participant_count = len(participant_members)
+        completed_count = len(completed_user_ids)
+        percentage = round((completed_count / participant_count) * 100) if participant_count else 0
+        current_joined = bool(
+            current_member and (
+                challenge.mandatory_all_members and current_member.user_id in eligible_by_user
+                or current_member.user_id in joined_user_ids
+            )
+        )
+        progress_by_challenge[challenge.id] = {
+            "participant_count": participant_count,
+            "completed_count": completed_count,
+            "working_count": max(0, participant_count - completed_count),
+            "percentage": percentage,
+            "completed_users": completed_users,
+            "working_users": working_users,
+            "time_remaining": challenge_time_remaining(challenge),
+            "current_joined": current_joined,
+            "current_completed": bool(current_member and current_member.user_id in completed_user_ids),
+            "current_pending": bool(current_member and current_member.user_id in pending_user_ids),
+        }
+        family_participant_count += participant_count
+        family_completed_count += completed_count
+    family_progress = (
+        round((family_completed_count / family_participant_count) * 100)
+        if family_participant_count else None
     )
-    family_progress = round((completed_total / total_possible) * 100) if total_possible else None
     return {
         "challenges": challenges,
         "active_challenges": active_challenges,
         "completed_challenge_ids": completed_challenge_ids,
+        "pending_challenge_ids": pending_challenge_ids,
         "completion_counts": completion_counts,
         "member_points": member_points,
         "member_completed": member_completed,
         "family_progress": family_progress,
-        "can_create_challenges": family_has_permission(current_member, "create_challenge"),
+        "family_participant_count": family_participant_count,
+        "family_completed_count": family_completed_count,
+        "progress_by_challenge": progress_by_challenge,
+        "can_create_challenges": can_manage,
     }
 
 
@@ -524,14 +737,26 @@ def badges_for_member(membership, stats, top_quiz_score):
     return badges
 
 
-def family_home_dashboard(family, members):
+def family_home_dashboard(family, members, current_member):
     now = datetime.utcnow()
     week_start = now - timedelta(days=7)
-    active_challenges = [challenge for challenge in family.challenges.all() if challenge_is_current(challenge)]
+    can_manage_challenges = family_has_permission(current_member, "create_challenge")
+    active_challenges = [
+        challenge for challenge in family.challenges.all()
+        if challenge_is_current(challenge)
+        and (
+            (challenge.visibility == "public" and family.privacy == "public")
+            or (challenge.visibility == "family" and current_member is not None)
+            or (challenge.visibility == "admins_only" and can_manage_challenges)
+        )
+    ]
     challenge_ids = [challenge.id for challenge in family.challenges.all()]
     active_challenge_ids = {challenge.id for challenge in active_challenges}
     completions = (
-        ChallengeCompletion.query.filter(ChallengeCompletion.challenge_id.in_(challenge_ids)).all()
+        ChallengeCompletion.query.filter(
+            ChallengeCompletion.challenge_id.in_(challenge_ids),
+            ChallengeCompletion.verification_status == "completed",
+        ).all()
         if challenge_ids
         else []
     )
@@ -571,7 +796,6 @@ def family_home_dashboard(family, members):
         }
         for membership in members
     }
-    challenge_points = {challenge.id: challenge.points for challenge in family.challenges.all()}
     completed_active_by_user = {membership.user_id: set() for membership in members}
     weekly_achievements = []
     for completion in completions:
@@ -579,7 +803,7 @@ def family_home_dashboard(family, members):
             continue
         stats = stats_by_user[completion.user_id]
         stats["completed_challenges"] += 1
-        stats["challenge_points"] += challenge_points.get(completion.challenge_id, 0)
+        stats["challenge_points"] += completion.points_awarded
         if completion.challenge_id in active_challenge_ids:
             completed_active_by_user[completion.user_id].add(completion.challenge_id)
         if completion.completed_at and completion.completed_at >= week_start:
@@ -787,6 +1011,16 @@ def family_detail(family_id):
             for key, label in CHALLENGE_TYPES.items()
             if key != "daily_check_in" or is_feature_enabled("daily_checkins")
         },
+        reward_tiers=REWARD_TIER_LABELS,
+        reward_values=challenge_reward_values(),
+        allowed_reward_tiers=CHALLENGE_ALLOWED_REWARD_TIERS,
+        member_can_participate=member_can_participate,
+        upload_limits={
+            "photo": get_upload_limit("image") // (1024 * 1024),
+            "video": get_upload_limit("video") // (1024 * 1024),
+            "audio": get_upload_limit("audio") // (1024 * 1024),
+            "file": get_upload_limit("file") // (1024 * 1024),
+        },
         role_labels=FAMILY_ROLE_LABELS,
         can_edit_family=family_has_permission(member, "edit_family"),
         can_change_family_image=family_has_permission(member, "change_family_image"),
@@ -799,7 +1033,7 @@ def family_detail(family_id):
         effective_member_limit=capacity["member_limit"],
         family_is_full=capacity["is_full"],
         remaining_slots=capacity["remaining_slots"],
-        **family_home_dashboard(family, members),
+        **family_home_dashboard(family, members, member),
         **poll_dashboard(family, member),
         **challenge_dashboard(family, members, member),
         **quiz_dashboard(family, members, member),
@@ -1072,13 +1306,30 @@ def create_challenge(family_id):
     description = request.form.get("description", "").strip()
     challenge_type = request.form.get("challenge_type", "task").strip()
     status = request.form.get("status", "active").strip()
-    points = parse_points(request.form.get("points"))
-    starts_at = parse_family_date(request.form.get("starts_at"))
-    ends_at = parse_family_date(request.form.get("ends_at"))
+    reward_tier = request.form.get("reward_tier", "easy").strip()
+    completion_frequency = request.form.get("completion_frequency", "one_time").strip()
+    evidence_requirement = request.form.get("evidence_requirement", "none").strip()
+    participant_scope = request.form.get("participant_scope", "all_members").strip()
+    visibility = request.form.get("visibility", "family").strip()
+    custom_frequency_days = parse_optional_int(
+        request.form.get("custom_frequency_days"), minimum=1, maximum=365
+    )
+    max_participants_raw = request.form.get("max_participants", "").strip()
+    max_participants = parse_optional_int(max_participants_raw, minimum=1, maximum=10000)
+    requires_admin_approval = request.form.get("requires_admin_approval") == "on"
+    allow_achievement_sharing = request.form.get("allow_achievement_sharing") == "on"
+    mandatory_all_members = request.form.get("mandatory_all_members") == "on"
+    starts_at_raw = request.form.get("starts_at", "").strip()
+    ends_at_raw = request.form.get("ends_at", "").strip()
+    starts_at = parse_family_date(starts_at_raw)
+    ends_at = parse_family_date(ends_at_raw)
     if ends_at:
         ends_at = ends_at.replace(hour=23, minute=59, second=59)
-    if not title:
-        flash("Challenge title is required.", "warning")
+    if not title or len(title) > 160:
+        flash("Challenge title is required and cannot exceed 160 characters.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if not description or len(description) > 5000:
+        flash("Add clear instructions of no more than 5,000 characters.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if challenge_type not in CHALLENGE_TYPES:
         flash("Choose a valid challenge type.", "warning")
@@ -1088,9 +1339,43 @@ def create_challenge(family_id):
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if status not in CHALLENGE_STATUSES:
         status = "active"
-    if points is None:
-        flash("Challenge points must be a positive number.", "warning")
+    if (starts_at_raw and starts_at is None) or (ends_at_raw and ends_at is None):
+        flash("Enter valid start and end dates.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if completion_frequency not in COMPLETION_FREQUENCIES:
+        flash("Choose a valid completion frequency.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge_type == "daily_check_in" and completion_frequency != "daily":
+        flash("Daily check-ins must use daily completion frequency.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if completion_frequency == "custom" and custom_frequency_days is None:
+        flash("Choose a custom interval between 1 and 365 days.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if evidence_requirement not in EVIDENCE_REQUIREMENTS:
+        flash("Choose a valid evidence requirement.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if participant_scope not in PARTICIPANT_SCOPES:
+        flash("Choose who can participate.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if max_participants_raw and max_participants is None:
+        flash("Maximum participants must be between 1 and 10,000.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if visibility not in CHALLENGE_VISIBILITIES:
+        flash("Choose a valid challenge visibility.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if visibility == "public" and family.privacy != "public":
+        flash("Private Families cannot publish public challenges.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if starts_at and ends_at and starts_at > ends_at:
+        flash("End date must be on or after the start date.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if evidence_requirement == "admin_approval":
+        requires_admin_approval = True
+    allowed_tiers = CHALLENGE_ALLOWED_REWARD_TIERS.get(challenge_type, set())
+    if reward_tier not in allowed_tiers:
+        flash("Choose a reward level recommended for that challenge type.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    points = challenge_reward_values()[reward_tier]
     challenge = FamilyChallenge(
         family_id=family.id,
         creator_id=current_user.id,
@@ -1098,6 +1383,16 @@ def create_challenge(family_id):
         description=description,
         challenge_type=challenge_type,
         points=points,
+        reward_tier=reward_tier,
+        completion_frequency=completion_frequency,
+        custom_frequency_days=custom_frequency_days if completion_frequency == "custom" else None,
+        evidence_requirement=evidence_requirement,
+        participant_scope=participant_scope,
+        max_participants=None if mandatory_all_members else max_participants,
+        visibility=visibility,
+        requires_admin_approval=requires_admin_approval,
+        allow_achievement_sharing=allow_achievement_sharing,
+        mandatory_all_members=mandatory_all_members,
         starts_at=starts_at,
         ends_at=ends_at,
         status=status,
@@ -1106,7 +1401,8 @@ def create_challenge(family_id):
     db.session.flush()
     if challenge.status == "active":
         for membership in family.members:
-            if membership.user_id != current_user.id:
+            may_see = challenge.visibility != "admins_only" or membership.role in {"owner", "admin"}
+            if membership.user_id != current_user.id and may_see:
                 add_family_notification(
                     membership.user_id,
                     "challenge_created",
@@ -1118,9 +1414,80 @@ def create_challenge(family_id):
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
 
 
+@family_bp.route(
+    "/family/<int:family_id>/challenge/<int:challenge_id>/participation/<action>",
+    methods=["POST"],
+)
+@login_required
+def challenge_participation(family_id, challenge_id, action):
+    family = Family.query.get_or_404(family_id)
+    membership = family_member_for_current_user(family)
+    challenge = FamilyChallenge.query.filter_by(
+        id=challenge_id, family_id=family.id
+    ).with_for_update().first_or_404()
+    if not membership or not member_can_participate(challenge, membership):
+        flash("You are not eligible to join this challenge.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge.visibility == "admins_only" and not family_has_permission(membership, "create_challenge"):
+        flash("This challenge is limited to Family admins.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge.mandatory_all_members:
+        flash("This is a mandatory challenge for eligible Family members.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    existing = ChallengeParticipant.query.filter_by(
+        challenge_id=challenge.id, user_id=current_user.id
+    ).first()
+    if action == "join":
+        if active_family_restriction(family.id, current_user.id, "suspend"):
+            flash("You are temporarily unable to join Family challenges.", "warning")
+        elif not challenge_is_current(challenge):
+            flash("This challenge is not currently open.", "warning")
+        elif existing:
+            flash("You already joined this challenge.", "info")
+        else:
+            eligible_ids = {member.user_id for member in eligible_challenge_members(challenge)}
+            joined_count = ChallengeParticipant.query.filter(
+                ChallengeParticipant.challenge_id == challenge.id,
+                ChallengeParticipant.user_id.in_(eligible_ids),
+            ).count() if eligible_ids else 0
+            if challenge.max_participants and joined_count >= challenge.max_participants:
+                flash("This challenge has reached its participant limit.", "warning")
+                return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+            db.session.add(ChallengeParticipant(
+                challenge_id=challenge.id, user_id=current_user.id
+            ))
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash("You already joined this challenge.", "info")
+            else:
+                flash("You joined the challenge. We’re cheering you on.", "success")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if action == "leave":
+        if not existing:
+            flash("You have not joined this challenge.", "info")
+        else:
+            current_completion = ChallengeCompletion.query.filter_by(
+                challenge_id=challenge.id,
+                user_id=current_user.id,
+                period_key=challenge_completion_period(challenge),
+            ).filter(ChallengeCompletion.verification_status != "rejected").first()
+            if current_completion:
+                flash("You cannot leave after submitting this challenge period.", "warning")
+            else:
+                db.session.delete(existing)
+                db.session.commit()
+                flash("You left the challenge.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    flash("Choose a valid participation action.", "warning")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+
+
 @family_bp.route("/family/<int:family_id>/challenge/<int:challenge_id>/complete", methods=["POST"])
 @login_required
 def complete_challenge(family_id, challenge_id):
+    async_completion = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
     if not member:
@@ -1128,48 +1495,357 @@ def complete_challenge(family_id, challenge_id):
         return redirect(url_for("family.family_detail", family_id=family.id))
     challenge = FamilyChallenge.query.filter_by(
         id=challenge_id, family_id=family.id
-    ).first_or_404()
+    ).with_for_update().first_or_404()
+    if not member_can_participate(challenge, member):
+        flash("You are not eligible to participate in this challenge.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if active_family_restriction(family.id, current_user.id, "suspend"):
+        flash("You are temporarily unable to complete Family challenges.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if not challenge.mandatory_all_members and not ChallengeParticipant.query.filter_by(
+        challenge_id=challenge.id, user_id=current_user.id
+    ).first():
+        flash("Join this challenge before submitting a completion.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if not challenge_is_current(challenge):
         flash("This challenge is not active.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    period_key = challenge_completion_period(challenge)
     existing = ChallengeCompletion.query.filter_by(
-        challenge_id=challenge.id, user_id=current_user.id
+        challenge_id=challenge.id, user_id=current_user.id, period_key=period_key
     ).first()
     if existing:
+        if existing.verification_status == "rejected":
+            db.session.delete(existing)
+            db.session.flush()
+            existing = None
+    if existing:
         flash("You already completed this challenge.", "info")
+        if (
+            existing.verification_status == "completed"
+            and challenge.allow_achievement_sharing
+            and is_feature_enabled("achievement_posts")
+            and not existing.achievement_post
+        ):
+            return redirect(url_for(
+                "family.share_challenge_achievement",
+                family_id=family.id,
+                completion_id=existing.id,
+            ))
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     evidence_text = request.form.get("evidence_text", "").strip()
     evidence_file = request.files.get("evidence_media")
     evidence_media_url = ""
+    if len(evidence_text) > 3000:
+        flash("Completion notes cannot exceed 3,000 characters.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    requirement = challenge.evidence_requirement
+    needs_file = requirement in {"photo", "video", "audio", "file"}
+    if requirement == "completion_note" and not evidence_text:
+        flash("Add the required completion note.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if needs_file and not (evidence_file and evidence_file.filename):
+        flash(f"This challenge requires {requirement} evidence.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if requirement == "none" and evidence_file and evidence_file.filename:
+        flash("This challenge does not accept evidence files.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
     if evidence_file and evidence_file.filename:
+        is_valid, upload_message = validate_upload(evidence_file)
+        if not is_valid:
+            flash(upload_message, "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+        uploaded_type = get_media_type(evidence_file.filename)
+        if requirement in {"photo", "video", "audio"}:
+            expected_type = "image" if requirement == "photo" else requirement
+            if uploaded_type != expected_type:
+                flash(f"Upload a valid {requirement} file for this challenge.", "warning")
+                return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
         filename = save_media(evidence_file)
         if filename:
             evidence_media_url = filename
+        else:
+            flash("The evidence file could not be saved.", "warning")
+            return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    verification_status = "pending" if challenge.requires_admin_approval else "completed"
     completion = ChallengeCompletion(
         challenge_id=challenge.id,
         user_id=current_user.id,
         evidence_text=evidence_text,
         evidence_media_url=evidence_media_url,
-        verification_status="completed",
+        verification_status=verification_status,
+        period_key=period_key,
+        points_awarded=reward_for_challenge(challenge),
     )
     db.session.add(completion)
-    post_content = f"Completed challenge: {challenge.title}"
-    if evidence_text:
-        post_content = f"{post_content}\n\n{evidence_text}"
-    if is_feature_enabled("achievement_posts"):
-        db.session.add(
-            Post(
-                user_id=current_user.id,
-                family_id=family.id,
-                content=post_content,
-                media_url=evidence_media_url,
-                media_type=get_media_type(evidence_media_url) if evidence_media_url else "text",
-                audience="family",
-            )
+    try:
+        db.session.flush()
+        if verification_status == "completed":
+            award_challenge_completion_points(completion)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("You already received this challenge reward for the current period.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if verification_status == "pending":
+        for leader in family.members.filter(FamilyMember.role.in_(["owner", "admin", "moderator"])).all():
+            if leader.user_id != current_user.id:
+                add_family_notification(
+                    leader.user_id,
+                    "challenge_approval",
+                    f"{current_user.username} submitted {challenge.title} for approval.",
+                    url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+                )
+        db.session.commit()
+        pending_message = "Completion submitted for Family admin approval. Points are pending."
+        if async_completion:
+            return jsonify({
+                "ok": True,
+                "status": "pending",
+                "message": pending_message,
+                "redirect_url": url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+            })
+        flash(pending_message, "success")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if challenge.creator_id and challenge.creator_id not in {current_user.id}:
+        add_family_notification(
+            challenge.creator_id,
+            "challenge_completed",
+            f"{current_user.username} completed {challenge.title}.",
+            url_for("family.family_detail", family_id=family.id) + "#family-challenges",
         )
+        db.session.commit()
+    celebration = {
+        "title": "Challenge complete!",
+        "message": (
+            f"You earned {completion.points_awarded} personal points, and "
+            f"{family.name} gained {completion.points_awarded} Family points. Beautiful work."
+        ),
+        "personal_points": completion.points_awarded,
+        "family_points": completion.points_awarded,
+    }
+    if not challenge.allow_achievement_sharing:
+        redirect_url = url_for("family.family_detail", family_id=family.id) + "#family-challenges"
+        if async_completion:
+            return jsonify({"ok": True, "status": "completed", "celebration": celebration, "redirect_url": redirect_url})
+        flash(f"Challenge completed. You earned {completion.points_awarded} points.", "success")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if not is_feature_enabled("achievement_posts"):
+        if async_completion:
+            return jsonify({
+                "ok": True,
+                "status": "completed",
+                "celebration": celebration,
+                "redirect_url": url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+            })
+        flash("Challenge marked complete.", "success")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if current_user.profile.auto_share_completed_challenges:
+        achievement = create_challenge_achievement_post(completion, "family")
+        db.session.add(achievement)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            achievement = Post.query.filter_by(challenge_completion_id=completion.id).first()
+        flash("Challenge completed and shared inside your Family.", "success")
+        if async_completion:
+            return jsonify({
+                "ok": True,
+                "status": "completed",
+                "celebration": celebration,
+                "redirect_url": (
+                    url_for("main.post_detail", post_id=achievement.id)
+                    if achievement else url_for("family.family_detail", family_id=family.id) + "#family-challenges"
+                ),
+            })
+        return redirect(
+            url_for("main.post_detail", post_id=achievement.id)
+            if achievement
+            else url_for("family.family_detail", family_id=family.id)
+        )
+    flash("Challenge completed. Choose whether you want to share the achievement.", "success")
+    share_url = url_for(
+        "family.share_challenge_achievement",
+        family_id=family.id,
+        completion_id=completion.id,
+    )
+    if async_completion:
+        return jsonify({
+            "ok": True,
+            "status": "completed",
+            "celebration": celebration,
+            "redirect_url": share_url,
+            "ask_to_share": True,
+        })
+    return redirect(share_url)
+
+
+@family_bp.route(
+    "/family/<int:family_id>/challenge/<int:challenge_id>/reward",
+    methods=["POST"],
+)
+@login_required
+def update_challenge_reward(family_id, challenge_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_challenge"):
+        flash("Only Family owners and admins can update challenge rewards.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    challenge = FamilyChallenge.query.filter_by(
+        id=challenge_id, family_id=family.id
+    ).first_or_404()
+    reward_tier = request.form.get("reward_tier", "").strip()
+    if reward_tier not in CHALLENGE_ALLOWED_REWARD_TIERS.get(challenge.challenge_type, set()):
+        flash("That reward level is not allowed for this challenge type.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    challenge.reward_tier = reward_tier
+    challenge.points = challenge_reward_values()[reward_tier]
     db.session.commit()
-    flash("Challenge marked complete and shared to Family posts.", "success")
+    if challenge.completions.count():
+        flash("Reward updated for future completions. Existing earned points were preserved.", "success")
+    else:
+        flash("Challenge reward updated.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+
+
+@family_bp.route(
+    "/family/<int:family_id>/completion/<int:completion_id>/<action>",
+    methods=["POST"],
+)
+@login_required
+def review_challenge_completion(family_id, completion_id, action):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not member or member.role not in {"owner", "admin", "moderator"}:
+        flash("Only Family leaders can review challenge completions.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    completion = ChallengeCompletion.query.join(FamilyChallenge).filter(
+        ChallengeCompletion.id == completion_id,
+        FamilyChallenge.family_id == family.id,
+    ).first_or_404()
+    if completion.verification_status != "pending":
+        flash("This completion has already been reviewed.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if action == "reject":
+        completion.verification_status = "rejected"
+        db.session.commit()
+        add_family_notification(
+            completion.user_id,
+            "challenge_approval",
+            f"Your completion for {completion.challenge.title} needs another try.",
+            url_for("family.family_detail", family_id=family.id) + "#family-challenges",
+        )
+        db.session.commit()
+        flash("Completion returned to the member.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    if action != "approve":
+        flash("Choose a valid review action.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+    completion.verification_status = "completed"
+    award_challenge_completion_points(completion, awarded_by_id=current_user.id)
+    achievement = None
+    if (
+        completion.challenge.allow_achievement_sharing
+        and is_feature_enabled("achievement_posts")
+        and completion.user.profile.auto_share_completed_challenges
+    ):
+        achievement = create_challenge_achievement_post(completion, "family")
+        db.session.add(achievement)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        completion = ChallengeCompletion.query.get(completion_id)
+        completion.verification_status = "completed"
+        award_challenge_completion_points(completion, awarded_by_id=current_user.id)
+        db.session.commit()
+    action_url = url_for("family.family_detail", family_id=family.id) + "#family-challenges"
+    if achievement and achievement.id:
+        action_url = url_for("main.post_detail", post_id=achievement.id)
+    elif completion.challenge.allow_achievement_sharing and is_feature_enabled("achievement_posts"):
+        action_url = url_for(
+            "family.share_challenge_achievement",
+            family_id=family.id,
+            completion_id=completion.id,
+        )
+    add_family_notification(
+        completion.user_id,
+        "challenge_approval",
+        f"Your completion for {completion.challenge.title} was approved. You earned {completion.points_awarded} points.",
+        action_url,
+    )
+    db.session.commit()
+    flash("Completion approved and points awarded.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
+
+
+def create_challenge_achievement_post(completion, audience):
+    challenge = completion.challenge
+    return Post(
+        user_id=completion.user_id,
+        family_id=challenge.family_id if audience == "family" else None,
+        content="",
+        media_url="",
+        media_type="text",
+        audience=audience,
+        post_type="achievement",
+        achievement_type="challenge_completed",
+        challenge_completion_id=completion.id,
+        encouraging_message="Your steady effort is worth celebrating. Keep growing together.",
+    )
+
+
+@family_bp.route(
+    "/family/<int:family_id>/completion/<int:completion_id>/share-achievement",
+    methods=["GET", "POST"],
+)
+@login_required
+def share_challenge_achievement(family_id, completion_id):
+    family = Family.query.get_or_404(family_id)
+    completion = ChallengeCompletion.query.filter_by(
+        id=completion_id,
+        user_id=current_user.id,
+    ).first_or_404()
+    if completion.challenge.family_id != family.id or not family_member_for_current_user(family):
+        flash("You cannot share an achievement from that Family.", "warning")
+        return redirect(url_for("main.home"))
+    if completion.verification_status != "completed" or not completion.challenge.allow_achievement_sharing:
+        flash("This challenge completion cannot be shared as an achievement.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if not is_feature_enabled("achievement_posts"):
+        flash("Achievement posts are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    if completion.achievement_post:
+        flash("This achievement has already been saved.", "info")
+        return redirect(url_for("main.post_detail", post_id=completion.achievement_post.id))
+    if request.method == "POST":
+        audience = request.form.get("audience", "private")
+        if audience not in {"public", "family", "private"}:
+            flash("Choose a valid achievement audience.", "warning")
+            return redirect(request.url)
+        if audience == "public" and family.privacy != "public":
+            flash("Achievements from private Families cannot be shared publicly.", "warning")
+            return redirect(request.url)
+        achievement = create_challenge_achievement_post(completion, audience)
+        db.session.add(achievement)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("This achievement has already been saved.", "info")
+            return redirect(url_for("family.family_detail", family_id=family.id))
+        flash(
+            "Achievement kept private." if audience == "private" else "Achievement shared.",
+            "success",
+        )
+        return redirect(url_for("main.post_detail", post_id=achievement.id))
+    return render_template(
+        "share_achievement.html",
+        completion=completion,
+        family=family,
+        can_share_publicly=family.privacy == "public",
+    )
 
 
 @family_bp.route("/family/<int:family_id>/quiz/create", methods=["POST"])
@@ -1335,7 +2011,7 @@ def take_quiz(family_id, quiz_id):
                     awarded_points=awarded_points,
                 )
             )
-        attempt.score = score
+        attempt.score = min(score, 25)
         attempt.submitted_at = datetime.utcnow()
         db.session.commit()
         flash("Quiz submitted.", "success")

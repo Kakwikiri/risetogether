@@ -1,4 +1,5 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card with context %} {% block content %}
+{% set content_post = post.original_post or post %}
 <section class="card post-card">
   <header>
     <div class="post-author">
@@ -18,48 +19,42 @@
       </div>
     </div>
   </header>
-  <p>{{ post.content }}</p>
-  {% if post.media_url %} {% if post.media_type == 'image' %}
+  {% if post.original_post %}<div class="reshare-attribution">↗ Shared by @{{ post.author.username }} from <a href="{{ url_for('main.profile', username=content_post.author.username) }}">@{{ content_post.author.username }}</a>. Original content is preserved.</div>{% endif %}
+  {% if content_post.post_type == 'achievement' %}
+  {{ achievement_post_card(content_post) }}
+  {% else %}
+  <p>{{ content_post.content }}</p>
+  {% if content_post.media_url %} {% if content_post.media_type == 'image' %}
   <div class="media-frame">
     <img
       class="post-media"
-      src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+      src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
       alt="Post media"
     />
-    <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+    <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download image">↓</a>
   </div>
-  {% elif post.media_type == 'video' %}
+  {% elif content_post.media_type == 'video' %}
   <div class="media-frame">
-    <video class="post-media" controls preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}">
-      <source src="{{ url_for('api.serve_upload', filename=post.media_url) }}" type="video/mp4" />
+    <video class="post-media" controls preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(content_post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=content_post.media_url) }}">
+      <source src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" type="video/mp4" />
       Your browser cannot play this video.
     </video>
-    <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+    <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download video">↓</a>
   </div>
-  {% elif post.media_type == 'audio' %}
+  {% elif content_post.media_type == 'audio' %}
   <audio
     controls
-    src="{{ url_for('api.serve_upload', filename=post.media_url) }}"
+    src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
   ></audio>
-  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download>Download audio</a>
-  {% elif post.media_type == 'file' %}
-  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" target="_blank" rel="noopener" download>
+  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download>Download audio</a>
+  {% elif content_post.media_type == 'file' %}
+  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" target="_blank" rel="noopener" download>
     Download attachment
   </a>
   {% endif %} {% endif %}
+  {% endif %}
   <div class="post-actions">
-    <form
-      action="{{ url_for('main.react_post', post_id=post.id) }}"
-      method="post"
-      class="reaction-form"
-    >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-      {% for key,label in reactions.items() %}
-      <button type="submit" name="reaction_type" value="{{ key }}" title="{{ label }}">
-        {{ reaction_counts.get(key, 0) }} {{ label }}
-      </button>
-      {% endfor %}
-    </form>
+    {{ reaction_bar(post, csrf_token()) }}
     <span class="comment-count">{{ comments|length }} comments</span>
     <a class="button secondary" href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
     {% if post.user_id != current_user.id %}
@@ -84,28 +79,25 @@
     {% endif %}
   </div>
   <section class="comments-section">
-    <h3>Comments</h3>
+    <div class="comments-heading"><div><p class="eyebrow">Encouragement</p><h3>Comments</h3></div><span>{{ post.comments.count() }} total</span></div>
     {% for comment in comments %}
-    <div class="comment">
-      <strong>{{ comment.user.username }}</strong>
-      <span>{{ comment.created_at.strftime('%b %d, %Y %H:%M') }}</span>
-      <p>{{ link_mentions(comment.content) }}</p>
-      <div class="comment-actions">
-        <form action="{{ url_for('main.like_comment', comment_id=comment.id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button class="text-button" type="submit">Like {{ comment.likes.count() }}</button>
-        </form>
-      </div>
+    <article class="comment" id="comment-{{ comment.id }}">
+      <header class="comment-header"><img class="user-avatar user-avatar--small" src="{{ user_avatar_url(comment.user) }}" alt="" /><div><a href="{{ url_for('main.profile', username=comment.user.username) }}"><strong>{{ comment.user.profile.display_name if comment.user.profile else comment.user.username }}</strong> <small>@{{ comment.user.username }}</small></a><time datetime="{{ comment.created_at.isoformat() }}">{{ comment.created_at.strftime('%b %d, %Y · %H:%M') }}{% if comment.edited_at %} · edited{% endif %}</time></div></header>
+      <p class="comment-content">{{ link_mentions(comment.content) }}</p>
+      <form action="{{ url_for('main.like_comment', comment_id=comment.id) }}" method="post" class="comment-reaction-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        {% set selected_comment_reaction = comment.likes.filter_by(user_id=current_user.id).first() if current_user.is_authenticated else none %}
+        {% for key, label in [('support','❤️ Support'),('understand','🤝 Understand'),('keep-going','🔥 Keep going'),('inspire','💪 Inspiring')] %}
+        <button type="submit" name="reaction_type" value="{{ key }}" data-comment-reaction="{{ key }}" aria-pressed="{{ 'true' if selected_comment_reaction and selected_comment_reaction.type == key else 'false' }}">{{ label }} <span>{{ comment.likes.filter_by(type=key).count() }}</span></button>
+        {% endfor %}
+      </form>
+      {% if current_user.is_authenticated and (comment.user_id == current_user.id or current_user.is_admin) %}
+      <details class="comment-manage"><summary>Edit or delete</summary><form action="{{ url_for('main.manage_comment', comment_id=comment.id, action='edit') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><textarea name="content" maxlength="3000" required>{{ comment.content }}</textarea><button class="button secondary" type="submit">Save edit</button></form><form action="{{ url_for('main.manage_comment', comment_id=comment.id, action='delete') }}" method="post" data-confirm="Delete this comment and its replies?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="text-button danger" type="submit">Delete comment</button></form></details>
+      {% endif %}
       {% for reply in comment.replies.all() %}
-      <div class="comment reply">
-        <strong>{{ reply.user.username }}</strong>
-        <span>{{ reply.created_at.strftime('%b %d, %Y %H:%M') }}</span>
-        <p>{{ link_mentions(reply.content) }}</p>
-        <form action="{{ url_for('main.like_comment', comment_id=reply.id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button class="text-button" type="submit">Like {{ reply.likes.count() }}</button>
-        </form>
-      </div>
+      <article class="comment reply" id="comment-{{ reply.id }}"><header class="comment-header"><img class="user-avatar user-avatar--small" src="{{ user_avatar_url(reply.user) }}" alt="" /><div><a href="{{ url_for('main.profile', username=reply.user.username) }}"><strong>{{ reply.user.profile.display_name if reply.user.profile else reply.user.username }}</strong> <small>@{{ reply.user.username }}</small></a><time datetime="{{ reply.created_at.isoformat() }}">{{ reply.created_at.strftime('%b %d, %Y · %H:%M') }}{% if reply.edited_at %} · edited{% endif %}</time></div></header><p class="comment-content">{{ link_mentions(reply.content) }}</p>
+      <form action="{{ url_for('main.like_comment', comment_id=reply.id) }}" method="post" class="comment-reaction-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />{% set selected_reply_reaction = reply.likes.filter_by(user_id=current_user.id).first() if current_user.is_authenticated else none %}{% for key, label in [('support','❤️'),('understand','🤝'),('keep-going','🔥'),('inspire','💪')] %}<button type="submit" name="reaction_type" value="{{ key }}" data-comment-reaction="{{ key }}" aria-label="{{ key|replace('-', ' ')|title }}" aria-pressed="{{ 'true' if selected_reply_reaction and selected_reply_reaction.type == key else 'false' }}">{{ label }} <span>{{ reply.likes.filter_by(type=key).count() }}</span></button>{% endfor %}</form>
+      {% if current_user.is_authenticated and (reply.user_id == current_user.id or current_user.is_admin) %}<details class="comment-manage"><summary>Edit or delete</summary><form action="{{ url_for('main.manage_comment', comment_id=reply.id, action='edit') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><textarea name="content" maxlength="3000" required>{{ reply.content }}</textarea><button class="button secondary" type="submit">Save edit</button></form><form action="{{ url_for('main.manage_comment', comment_id=reply.id, action='delete') }}" method="post" data-confirm="Delete this reply?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="text-button danger" type="submit">Delete reply</button></form></details>{% endif %}</article>
       {% endfor %}
       {% if current_user.is_authenticated %}
       <form action="" method="post" class="reply-form">
@@ -115,15 +107,19 @@
         <button class="button secondary" type="submit">Reply</button>
       </form>
       {% endif %}
-    </div>
+    </article>
     {% else %}
-    <p>No comments yet.</p>
-    {% endfor %} {% if current_user.is_authenticated %}
-    <form action="" method="post">
+    <div class="comment-empty"><span aria-hidden="true">♡</span><strong>Be the first to encourage them</strong><p>A thoughtful word can make someone feel less alone.</p></div>
+    {% endfor %}
+    {% if has_more_comments %}<a class="button secondary load-more-comments" href="{{ url_for('main.post_detail', post_id=post.id, comment_page=next_comment_page) }}#comments">Load more comments</a>{% endif %}
+    {% if current_user.is_authenticated %}
+    <form action="" method="post" class="comment-composer" id="comments">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <textarea
         name="comment"
         rows="3"
+        maxlength="3000"
+        required
         placeholder="Write an encouraging comment..."
       ></textarea>
       <button class="button" type="submit">Comment</button>

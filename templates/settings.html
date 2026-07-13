@@ -29,6 +29,13 @@
       />
       Show message preview in phone notifications
     </label>
+    {% if feature_enabled('achievement_posts') %}
+    <label>
+      <input type="checkbox" name="auto_share_completed_challenges" {% if current_user.profile.auto_share_completed_challenges %}checked{% endif %} />
+      Automatically share my completed challenges
+    </label>
+    <p class="muted-meta">Off by default. When enabled, completed challenges are shared only inside their Family.</p>
+    {% endif %}
     <button class="button" type="submit">Save settings</button>
   </form>
   <section class="device-notification-panel">

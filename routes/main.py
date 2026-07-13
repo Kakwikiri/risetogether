@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from markupsafe import Markup, escape
 
 from extensions import db, socketio
@@ -13,8 +14,10 @@ from helpers import (
     get_media_type,
     save_media,
     send_device_push,
+    user_avatar_url,
     validate_upload,
 )
+from feature_flags import is_feature_enabled
 from models import (
     Block,
     Comment,
@@ -26,11 +29,13 @@ from models import (
     FriendRequest,
     LiveSession,
     Notification,
+    PointTransaction,
     Post,
     PostShare,
     Reaction,
     User,
 )
+from points import family_point_balance, personal_point_balance
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
@@ -258,6 +263,47 @@ def get_reaction_counts(post):
     }
 
 
+def grouped_reaction_message(post):
+    reactor_count = Reaction.query.filter(
+        Reaction.post_id == post.id,
+        Reaction.user_id != post.user_id,
+    ).count()
+    if reactor_count == 1:
+        return "Someone encouraged your post."
+    return f"{reactor_count} people encouraged your post."
+
+
+def notify_post_author_about_reactions(post, allow_create=True):
+    if post.user_id == current_user.id:
+        return
+    action_url = url_for("main.post_detail", post_id=post.id)
+    message = grouped_reaction_message(post)
+    existing_notifications = Notification.query.filter_by(
+        user_id=post.user_id,
+        category="reaction",
+        action_url=action_url,
+        seen=False,
+    ).order_by(Notification.created_at.desc()).all()
+    existing = existing_notifications[0] if existing_notifications else None
+    for duplicate in existing_notifications[1:]:
+        db.session.delete(duplicate)
+    reactor_count = Reaction.query.filter(
+        Reaction.post_id == post.id,
+        Reaction.user_id != post.user_id,
+    ).count()
+    if existing and reactor_count == 0:
+        db.session.delete(existing)
+        return
+    if existing:
+        existing.message = message
+        existing.created_at = datetime.utcnow()
+        db.session.flush()
+        emit_notification(existing)
+        return
+    if allow_create and reactor_count:
+        add_notification(post.user_id, "reaction", message, action_url)
+
+
 def wants_json_response():
     return (
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -291,6 +337,8 @@ def users_are_friends(user_id, other_id):
 
 
 def can_view_post(post):
+    if post.original_post is not None and not can_view_post(post.original_post):
+        return False
     if post.is_hidden and (
         not current_user.is_authenticated or post.user_id != current_user.id
     ):
@@ -532,45 +580,93 @@ def react_post(post_id):
             return jsonify({"ok": False, "error": "Invalid reaction."}), 400
         flash("Invalid reaction.", "warning")
         return redirect(url_for("main.home"))
-    existing_reactions = Reaction.query.filter_by(
-        post_id=post.id, user_id=current_user.id, type=reaction_type
-    ).all()
-    if existing_reactions:
-        for reaction in existing_reactions:
-            db.session.delete(reaction)
+    existing = Reaction.query.filter_by(
+        post_id=post.id, user_id=current_user.id
+    ).first()
+    if existing and existing.type == reaction_type:
+        db.session.delete(existing)
+        status = "removed"
+        selected_reaction = None
+        message = "Reaction removed."
+    elif existing:
+        existing.type = reaction_type
+        existing.created_at = datetime.utcnow()
+        status = "changed"
+        selected_reaction = reaction_type
+        message = "Reaction changed."
+    else:
+        db.session.add(Reaction(
+            post_id=post.id, user_id=current_user.id, type=reaction_type
+        ))
+        status = "added"
+        selected_reaction = reaction_type
+        message = "Your support reaction has been added."
+    try:
+        db.session.flush()
+        notify_post_author_about_reactions(post, allow_create=bool(selected_reaction))
         db.session.commit()
-        if wants_json_response():
-            return jsonify(
-                {
-                    "ok": True,
-                    "status": "removed",
-                    "counts": get_reaction_counts(post),
-                    "message": "Reaction removed.",
-                }
-            )
-        flash("Reaction removed.", "info")
-        return redirect(request.referrer or url_for("main.home"))
-    reaction = Reaction(post_id=post.id, user_id=current_user.id, type=reaction_type)
-    db.session.add(reaction)
-    if post.user_id != current_user.id:
-        add_notification(
-            post.user_id,
-            "reaction",
-            f"{current_user.username} reacted with {REACTION_LABELS[reaction_type]} on your post.",
-            url_for("main.post_detail", post_id=post.id),
+    except IntegrityError:
+        db.session.rollback()
+        current_app.logger.warning(
+            "Concurrent reaction update rejected for post=%s user=%s",
+            post.id,
+            current_user.id,
         )
-    db.session.commit()
+        if wants_json_response():
+            return jsonify({"ok": False, "error": "Your reaction changed elsewhere. Please try again."}), 409
+        flash("Your reaction changed elsewhere. Please try again.", "warning")
+        return redirect(request.referrer or url_for("main.home"))
     if wants_json_response():
         return jsonify(
             {
                 "ok": True,
-                "status": "added",
+                "status": status,
+                "selected_reaction": selected_reaction,
                 "counts": get_reaction_counts(post),
-                "message": "Your support reaction has been added.",
+                "message": message,
             }
         )
-    flash("Your support reaction has been added.", "success")
+    flash(message, "info" if status == "removed" else "success")
     return redirect(request.referrer or url_for("main.home"))
+
+
+@main_bp.route("/post/<int:post_id>/reactions")
+@login_required
+def post_reactors(post_id):
+    post = Post.query.get_or_404(post_id)
+    if not can_view_post(post):
+        abort(404)
+    reaction_type = request.args.get("type", "").strip()
+    if reaction_type and reaction_type not in REACTION_LABELS:
+        return jsonify({"ok": False, "error": "Invalid reaction."}), 400
+    blocked_ids = {
+        row.blocked_id for row in Block.query.filter_by(blocker_id=current_user.id)
+    } | {
+        row.blocker_id for row in Block.query.filter_by(blocked_id=current_user.id)
+    }
+    query = Reaction.query.join(User, Reaction.user_id == User.id).filter(
+        Reaction.post_id == post.id,
+        ~Reaction.user_id.in_(blocked_ids),
+    )
+    if reaction_type:
+        query = query.filter(Reaction.type == reaction_type)
+    if not current_user.is_admin:
+        query = query.filter(or_(
+            User.is_hidden_from_directory == False,
+            User.id == current_user.id,
+        ))
+    people = []
+    for reaction in query.order_by(Reaction.created_at.desc()).all():
+        user = reaction.user
+        people.append({
+            "username": user.username,
+            "display_name": user.profile.display_name if user.profile else user.username,
+            "avatar_url": user_avatar_url(user),
+            "profile_url": url_for("main.profile", username=user.username),
+            "reaction_type": reaction.type,
+            "reaction_label": REACTION_LABELS[reaction.type],
+        })
+    return jsonify({"ok": True, "people": people})
 
 
 @main_bp.route("/post/<int:post_id>/share", methods=["GET", "POST"])
@@ -579,6 +675,21 @@ def share_post(post_id):
     post = Post.query.get_or_404(post_id)
     if not can_view_post(post):
         abort(404)
+    source_post = post.original_post or post
+    if not can_view_post(source_post):
+        abort(404)
+    memberships = FamilyMember.query.filter_by(user_id=current_user.id).all()
+    families = [membership.family for membership in memberships if membership.family.is_active]
+    can_share_publicly = (
+        source_post.audience == "public"
+        and not source_post.is_hidden
+        and (not source_post.family or source_post.family.privacy == "public")
+    )
+    allowed_family_ids = {
+        family.id for family in families
+        if source_post.audience == "public"
+        or (source_post.audience == "family" and source_post.family_id == family.id)
+    }
 
     blocked_by = [
         block.blocker_id for block in Block.query.filter_by(blocked_id=current_user.id)
@@ -595,8 +706,64 @@ def share_post(post_id):
         .order_by(User.username.asc())
         .all()
     )
+    if source_post.audience == "friends":
+        recipients = [user for user in recipients if users_are_friends(source_post.user_id, user.id)]
+    elif source_post.audience == "family":
+        family_user_ids = {
+            member.user_id for member in FamilyMember.query.filter_by(family_id=source_post.family_id).all()
+        }
+        recipients = [user for user in recipients if user.id in family_user_ids]
+    elif source_post.audience != "public":
+        recipients = []
 
     if request.method == "POST":
+        destination = request.form.get("destination", "people")
+        if destination in {"public", "family"}:
+            family_id = request.form.get("family_id", "")
+            selected_family_id = int(family_id) if family_id.isdigit() else None
+            if destination == "public" and not can_share_publicly:
+                flash("This post’s privacy does not allow public sharing.", "warning")
+                return redirect(url_for("main.share_post", post_id=post.id))
+            if destination == "family" and selected_family_id not in allowed_family_ids:
+                flash("You cannot share this post with that Family.", "warning")
+                return redirect(url_for("main.share_post", post_id=post.id))
+            if destination == "family" and has_active_family_restriction(selected_family_id, current_user.id, "suspend"):
+                flash("You are temporarily suspended from posting in that Family.", "warning")
+                return redirect(url_for("main.share_post", post_id=post.id))
+            existing = Post.query.filter_by(
+                original_post_id=source_post.id,
+                user_id=current_user.id,
+                audience=destination,
+                family_id=selected_family_id if destination == "family" else None,
+            ).first()
+            if existing:
+                flash("You already shared this post there.", "info")
+                return redirect(url_for("main.post_detail", post_id=existing.id))
+            reshare = Post(
+                user_id=current_user.id,
+                content="",
+                audience=destination,
+                family_id=selected_family_id if destination == "family" else None,
+                original_post_id=source_post.id,
+            )
+            db.session.add(reshare)
+            try:
+                db.session.flush()
+                if source_post.user_id != current_user.id:
+                    add_notification(
+                        source_post.user_id,
+                        "share",
+                        f"{current_user.username} shared your post.",
+                        url_for("main.post_detail", post_id=reshare.id),
+                    )
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash("You already shared this post there.", "info")
+                return redirect(url_for("main.share_post", post_id=source_post.id))
+            flash("Post shared with attribution intact.", "success")
+            return redirect(url_for("main.post_detail", post_id=reshare.id))
+
         recipient_ids = {
             int(user_id)
             for user_id in request.form.getlist("recipient_ids")
@@ -610,7 +777,7 @@ def share_post(post_id):
         shared_count = 0
         for recipient in valid_recipients:
             existing_share = PostShare.query.filter_by(
-                post_id=post.id,
+                post_id=source_post.id,
                 user_id=current_user.id,
                 recipient_id=recipient.id,
             ).first()
@@ -618,7 +785,7 @@ def share_post(post_id):
                 continue
             db.session.add(
                 PostShare(
-                    post_id=post.id,
+                    post_id=source_post.id,
                     user_id=current_user.id,
                     recipient_id=recipient.id,
                 )
@@ -627,25 +794,33 @@ def share_post(post_id):
                 recipient.id,
                 "share",
                 f"{current_user.username} shared a post with you.",
-                url_for("main.post_detail", post_id=post.id),
+                url_for("main.post_detail", post_id=source_post.id),
             )
             shared_count += 1
 
-        if shared_count and post.user_id != current_user.id:
+        if shared_count and source_post.user_id != current_user.id:
             add_notification(
-                post.user_id,
+                source_post.user_id,
                 "share",
                 f"{current_user.username} shared your post with {shared_count} people.",
-                url_for("main.post_detail", post_id=post.id),
+                url_for("main.post_detail", post_id=source_post.id),
             )
         db.session.commit()
         if shared_count:
             flash(f"Post shared with {shared_count} people.", "success")
         else:
             flash("You already shared this post with everyone selected.", "info")
-        return redirect(url_for("main.post_detail", post_id=post.id))
+        return redirect(url_for("main.post_detail", post_id=source_post.id))
 
-    return render_template("share_post.html", post=post, recipients=recipients)
+    return render_template(
+        "share_post.html",
+        post=source_post,
+        recipients=recipients,
+        families=families,
+        allowed_family_ids=allowed_family_ids,
+        can_share_publicly=can_share_publicly,
+        share_url=url_for("main.post_detail", post_id=source_post.id, _external=True),
+    )
 
 
 @main_bp.route("/post/<int:post_id>", methods=["GET", "POST"])
@@ -666,7 +841,9 @@ def post_detail(post_id):
         parent = None
         if parent_id:
             parent = Comment.query.filter_by(id=parent_id, post_id=post.id).first()
-        if content:
+            if parent and parent.parent_id is not None:
+                parent = parent.parent
+        if content and len(content) <= 3000:
             comment = Comment(
                 post_id=post.id,
                 user_id=current_user.id,
@@ -706,10 +883,17 @@ def post_detail(post_id):
                 already_notified.add(mentioned.id)
             db.session.commit()
             flash("Your comment is added.", "success")
+        elif content:
+            flash("Comments cannot exceed 3,000 characters.", "warning")
         return redirect(url_for("main.post_detail", post_id=post.id))
-    comments = (
-        post.comments.filter_by(parent_id=None).order_by(Comment.created_at.asc()).all()
-    )
+    try:
+        comment_page = max(1, int(request.args.get("comment_page", 1)))
+    except ValueError:
+        comment_page = 1
+    comment_limit = min(comment_page * 10, 100)
+    root_comments = post.comments.filter_by(parent_id=None).order_by(Comment.created_at.asc())
+    total_root_comments = root_comments.count()
+    comments = root_comments.limit(comment_limit).all()
     return render_template(
         "post_detail.html",
         post=post,
@@ -717,6 +901,8 @@ def post_detail(post_id):
         reactions=REACTION_LABELS,
         reaction_counts=get_reaction_counts(post),
         link_mentions=link_mentions,
+        has_more_comments=total_root_comments > len(comments),
+        next_comment_page=comment_page + 1,
     )
 
 
@@ -737,30 +923,87 @@ def manage_post(post_id, action):
     abort(404)
 
 
+COMMENT_REACTION_LABELS = {
+    "support": "❤️ Support",
+    "understand": "🤝 I Understand",
+    "keep-going": "🔥 Keep Going",
+    "inspire": "💪 You Inspire Me",
+}
+
+
 @main_bp.route("/comment/<int:comment_id>/like", methods=["POST"])
 @login_required
 def like_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     if not can_view_post(comment.post):
         abort(404)
+    reaction_type = request.form.get("reaction_type", "support")
+    if reaction_type not in COMMENT_REACTION_LABELS:
+        if wants_json_response():
+            return jsonify({"ok": False, "error": "Invalid comment reaction."}), 400
+        abort(400)
     existing = CommentReaction.query.filter_by(
         comment_id=comment.id, user_id=current_user.id
     ).first()
-    if existing:
+    if existing and existing.type == reaction_type:
         db.session.delete(existing)
-        flash("Comment like removed.", "info")
+        selected = None
+        message = "Comment reaction removed."
+    elif existing:
+        existing.type = reaction_type
+        selected = reaction_type
+        message = "Comment reaction changed."
     else:
-        db.session.add(CommentReaction(comment_id=comment.id, user_id=current_user.id))
+        db.session.add(CommentReaction(comment_id=comment.id, user_id=current_user.id, type=reaction_type))
+        selected = reaction_type
+        message = "Encouragement added."
         if comment.user_id != current_user.id:
             add_notification(
                 comment.user_id,
                 "comment",
-                f"{current_user.username} liked your comment.",
+                f"{current_user.username} encouraged your comment.",
                 url_for("main.post_detail", post_id=comment.post_id),
             )
-        flash("Comment liked.", "success")
     db.session.commit()
+    if wants_json_response():
+        counts = {key: CommentReaction.query.filter_by(comment_id=comment.id, type=key).count() for key in COMMENT_REACTION_LABELS}
+        return jsonify({"ok": True, "selected_reaction": selected, "counts": counts, "message": message})
+    flash(message, "info" if selected is None else "success")
     return redirect(url_for("main.post_detail", post_id=comment.post_id))
+
+
+@main_bp.route("/comment/<int:comment_id>/<action>", methods=["POST"])
+@login_required
+def manage_comment(comment_id, action):
+    comment = Comment.query.get_or_404(comment_id)
+    if not can_view_post(comment.post):
+        abort(404)
+    family_moderator = False
+    if comment.post.family_id:
+        membership = FamilyMember.query.filter_by(
+            family_id=comment.post.family_id, user_id=current_user.id
+        ).first()
+        family_moderator = bool(membership and membership.role in {"owner", "admin", "moderator"})
+    can_moderate = comment.user_id == current_user.id or current_user.is_admin or family_moderator
+    if not can_moderate:
+        abort(403)
+    if action == "delete":
+        post_id = comment.post_id
+        db.session.delete(comment)
+        db.session.commit()
+        flash("Comment deleted.", "info")
+        return redirect(url_for("main.post_detail", post_id=post_id))
+    if action == "edit":
+        content = request.form.get("content", "").strip()
+        if not content or len(content) > 3000:
+            flash("Comments must be between 1 and 3,000 characters.", "warning")
+        else:
+            comment.content = content
+            comment.edited_at = datetime.utcnow()
+            db.session.commit()
+            flash("Comment updated.", "success")
+        return redirect(url_for("main.post_detail", post_id=comment.post_id))
+    abort(404)
 
 
 @main_bp.route("/people")
@@ -970,6 +1213,50 @@ def notifications():
     return render_template("notifications.html", notifications=notifications)
 
 
+@main_bp.route("/points")
+@login_required
+def point_history():
+    personal_enabled = is_feature_enabled("personal_points")
+    family_enabled = is_feature_enabled("family_points")
+    if not personal_enabled and not family_enabled:
+        return render_template(
+            "point_history.html", coming_soon=True, personal_balance=0,
+            family_balances=[], transactions=None,
+        )
+    page = request.args.get("page", 1, type=int)
+    page = max(1, page)
+    family_ids = [membership.family_id for membership in current_user.family_memberships]
+    visibility = []
+    if personal_enabled:
+        visibility.append(PointTransaction.user_id == current_user.id)
+    if family_enabled and family_ids:
+        visibility.append(PointTransaction.family_id.in_(family_ids))
+    query = PointTransaction.query.filter(PointTransaction.reversed.is_(False))
+    if visibility:
+        query = query.filter(or_(*visibility))
+    else:
+        query = query.filter(PointTransaction.id == -1)
+    transactions = query.order_by(
+        PointTransaction.created_at.desc(), PointTransaction.id.desc()
+    ).paginate(page=page, per_page=30, error_out=False)
+    family_balances = []
+    if family_enabled:
+        family_balances = [
+            {"family": membership.family, "balance": family_point_balance(membership.family_id)}
+            for membership in current_user.family_memberships
+        ]
+        family_balances.sort(key=lambda row: (-row["balance"], row["family"].name.lower()))
+    return render_template(
+        "point_history.html",
+        coming_soon=False,
+        personal_balance=personal_point_balance(current_user.id) if personal_enabled else 0,
+        family_balances=family_balances,
+        transactions=transactions,
+        personal_enabled=personal_enabled,
+        family_enabled=family_enabled,
+    )
+
+
 @main_bp.route("/notification/mark-read/<int:notification_id>", methods=["POST"])
 @login_required
 def mark_notification_read(notification_id):
@@ -1012,6 +1299,9 @@ def settings():
         )
         current_user.profile.notification_previews_enabled = (
             request.form.get("notification_previews_enabled") == "on"
+        )
+        current_user.profile.auto_share_completed_challenges = (
+            request.form.get("auto_share_completed_challenges") == "on"
         )
         db.session.commit()
         flash("Settings saved.", "success")

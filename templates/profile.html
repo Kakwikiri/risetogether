@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card with context %} {% block content %}
 <section class="profile-page">
   <header class="profile-hero">
     <div class="profile-identity-row">
@@ -99,6 +99,7 @@
     <h2>Posts</h2>
     <div class="profile-feed-cards">
       {% for post in posts %}
+      {% set content_post = post.original_post or post %}
       <article class="profile-post-card">
         <div class="profile-post-top">
           <img
@@ -111,26 +112,25 @@
             <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
           </div>
         </div>
-        <p class="profile-post-body">{{ post.content or post.media_type|capitalize }}</p>
-        {% if post.media_url and post.media_type == 'image' %}
+        {% if post.original_post %}<div class="reshare-attribution">Shared from @{{ content_post.author.username }}</div>{% endif %}
+        {% if content_post.post_type == 'achievement' %}
+        {{ achievement_post_card(content_post) }}
+        {% else %}
+        <p class="profile-post-body">{{ content_post.content or content_post.media_type|capitalize }}</p>
+        {% if content_post.media_url and content_post.media_type == 'image' %}
         <div class="media-frame">
-          <img class="post-media" src="{{ url_for('api.serve_upload', filename=post.media_url) }}" alt="Post image" />
-          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download image">↓</a>
+          <img class="post-media" src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" alt="Post image" />
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download image">↓</a>
         </div>
-        {% elif post.media_url and post.media_type == 'video' %}
+        {% elif content_post.media_url and content_post.media_type == 'video' %}
         <div class="media-frame">
-          <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video>
-          <a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url) }}" download aria-label="Download video">↓</a>
+          <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(content_post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}">Your browser cannot play this video.</video>
+          <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download video">↓</a>
         </div>
         {% endif %}
+        {% endif %}
         <div class="profile-post-actions">
-          <form action="{{ url_for('main.react_post', post_id=post.id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button type="submit" name="reaction_type" value="support">❤️ Support {{ post.reactions.filter_by(type='support').count() }}</button>
-            <button type="submit" name="reaction_type" value="understand">🤝 I Understand {{ post.reactions.filter_by(type='understand').count() }}</button>
-            <button type="submit" name="reaction_type" value="keep-going">🔥 Keep Going {{ post.reactions.filter_by(type='keep-going').count() }}</button>
-            <button type="submit" name="reaction_type" value="inspire">💪 You Inspire Me {{ post.reactions.filter_by(type='inspire').count() }}</button>
-          </form>
+          {{ reaction_bar(post, csrf_token()) }}
           <a href="{{ url_for('main.post_detail', post_id=post.id) }}">💬 Comments {{ post.comments.count() }}</a>
           <a href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
         </div>

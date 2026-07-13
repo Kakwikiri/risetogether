@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% from 'components/ui.html' import achievement_post_card with context %}
+{% block content %}
+<section class="achievement-share-page">
+  <div class="achievement-share-heading"><p class="eyebrow">Challenge complete</p><h1>Share this achievement?</h1><p>You decide where this moment belongs. Nothing is published until you choose.</p></div>
+  {% set preview_post = namespace(achievement_type='challenge_completed', challenge_completion=completion, encouraging_message='Your steady effort is worth celebrating. Keep growing together.') %}
+  {{ achievement_post_card(preview_post) }}
+  <form method="post" class="achievement-share-options">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button class="achievement-share-choice" type="submit" name="audience" value="public"{% if not can_share_publicly %} disabled aria-disabled="true"{% endif %}><strong>Share publicly</strong><span>{% if can_share_publicly %}Celebrate with the RiseTogether community.{% else %}Unavailable because this Family is private.{% endif %}</span></button>
+    <button class="achievement-share-choice" type="submit" name="audience" value="family"><strong>Share only inside this Family</strong><span>Visible to members of {{ family.name }}.</span></button>
+    <button class="achievement-share-choice" type="submit" name="audience" value="private"><strong>Keep private</strong><span>Save the achievement where only you can see it.</span></button>
+  </form>
+</section>
+{% endblock %}

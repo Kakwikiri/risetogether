@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-stage6-feed";
+  const APP_VERSION = "20260713-stage14-point-ledger";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -974,6 +974,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!submitter || !window.fetch) return;
       event.preventDefault();
       submitter.disabled = true;
+      submitter.classList.remove("is-tapping");
+      void submitter.offsetWidth;
+      submitter.classList.add("is-tapping");
       const formData = new FormData(form);
       if (submitter.name && submitter.value) {
         formData.set(submitter.name, submitter.value);
@@ -992,16 +995,289 @@ document.addEventListener("DOMContentLoaded", () => {
           throw new Error(payload.error || "Reaction failed.");
         }
         Object.entries(payload.counts || {}).forEach(([type, count]) => {
-          const button = form.querySelector(`[data-reaction-type="${type}"]`);
-          const countTarget = button ? button.querySelector("[data-reaction-count]") : null;
+          const choice = form.querySelector(`[data-reaction-choice][data-reaction-type="${type}"]`);
+          const countTarget = choice ? choice.querySelector("[data-reaction-count]") : null;
           if (countTarget) countTarget.textContent = count;
+          const button = choice ? choice.querySelector("[data-reaction-button]") : null;
+          const isSelected = payload.selected_reaction === type;
+          if (choice) choice.classList.toggle("is-selected", isSelected);
+          if (button) {
+            button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+            const label = button.querySelector(".reaction-label")?.textContent || "Reaction";
+            button.setAttribute("aria-label", `${label}. ${count} reaction${count === 1 ? "" : "s"}${isSelected ? ". Selected" : ""}`);
+          }
         });
         showToast(payload.message || "Reaction updated.");
       } catch (error) {
         showToast(error.message || "Reaction failed. Please try again.");
       } finally {
         submitter.disabled = false;
+        window.setTimeout(() => submitter.classList.remove("is-tapping"), 220);
       }
+    });
+  });
+
+  const reactionModal = document.querySelector("[data-reaction-modal]");
+  const reactionPeople = reactionModal?.querySelector("[data-reaction-people]");
+  const reactionTitle = reactionModal?.querySelector("[data-reaction-modal-title]");
+  reactionModal?.querySelector("[data-reaction-modal-close]")?.addEventListener("click", () => reactionModal.close());
+  reactionModal?.addEventListener("click", (event) => {
+    if (event.target === reactionModal) reactionModal.close();
+  });
+
+  document.querySelectorAll("[data-reaction-list]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const form = button.closest(".reaction-form");
+      const type = button.dataset.reactionType;
+      const label = form?.querySelector(`[data-reaction-choice][data-reaction-type="${type}"] .reaction-label`)?.textContent || "Reaction";
+      if (!form?.dataset.reactorsUrl || !reactionModal || !reactionPeople) return;
+      if (reactionTitle) reactionTitle.textContent = `${label} reactions`;
+      reactionPeople.replaceChildren();
+      const loading = document.createElement("p");
+      loading.className = "reaction-people-status";
+      loading.textContent = "Loading people…";
+      reactionPeople.append(loading);
+      reactionModal.showModal();
+      try {
+        const url = new URL(form.dataset.reactorsUrl, window.location.origin);
+        url.searchParams.set("type", type);
+        const response = await fetch(url, { headers: { Accept: "application/json" } });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Could not load reactions.");
+        reactionPeople.replaceChildren();
+        if (!payload.people.length) {
+          const empty = document.createElement("p");
+          empty.className = "reaction-people-status";
+          empty.textContent = "No visible reactions yet.";
+          reactionPeople.append(empty);
+        }
+        payload.people.forEach((person) => {
+          const row = document.createElement("a");
+          row.className = "reaction-person";
+          row.href = person.profile_url;
+          row.setAttribute("role", "listitem");
+          const avatar = document.createElement("img");
+          avatar.src = person.avatar_url;
+          avatar.alt = "";
+          const text = document.createElement("span");
+          const name = document.createElement("strong");
+          name.textContent = person.display_name;
+          const username = document.createElement("small");
+          username.textContent = `@${person.username}`;
+          text.append(name, username);
+          row.append(avatar, text);
+          reactionPeople.append(row);
+        });
+      } catch (error) {
+        reactionPeople.replaceChildren();
+        const failure = document.createElement("p");
+        failure.className = "reaction-people-status";
+        failure.textContent = error.message || "Could not load reactions.";
+        reactionPeople.append(failure);
+      }
+    });
+  });
+
+  document.querySelectorAll(".comment-reaction-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      const submitter = event.submitter;
+      if (!submitter || !window.fetch) return;
+      event.preventDefault();
+      submitter.disabled = true;
+      const data = new FormData(form);
+      data.set("reaction_type", submitter.value);
+      try {
+        const response = await fetch(form.action, { method: "POST", body: data, headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" } });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Could not update encouragement.");
+        Object.entries(payload.counts).forEach(([type, count]) => {
+          const button = form.querySelector(`[data-comment-reaction="${type}"]`);
+          if (!button) return;
+          button.setAttribute("aria-pressed", payload.selected_reaction === type ? "true" : "false");
+          const countTarget = button.querySelector("span");
+          if (countTarget) countTarget.textContent = count;
+        });
+        showToast(payload.message);
+      } catch (error) {
+        showToast(error.message || "Could not update encouragement.");
+      } finally {
+        submitter.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-copy-post-link]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.shareUrl);
+        button.textContent = "Link copied";
+        showToast("Post link copied. Privacy checks still apply.");
+      } catch (_error) {
+        window.prompt("Copy this post link:", button.dataset.shareUrl);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-challenge-type]").forEach((typeSelect) => {
+    const form = typeSelect.closest("form");
+    const tierSelect = form?.querySelector("[data-challenge-reward-tier]");
+    if (!tierSelect) return;
+    const syncRewardTiers = () => {
+      const allowed = new Set(typeSelect.selectedOptions[0]?.dataset.rewardTiers.split(",") || []);
+      let firstAllowed = null;
+      [...tierSelect.options].forEach((option) => {
+        option.disabled = !allowed.has(option.value);
+        option.hidden = option.disabled;
+        if (!option.disabled && !firstAllowed) firstAllowed = option;
+      });
+      if (!allowed.has(tierSelect.value) && firstAllowed) tierSelect.value = firstAllowed.value;
+    };
+    typeSelect.addEventListener("change", syncRewardTiers);
+    typeSelect.addEventListener("change", () => {
+      const frequency = form?.querySelector("[data-completion-frequency]");
+      if (frequency && typeSelect.value === "daily_check_in") {
+        frequency.value = "daily";
+        frequency.dispatchEvent(new Event("change"));
+      }
+    });
+    syncRewardTiers();
+  });
+
+  document.querySelectorAll("[data-challenge-advanced-toggle]").forEach((button) => {
+    const fields = button.closest("form")?.querySelector("[data-challenge-advanced]");
+    if (!fields) return;
+    button.addEventListener("click", () => {
+      const opening = fields.hidden;
+      fields.hidden = !opening;
+      button.setAttribute("aria-expanded", opening ? "true" : "false");
+      button.textContent = opening ? "Fewer challenge settings" : "More challenge settings";
+    });
+  });
+
+  document.querySelectorAll("[data-completion-frequency]").forEach((select) => {
+    const customField = select.closest("form")?.querySelector("[data-custom-frequency]");
+    const customInput = customField?.querySelector("input");
+    const syncFrequency = () => {
+      const isCustom = select.value === "custom";
+      if (customField) customField.hidden = !isCustom;
+      if (customInput) customInput.required = isCustom;
+    };
+    select.addEventListener("change", syncFrequency);
+    syncFrequency();
+  });
+
+  document.querySelectorAll("[data-mandatory-challenge]").forEach((checkbox) => {
+    const limitField = checkbox.closest("form")?.querySelector("[data-participant-limit]");
+    const limitInput = limitField?.querySelector("input");
+    const syncMandatory = () => {
+      if (limitField) limitField.hidden = checkbox.checked;
+      if (limitInput && checkbox.checked) limitInput.value = "";
+    };
+    checkbox.addEventListener("change", syncMandatory);
+    syncMandatory();
+  });
+
+  document.querySelectorAll("[data-challenge-completion-form]").forEach((form) => {
+    const input = form.querySelector("[data-challenge-evidence]");
+    const preview = form.querySelector("[data-challenge-evidence-preview]");
+    const remove = form.querySelector("[data-challenge-evidence-remove]");
+    const progress = form.querySelector("[data-challenge-upload-progress]");
+    const bar = form.querySelector("[data-challenge-upload-bar]");
+    const progressLabel = form.querySelector("[data-challenge-upload-label]");
+    let previewUrl = "";
+
+    const clearEvidence = () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = "";
+      if (input) input.value = "";
+      if (preview) preview.replaceChildren();
+      if (preview) preview.hidden = true;
+      if (remove) remove.hidden = true;
+    };
+
+    input?.addEventListener("change", () => {
+      if (!input.files?.length || !preview) return clearEvidence();
+      const file = input.files[0];
+      const maximum = Number(input.dataset.maxBytes || 0);
+      if (maximum && file.size > maximum) {
+        clearEvidence();
+        showToast(`That file is larger than ${Math.round(maximum / 1024 / 1024)} MB.`);
+        return;
+      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(file);
+      preview.replaceChildren();
+      let media;
+      if (file.type.startsWith("image/")) {
+        media = document.createElement("img");
+        media.alt = "Evidence preview";
+      } else if (file.type.startsWith("video/")) {
+        media = document.createElement("video");
+        media.controls = true;
+        media.muted = true;
+      } else if (file.type.startsWith("audio/")) {
+        media = document.createElement("audio");
+        media.controls = true;
+      } else {
+        media = document.createElement("span");
+        media.textContent = `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB`;
+      }
+      if (media instanceof HTMLMediaElement || media instanceof HTMLImageElement) media.src = previewUrl;
+      preview.append(media);
+      preview.hidden = false;
+      if (remove) remove.hidden = false;
+    });
+    remove?.addEventListener("click", clearEvidence);
+
+    form.addEventListener("submit", (event) => {
+      if (!window.XMLHttpRequest || !form.reportValidity()) return;
+      event.preventDefault();
+      const submitter = event.submitter || form.querySelector('[type="submit"]');
+      if (submitter) submitter.disabled = true;
+      if (progress) progress.hidden = false;
+      if (bar) bar.style.width = "0%";
+      if (progressLabel) progressLabel.textContent = "Uploading… 0%";
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", form.action);
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.upload.addEventListener("progress", (uploadEvent) => {
+        if (!uploadEvent.lengthComputable) return;
+        const percentage = Math.round((uploadEvent.loaded / uploadEvent.total) * 100);
+        if (bar) bar.style.width = `${percentage}%`;
+        if (progressLabel) progressLabel.textContent = percentage < 100 ? `Uploading… ${percentage}%` : "Processing completion…";
+      });
+      xhr.addEventListener("load", () => {
+        const contentType = xhr.getResponseHeader("Content-Type") || "";
+        if (!contentType.includes("application/json")) {
+          window.location.assign(xhr.responseURL || form.action);
+          return;
+        }
+        let payload;
+        try { payload = JSON.parse(xhr.responseText); } catch (_error) { payload = {}; }
+        if (xhr.status >= 400 || !payload.ok) {
+          showToast(payload.error || "Completion could not be submitted.");
+          if (submitter) submitter.disabled = false;
+          if (progress) progress.hidden = true;
+          return;
+        }
+        if (payload.status === "pending") {
+          showToast(payload.message || "Completion submitted for approval.");
+          window.setTimeout(() => window.location.assign(payload.redirect_url), 900);
+          return;
+        }
+        const celebration = payload.celebration || {};
+        const closeButton = document.querySelector("[data-celebration-close]");
+        if (closeButton) closeButton.textContent = payload.ask_to_share ? "Choose where to share" : "See my progress";
+        window.RiseTogetherUI?.celebrate({ title: celebration.title, message: celebration.message });
+        closeButton?.addEventListener("click", () => window.location.assign(payload.redirect_url), { once: true });
+      });
+      xhr.addEventListener("error", () => {
+        showToast("Upload interrupted. Your completion was not submitted.");
+        if (submitter) submitter.disabled = false;
+        if (progress) progress.hidden = true;
+      });
+      xhr.send(new FormData(form));
     });
   });
 

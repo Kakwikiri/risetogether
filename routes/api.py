@@ -50,6 +50,7 @@ def current_user_info():
             "privacy_posts": profile.privacy_posts,
             "notifications_enabled": profile.notifications_enabled,
             "notification_previews_enabled": profile.notification_previews_enabled,
+            "auto_share_completed_challenges": profile.auto_share_completed_challenges,
         }
     )
 
