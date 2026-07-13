@@ -11,7 +11,8 @@
 
   {% if show_results and attempt %}
   <section class="family-goal-summary">
-    <strong>Your score: {{ attempt.score }} points</strong>
+    <strong>{{ attempt.percentage }}% · {{ 'Passed' if attempt.passed else 'Not passed yet' }}</strong>
+    <p>{{ attempt.score }} verified quiz points · {{ attempt.points_awarded }} Personal Points awarded</p>
     {% if attempt.submitted_at %}
     <p>Submitted {{ attempt.submitted_at.strftime('%b %d, %Y %H:%M') }}</p>
     {% endif %}
@@ -33,12 +34,14 @@
       {% if answer %}
       <p class="muted-meta">{{ answer.awarded_points }} / {{ question.points }} points</p>
       {% endif %}
+      {% if question.explanation %}<p class="quiz-explanation"><strong>Explanation:</strong> {{ question.explanation }}</p>{% endif %}
     </article>
     {% endfor %}
   </div>
   {% else %}
-  <form action="" method="post" class="quiz-question-list">
+  <form action="" method="post" class="quiz-question-list" data-quiz-form data-question-count="{{ questions|length }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="quiz-live-progress" aria-live="polite"><strong data-quiz-progress>0 of {{ questions|length }} answered</strong><span class="poll-meter"><span data-quiz-progress-bar style="width:0%"></span></span>{% if quiz.time_limit_seconds %}<small>Time limit: {{ (quiz.time_limit_seconds / 60)|round(1) }} minutes. The server verifies the submission time.</small>{% endif %}</div>
     {% for question in questions %}
     <fieldset class="quiz-question-card">
       <legend>{{ loop.index }}. {{ question.question_text }}</legend>
@@ -54,4 +57,5 @@
   </form>
   {% endif %}
 </section>
+<script>document.querySelectorAll('[data-quiz-form]').forEach(function(form){var total=Number(form.dataset.questionCount)||0, label=form.querySelector('[data-quiz-progress]'), bar=form.querySelector('[data-quiz-progress-bar]'); function update(){var answered=new Set(Array.from(form.querySelectorAll('input[type=radio]:checked')).map(function(input){return input.name})).size; label.textContent=answered+' of '+total+' answered'; bar.style.width=(total?Math.round(answered/total*100):0)+'%'} form.addEventListener('change',update); update()})</script>
 {% endblock %}

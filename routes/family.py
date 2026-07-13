@@ -2,7 +2,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -55,7 +55,7 @@ from models import (
     User,
 )
 from points import (
-    PointLimitExceeded, award_challenge_completion_points, family_point_balance,
+    PointLimitExceeded, award_challenge_completion_points, award_points, family_point_balance,
     personal_point_balance, reverse_reward_group, spend_family_points,
     spend_personal_points,
 )
@@ -689,6 +689,7 @@ def quiz_dashboard(family, members, current_member):
         "can_create_quizzes": bool(
             family_has_permission(current_member, "create_quiz") and family_supports_quizzes(family)
         ),
+        "can_review_quizzes": family_has_permission(current_member, "create_quiz"),
     }
 
 
@@ -724,6 +725,13 @@ def poll_dashboard(family, current_member):
         voter_ids = {vote.user_id for vote in votes}
         user_option_ids = {vote.option_id for vote in votes if current_member and vote.user_id == current_user.id}
         total_voters = len(voter_ids)
+        eligible_voters = max(family.members.count(), 1)
+        user_has_voted = bool(user_option_ids)
+        show_results = (
+            poll.status == "closed" or poll.results_visibility == "always"
+            or (poll.results_visibility == "after_vote" and user_has_voted)
+            or family_has_permission(current_member, "create_poll")
+        )
         option_rows = []
         total_votes = sum(option_totals.values())
         percentage_base = total_votes if poll.allows_multiple_choices else total_voters
@@ -743,7 +751,9 @@ def poll_dashboard(family, current_member):
                 "poll": poll,
                 "options": option_rows,
                 "total_voters": total_voters,
-                "user_has_voted": bool(user_option_ids),
+                "participation_percentage": min(100, round(total_voters / eligible_voters * 100)),
+                "user_has_voted": user_has_voted,
+                "show_results": show_results,
                 "is_open": poll.status == "open",
                 "can_close": bool(
                     current_member
@@ -805,6 +815,16 @@ def family_home_dashboard(family, members, current_member):
         Quiz.family_id == family.id,
         QuizAttempt.submitted_at != None,
     ).all()
+    weekly_quiz_attempts = [attempt for attempt in attempts if attempt.submitted_at and attempt.submitted_at >= week_start]
+    weekly_quiz_highlight = None
+    if weekly_quiz_attempts:
+        best = max(weekly_quiz_attempts, key=lambda item: (item.percentage or 0, item.score or 0))
+        weekly_quiz_highlight = {
+            "attempts": len(weekly_quiz_attempts),
+            "participants": len({item.user_id for item in weekly_quiz_attempts}),
+            "passes": sum(1 for item in weekly_quiz_attempts if item.passed),
+            "best": best,
+        }
     family_posts = (
         family.posts.filter(Post.is_hidden == False)
         .order_by(Post.created_at.desc())
@@ -969,6 +989,7 @@ def family_home_dashboard(family, members, current_member):
         "dashboard_new_members": new_members,
         "dashboard_top_supporter": top_supporter,
         "dashboard_campaign": campaign_summary,
+        "dashboard_quiz_highlight": weekly_quiz_highlight,
     }
 
 
@@ -2080,12 +2101,16 @@ def create_poll(family_id):
     if closes_at and closes_at <= datetime.utcnow():
         flash("Poll closing time must be in the future.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
+    results_visibility = request.form.get("results_visibility", "after_vote").strip()
+    if results_visibility not in {"always", "after_vote", "after_close"}:
+        results_visibility = "after_vote"
     poll = FamilyPoll(
         family_id=family.id,
         creator_id=current_user.id,
         question=question,
         allows_multiple_choices=request.form.get("allows_multiple_choices") == "1",
         anonymous_voting=request.form.get("anonymous_voting") == "1",
+        results_visibility=results_visibility,
         allow_vote_changes=request.form.get("allow_vote_changes") == "1",
         closes_at=closes_at,
         status="open",
@@ -2869,6 +2894,11 @@ def create_quiz(family_id):
         flash("Quiz title is required.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
     time_limit_seconds = parse_optional_int(request.form.get("time_limit_seconds"), 30, 7200)
+    pass_mark = parse_optional_int(request.form.get("pass_mark"), 1, 100) or 60
+    attempt_limit = parse_optional_int(request.form.get("attempt_limit"), 1, 10) or 1
+    if opens_at and closes_at and closes_at <= opens_at:
+        flash("Quiz closing date must be after its opening date.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
     quiz = Quiz(
         family_id=family.id,
         creator_id=current_user.id,
@@ -2878,8 +2908,10 @@ def create_quiz(family_id):
         closes_at=closes_at,
         time_limit_seconds=time_limit_seconds,
         status=status,
-        allow_multiple_attempts=request.form.get("allow_multiple_attempts") == "1",
+        allow_multiple_attempts=attempt_limit > 1,
         show_correct_answers=request.form.get("show_correct_answers", "1") == "1",
+        pass_mark=pass_mark,
+        attempt_limit=attempt_limit,
     )
     db.session.add(quiz)
     db.session.flush()
@@ -2896,6 +2928,7 @@ def create_quiz(family_id):
             question_type="multiple_choice",
             points=points,
             position=position,
+            explanation=request.form.get(f"question_{position}_explanation", "").strip()[:1000],
         )
         db.session.add(question)
         db.session.flush()
@@ -2949,18 +2982,20 @@ def take_quiz(family_id, quiz_id):
         flash("Join this Family before taking quizzes.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     quiz = Quiz.query.filter_by(id=quiz_id, family_id=family.id).first_or_404()
-    existing_attempt = QuizAttempt.query.filter_by(
+    submitted_attempts = QuizAttempt.query.filter_by(
         quiz_id=quiz.id, user_id=current_user.id
     ).filter(
         QuizAttempt.submitted_at != None
-    ).order_by(QuizAttempt.submitted_at.desc()).first()
+    ).order_by(QuizAttempt.submitted_at.desc()).all()
+    existing_attempt = submitted_attempts[0] if submitted_attempts else None
     attempt_id = request.args.get("attempt_id")
     selected_attempt = None
     if attempt_id:
         selected_attempt = QuizAttempt.query.filter_by(
             id=attempt_id, quiz_id=quiz.id, user_id=current_user.id
         ).first()
-    if selected_attempt or (existing_attempt and not quiz.allow_multiple_attempts):
+    attempt_limit = max(1, quiz.attempt_limit or (10 if quiz.allow_multiple_attempts else 1))
+    if selected_attempt or len(submitted_attempts) >= attempt_limit:
         attempt = selected_attempt or existing_attempt
         answers = {answer.question_id: answer for answer in attempt.answers.all()}
         return render_template(
@@ -2976,8 +3011,22 @@ def take_quiz(family_id, quiz_id):
         flash("This quiz is not open.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
     questions = quiz.questions.order_by(QuizQuestion.position.asc()).all()
+    timer_key = f"quiz_started:{quiz.id}"
     if request.method == "POST":
-        attempt = QuizAttempt(quiz_id=quiz.id, user_id=current_user.id)
+        started_raw = session.get(timer_key, "")
+        try:
+            started_at = datetime.fromisoformat(started_raw)
+        except (TypeError, ValueError):
+            flash("Your quiz session could not be verified. Please open the quiz again.", "warning")
+            return redirect(request.url)
+        now = datetime.utcnow()
+        if started_at > now or started_at < now - timedelta(hours=3):
+            flash("Your quiz session expired. Please open the quiz again.", "warning")
+            return redirect(request.url)
+        if quiz.time_limit_seconds and (now - started_at).total_seconds() > quiz.time_limit_seconds + 15:
+            flash("The quiz time limit has passed. Please try again if attempts remain.", "warning")
+            return redirect(request.url)
+        attempt = QuizAttempt(quiz_id=quiz.id, user_id=current_user.id, started_at=started_at)
         db.session.add(attempt)
         db.session.flush()
         score = 0
@@ -3008,8 +3057,22 @@ def take_quiz(family_id, quiz_id):
                     awarded_points=awarded_points,
                 )
             )
+        maximum_score = sum(max(0, question.points or 0) for question in questions)
+        # Keep the legacy quiz score ceiling while percentage uses the full verified total.
         attempt.score = min(score, 25)
-        attempt.submitted_at = datetime.utcnow()
+        attempt.percentage = round(score / maximum_score * 100) if maximum_score else 0
+        attempt.passed = attempt.percentage >= quiz.pass_mark
+        attempt.submitted_at = now
+        session.pop(timer_key, None)
+        if attempt.passed:
+            controlled_points = min(25, max(5, round(attempt.percentage / 20) * 5))
+            _, created = award_points(
+                amount=controlled_points, reason=f"Passed {quiz.title}", source_type="quiz",
+                source_id=quiz.id, user_id=current_user.id,
+                unique_reward_key=f"quiz:{quiz.id}:user:{current_user.id}:reward",
+                awarded_by_id=quiz.creator_id,
+            )
+            attempt.points_awarded = controlled_points if created else 0
         record_streak_activity(
             current_user, "learning", source_type="quiz_attempt",
             source_id=attempt.id, unique_key=f"learning-quiz:{attempt.id}",
@@ -3020,6 +3083,11 @@ def take_quiz(family_id, quiz_id):
         return redirect(
             url_for("family.take_quiz", family_id=family.id, quiz_id=quiz.id, attempt_id=attempt.id)
         )
+    try:
+        quiz_started_at = datetime.fromisoformat(session.get(timer_key, ""))
+    except (TypeError, ValueError):
+        quiz_started_at = datetime.utcnow()
+        session[timer_key] = quiz_started_at.isoformat()
     return render_template(
         "quiz_take.html",
         family=family,
@@ -3028,7 +3096,23 @@ def take_quiz(family_id, quiz_id):
         attempt=None,
         answers={},
         show_results=False,
+        quiz_started_at=quiz_started_at.isoformat(),
     )
+
+
+@family_bp.route("/family/<int:family_id>/quiz-performance")
+@login_required
+def quiz_performance(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "create_quiz"):
+        flash("Only authorized Family admins can review quiz performance.", "danger")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    quizzes = family.quizzes.order_by(Quiz.created_at.desc()).all()
+    attempts = QuizAttempt.query.join(Quiz).filter(
+        Quiz.family_id == family.id, QuizAttempt.submitted_at.isnot(None)
+    ).order_by(QuizAttempt.submitted_at.desc()).all()
+    return render_template("quiz_performance.html", family=family, quizzes=quizzes, attempts=attempts)
 
 
 @family_bp.route("/family/<int:family_id>/invite", methods=["POST"])

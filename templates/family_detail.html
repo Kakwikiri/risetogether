@@ -94,6 +94,7 @@
       <a class="family-dashboard-panel dashboard-link" href="#family-goal" data-family-tab><span class="dashboard-icon">◎</span><h4>Family Goal</h4><p>{{ family.goal_title or 'Shape a shared goal together.' }}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_encouragement', family_id=family.id) if feature_enabled('anonymous_support_posts') and member else (url_for('main.post_detail', post_id=dashboard_needs_encouragement.id) if dashboard_needs_encouragement else '#family-posts') }}"><span class="dashboard-icon">♡</span><h4>Someone Needs Encouragement</h4><p>A gentle place to ask for listening, motivation, advice, or support.</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}"><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-quizzes" data-family-tab><span class="dashboard-icon">★</span><h4>Weekly Quiz Highlight</h4><p>{% if dashboard_quiz_highlight %}{{ dashboard_quiz_highlight.participants }} {{ 'member' if dashboard_quiz_highlight.participants == 1 else 'members' }} made {{ dashboard_quiz_highlight.attempts }} {{ 'attempt' if dashboard_quiz_highlight.attempts == 1 else 'attempts' }} · {{ dashboard_quiz_highlight.passes }} passed.{% else %}The first quiz moment of the week is waiting.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('chat.family_chat', family_id=family.id) }}"><span class="dashboard-icon">◌</span><h4>Recent Chat</h4><p>{% if dashboard_recent_messages %}{{ dashboard_recent_messages[0].sender.username }}: {{ dashboard_recent_messages[0].content|default('Shared a message', true)|truncate(55) }}{% else %}The conversation is ready when your Family is.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">▤</span><h4>Recent Posts</h4><p>{% if dashboard_recent_posts %}{{ dashboard_recent_posts|length }} recent Family {{ 'post' if dashboard_recent_posts|length == 1 else 'posts' }}.{% else %}Be the first to share with this Family.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">↗</span><h4>Weekly Activity</h4><p>{{ dashboard_weekly_achievements|length }} growth {{ 'moment' if dashboard_weekly_achievements|length == 1 else 'moments' }} this week.</p></section>
@@ -208,6 +209,13 @@
         <label><input type="checkbox" name="anonymous_voting" value="1" /> Anonymous voting</label>
         <label><input type="checkbox" name="allow_vote_changes" value="1" checked /> Allow vote changes</label>
       </div>
+      <label>Show results
+        <select name="results_visibility">
+          <option value="after_vote">After a member votes</option>
+          <option value="always">Before and after voting</option>
+          <option value="after_close">Only after the poll closes</option>
+        </select>
+      </label>
       <button class="button" type="submit">Create poll</button>
     </form>
     {% endif %}
@@ -223,7 +231,7 @@
             {% if poll.allows_multiple_choices %}<span class="status-pill">Multiple choice</span>{% endif %}
             <h4>{{ poll.question }}</h4>
             <p class="muted-meta">
-              {{ row.total_voters }} voters
+              {{ row.total_voters }} voters · {{ row.participation_percentage }}% participation
               {% if poll.closes_at %} · Closes {{ poll.closes_at.strftime('%b %d, %Y %H:%M') }}{% endif %}
             </p>
           </div>
@@ -249,9 +257,9 @@
                 />
                 {{ option_row.option.option_text }}
               </span>
-              <strong>{{ option_row.percentage }}%</strong>
+              {% if row.show_results %}<strong>{{ option_row.percentage }}%</strong>
               <span class="poll-meter"><span style="width: {{ option_row.percentage }}%"></span></span>
-              <small>{{ option_row.votes }} votes</small>
+              <small>{{ option_row.votes }} votes</small>{% else %}<small>Results are shown {{ 'after you vote' if poll.results_visibility == 'after_vote' else 'when this poll closes' }}.</small>{% endif %}
             </label>
             {% endfor %}
           </div>
@@ -262,9 +270,9 @@
           {% for option_row in row.options %}
           <div class="poll-option">
             <span>{{ option_row.option.option_text }}</span>
-            <strong>{{ option_row.percentage }}%</strong>
+            {% if row.show_results %}<strong>{{ option_row.percentage }}%</strong>
             <span class="poll-meter"><span style="width: {{ option_row.percentage }}%"></span></span>
-            <small>{{ option_row.votes }} votes</small>
+            <small>{{ option_row.votes }} votes</small>{% else %}<small>Results are hidden until voting closes.</small>{% endif %}
           </div>
           {% endfor %}
         </div>
@@ -521,7 +529,10 @@
         Time limit in seconds
         <input type="number" name="time_limit_seconds" min="30" max="7200" placeholder="Optional" />
       </label>
-      <label><input type="checkbox" name="allow_multiple_attempts" value="1" /> Allow multiple attempts</label>
+      <div class="form-grid two-column">
+        <label>Pass mark (%)<input type="number" name="pass_mark" min="1" max="100" value="60" required /></label>
+        <label>Attempt limit<input type="number" name="attempt_limit" min="1" max="10" value="1" required /></label>
+      </div>
       <label><input type="checkbox" name="show_correct_answers" value="1" checked /> Show correct answers after submission</label>
 
       {% for number in range(1, 6) %}
@@ -529,6 +540,7 @@
         <legend>Question {{ number }}</legend>
         <input type="text" name="question_{{ number }}" placeholder="Question text" />
         <input type="number" name="question_{{ number }}_points" min="0" value="1" />
+        <textarea name="question_{{ number }}_explanation" rows="2" maxlength="1000" placeholder="Explanation shown after answering"></textarea>
         {% for choice in range(1, 5) %}
         <label>
           Choice {{ choice }}
@@ -561,6 +573,7 @@
           <p>{{ quiz.description or 'No description.' }}</p>
           <p class="muted-meta">
             {{ quiz.questions.count() }} questions
+            · Pass mark {{ quiz.pass_mark }}% · {{ quiz.attempt_limit }} {{ 'attempt' if quiz.attempt_limit == 1 else 'attempts' }}
             {% if quiz.closes_at %} · Closes {{ quiz.closes_at.strftime('%b %d, %Y') }}{% endif %}
           </p>
         </div>
@@ -574,6 +587,7 @@
     </div>
 
     <div class="quiz-panels">
+      {% if can_review_quizzes %}<section><h4>Admin review</h4><p class="muted-meta">Review verified scores, pass rates, and attempts.</p><a class="button secondary" href="{{ url_for('family.quiz_performance', family_id=family.id) }}">Review performance</a></section>{% endif %}
       <section>
         {% if feature_enabled('family_leaderboards') %}<h4>Family leaderboard</h4>
         <ol>

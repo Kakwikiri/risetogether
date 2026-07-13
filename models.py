@@ -533,6 +533,7 @@ class FamilyPoll(db.Model):
     question = db.Column(db.String(240), nullable=False)
     allows_multiple_choices = db.Column(db.Boolean, default=False, nullable=False)
     anonymous_voting = db.Column(db.Boolean, default=False, nullable=False)
+    results_visibility = db.Column(db.String(24), default="after_vote", nullable=False)
     allow_vote_changes = db.Column(db.Boolean, default=True, nullable=False)
     closes_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default="open", nullable=False)
@@ -676,6 +677,8 @@ class Quiz(db.Model):
     status = db.Column(db.String(20), default="open", nullable=False)
     allow_multiple_attempts = db.Column(db.Boolean, default=False, nullable=False)
     show_correct_answers = db.Column(db.Boolean, default=True, nullable=False)
+    pass_mark = db.Column(db.Integer, default=60, nullable=False)
+    attempt_limit = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     family = db.relationship("Family", backref=db.backref("quizzes", lazy="dynamic", cascade="all, delete-orphan"))
     creator = db.relationship("User", backref=db.backref("created_quizzes", lazy="dynamic"))
@@ -691,6 +694,7 @@ class QuizQuestion(db.Model):
     question_type = db.Column(db.String(32), default="multiple_choice", nullable=False)
     points = db.Column(db.Integer, default=1, nullable=False)
     position = db.Column(db.Integer, default=1, nullable=False)
+    explanation = db.Column(db.Text, default="")
     quiz = db.relationship("Quiz", backref=db.backref("questions", lazy="dynamic", cascade="all, delete-orphan"))
 
 
@@ -715,6 +719,9 @@ class QuizAttempt(db.Model):
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     score = db.Column(db.Integer, default=0, nullable=False)
+    percentage = db.Column(db.Integer, default=0, nullable=False)
+    passed = db.Column(db.Boolean, default=False, nullable=False)
+    points_awarded = db.Column(db.Integer, default=0, nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     submitted_at = db.Column(db.DateTime, nullable=True)
     quiz = db.relationship("Quiz", backref=db.backref("attempts", lazy="dynamic", cascade="all, delete-orphan"))

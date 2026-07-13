@@ -858,6 +858,36 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("Nothing is shared unless you choose it.", (ROOT / "templates" / "goal_share.html").read_text())
         self.assertIn("migration_stage24_family_goals", migration)
 
+    def test_stage_twenty_five_poll_privacy_and_duplicate_controls(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "family.py").read_text()
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        self.assertIn("results_visibility", models + routes + template)
+        self.assertIn('db.UniqueConstraint("poll_id", "option_id", "user_id"', models)
+        self.assertIn("participation_percentage", routes + template)
+        self.assertIn("poll.anonymous_voting", template)
+        self.assertIn("Your vote was already recorded", routes)
+
+    def test_stage_twenty_five_quiz_scoring_is_server_verified_and_idempotent(self):
+        models = (ROOT / "models.py").read_text()
+        routes = (ROOT / "routes" / "family.py").read_text()
+        migration = (ROOT / "migrations" / "20260713_stage25_polls_quizzes.sql").read_text()
+        for field in ["pass_mark", "attempt_limit", "percentage", "passed", "points_awarded", "explanation"]:
+            self.assertIn(field, models)
+        self.assertIn("selected_choice.is_correct", routes)
+        self.assertIn('unique_reward_key=f"quiz:{quiz.id}:user:{current_user.id}:reward"', routes)
+        self.assertIn("quiz.time_limit_seconds", routes)
+        self.assertIn("migration_stage25_polls_quizzes", migration)
+
+    def test_stage_twenty_five_admin_review_progress_and_weekly_highlight(self):
+        routes = (ROOT / "routes" / "family.py").read_text()
+        family_template = (ROOT / "templates" / "family_detail.html").read_text()
+        quiz_template = (ROOT / "templates" / "quiz_take.html").read_text()
+        self.assertIn("def quiz_performance", routes)
+        self.assertIn('family_has_permission(member, "create_quiz")', routes)
+        self.assertIn("dashboard_quiz_highlight", routes + family_template)
+        self.assertIn("data-quiz-progress", quiz_template)
+
 
 if __name__ == "__main__":
     unittest.main()
