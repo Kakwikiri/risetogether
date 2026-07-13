@@ -1,79 +1,229 @@
 {% macro progress_bar(value, label='Progress', tone='brand') -%}
-<div class="ui-progress" role="progressbar" aria-label="{{ label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ value|int }}">
-  <span class="ui-progress__fill ui-progress__fill--{{ tone }}" style="width: {{ [0, [value|int, 100]|min]|max }}%"></span>
+<div
+  class="ui-progress"
+  role="progressbar"
+  aria-label="{{ label }}"
+  aria-valuemin="0"
+  aria-valuemax="100"
+  aria-valuenow="{{ value|int }}"
+>
+  <span
+    class="ui-progress__fill ui-progress__fill--{{ tone }}"
+    style="width: {{ [0, [value|int, 100]|min]|max }}%"
+  ></span>
 </div>
-{%- endmacro %}
-
-{% macro achievement_card(title, description='', icon='✦', meta='') -%}
+{%- endmacro %} {% macro achievement_card(title, description='', icon='✦',
+meta='') -%}
 <article class="achievement-card">
   <span class="achievement-card__icon" aria-hidden="true">{{ icon }}</span>
-  <div><strong>{{ title }}</strong>{% if description %}<p>{{ description }}</p>{% endif %}{% if meta %}<small>{{ meta }}</small>{% endif %}</div>
+  <div>
+    <strong>{{ title }}</strong>{% if description %}
+    <p>{{ description }}</p>
+    {% endif %}{% if meta %}<small>{{ meta }}</small>{% endif %}
+  </div>
 </article>
-{%- endmacro %}
-
-{% macro user_avatar(user, size='medium', class_name='', alt='') -%}<img class="user-avatar user-avatar--{{ size }} {{ class_name }}" src="{{ user_avatar_url(user) }}" alt="{{ alt or (user.profile.display_name if user.profile else user.username) }}" loading="lazy" decoding="async" />{%- endmacro %}
-{% macro family_avatar(family, size='medium', class_name='', alt='') -%}<img class="family-placeholder-avatar family-placeholder-avatar--{{ size }} {{ class_name }}" src="{{ family_avatar_url(family) }}" alt="{{ alt or (family.name ~ ' Family') }}" loading="lazy" decoding="async" />{%- endmacro %}
-
-{% macro avatar_stack(users, limit=4, label='People') -%}
+{%- endmacro %} {% macro user_avatar(user, size='medium', class_name='', alt='')
+-%}<img
+  class="user-avatar user-avatar--{{ size }} {{ class_name }}"
+  src="{{ user_avatar_url(user) }}"
+  alt="{{ alt or (user.profile.display_name if user.profile else user.username) }}"
+  loading="lazy"
+  decoding="async"
+/>{%- endmacro %} {% macro family_avatar(family, size='medium', class_name='',
+alt='') -%}<img
+  class="family-placeholder-avatar family-placeholder-avatar--{{ size }} {{ class_name }}"
+  src="{{ family_avatar_url(family) }}"
+  alt="{{ alt or (family.name ~ ' Family') }}"
+  loading="lazy"
+  decoding="async"
+/>{%- endmacro %} {% macro avatar_stack(users, limit=4, label='People') -%}
 <div class="avatar-stack" aria-label="{{ label }}">
-  {% for user in users[:limit] %}<img src="{{ user_avatar_url(user) }}" alt="{{ user.profile.display_name if user.profile else user.username }}" />{% endfor %}
-  {% if users|length > limit %}<span aria-label="{{ users|length - limit }} more">+{{ users|length - limit }}</span>{% endif %}
+  {% for user in users[:limit] %}<img
+    src="{{ user_avatar_url(user) }}"
+    alt="{{ user.profile.display_name if user.profile else user.username }}"
+  />{% endfor %} {% if users|length > limit %}<span
+    aria-label="{{ users|length - limit }} more"
+    >+{{ users|length - limit }}</span
+  >{% endif %}
 </div>
-{%- endmacro %}
-
-{% macro skeleton(lines=3, label='Loading content') -%}
-<div class="skeleton-card" role="status" aria-label="{{ label }}">{% for line in range(lines) %}<span class="skeleton-line skeleton-line--{{ (line % 3) + 1 }}"></span>{% endfor %}<span class="sr-only">{{ label }}</span></div>
-{%- endmacro %}
-
-{% macro empty_state(title, message, icon='♡', action_url='', action_label='') -%}
-<section class="empty-state-card"><span class="empty-state-card__icon" aria-hidden="true">{{ icon }}</span><h3>{{ title }}</h3><p>{{ message }}</p>{% if action_url and action_label %}<a class="button" href="{{ action_url }}">{{ action_label }}</a>{% endif %}</section>
-{%- endmacro %}
-
-{% macro status_chip(label, tone='neutral') -%}<span class="status-chip status-chip--{{ tone }}">{{ label }}</span>{%- endmacro %}
-{% macro point_badge(points, label='points') -%}<span class="point-badge"><strong>{{ points }}</strong> {{ label }}</span>{%- endmacro %}
-{% macro family_level_badge(level, name='Growing Together') -%}<span class="family-level-badge"><span aria-hidden="true">✦</span> Level {{ level }} · {{ name }}</span>{%- endmacro %}
-
-{% macro rise_badges(badges, size='small') -%}{% if feature_enabled('verification_badges') and badges %}<span class="rise-badge-list" aria-label="RiseTogether badges">{% for badge in badges %}<button class="rise-badge rise-badge--{{ badge.tone }} rise-badge--{{ size }}" type="button" aria-label="{{ badge.label }}. {{ badge.explanation }}" title="{{ badge.explanation }}" data-rise-badge><svg class="rise-badge__seal" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="rise-badge__burst" d="M12 1.8l2.2 2.0 2.8-.7 1.0 2.6 2.7.9-.7 2.8 2.0 2.1-2.0 2.1.7 2.8-2.7.9-1.0 2.6-2.8-.7-2.2 2.0-2.2-2.0-2.8.7-1.0-2.6-2.7-.9.7-2.8-2.0-2.1 2.0-2.1-.7-2.8 2.7-.9 1.0-2.6 2.8.7z" /><path class="rise-badge__check" d="M8 12.5l2.6 2.6 5.6-6.1" /></svg><span class="rise-badge__tooltip" role="tooltip"><strong>{{ badge.label }}</strong>{{ badge.explanation }}</span></button>{% endfor %}</span>{% endif %}{%- endmacro %}
-
-{% macro reaction_bar(post, csrf) -%}
-{% set choices = [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'), ('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %}
-{% set selected = post.reactions.filter_by(user_id=current_user.id).first() if current_user.is_authenticated else none %}
-<form action="{{ url_for('main.react_post', post_id=post.id) }}" method="post" class="reaction-form" data-reactors-url="{{ url_for('main.post_reactors', post_id=post.id) }}">
+{%- endmacro %} {% macro skeleton(lines=3, label='Loading content') -%}
+<div class="skeleton-card" role="status" aria-label="{{ label }}">
+  {% for line in range(lines) %}<span
+    class="skeleton-line skeleton-line--{{ (line % 3) + 1 }}"
+  ></span
+  >{% endfor %}<span class="sr-only">{{ label }}</span>
+</div>
+{%- endmacro %} {% macro empty_state(title, message, icon='♡', action_url='',
+action_label='') -%}
+<section class="empty-state-card">
+  <span class="empty-state-card__icon" aria-hidden="true">{{ icon }}</span>
+  <h3>{{ title }}</h3>
+  <p>{{ message }}</p>
+  {% if action_url and action_label %}<a class="button" href="{{ action_url }}"
+    >{{ action_label }}</a
+  >{% endif %}
+</section>
+{%- endmacro %} {% macro status_chip(label, tone='neutral') -%}<span
+  class="status-chip status-chip--{{ tone }}"
+  >{{ label }}</span
+>{%- endmacro %} {% macro point_badge(points, label='points') -%}<span
+  class="point-badge"
+  ><strong>{{ points }}</strong> {{ label }}</span
+>{%- endmacro %} {% macro family_level_badge(level, name='Growing Together')
+-%}<span class="family-level-badge"
+  ><span aria-hidden="true">✦</span> Level {{ level }} · {{ name }}</span
+>{%- endmacro %} {% macro rise_badges(badges, size='small') -%}{% if
+feature_enabled('verification_badges') and badges %}{% set badge = badges|first %}<span
+  class="rise-badge-list"
+  ><button
+    class="rise-badge rise-badge--{{ badge.tone }} rise-badge--{{ size }}"
+    type="button"
+    aria-label="{{ badge.label }}. {{ badge.explanation }}"
+    title="{{ badge.explanation }}"
+    data-rise-badge
+  >
+    <svg
+      class="rise-badge__seal"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        class="rise-badge__burst"
+        fill="currentColor"
+        d="M12 1.8l2.2 2.0 2.8-.7 1.0 2.6 2.7.9-.7 2.8 2.0 2.1-2.0 2.1.7 2.8-2.7.9-1.0 2.6-2.8-.7-2.2 2.0-2.2-2.0-2.8.7-1.0-2.6-2.7-.9.7-2.8-2.0-2.1 2.0-2.1-.7-2.8 2.7-.9 1.0-2.6 2.8.7z"
+      />
+      <path class="rise-badge__check" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M8 12.5l2.6 2.6 5.6-6.1" /></svg
+    ><span class="rise-badge__tooltip" role="tooltip"
+      ><strong>{{ badge.label }}</strong>{{ badge.explanation }}</span
+    ></button
+  ></span
+>{% endif %}{%- endmacro %} {% macro reaction_bar(post, csrf) -%} {% set choices
+= [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'),
+('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %} {%
+set selected = post.reactions.filter_by(user_id=current_user.id).first() if
+current_user.is_authenticated else none %}
+<form
+  action="{{ url_for('main.react_post', post_id=post.id) }}"
+  method="post"
+  class="reaction-form"
+  data-reactors-url="{{ url_for('main.post_reactors', post_id=post.id) }}"
+>
   <input type="hidden" name="csrf_token" value="{{ csrf }}" />
-  {% for key, icon, label in choices %}
-  {% set count = post.reactions.filter_by(type=key).count() %}
-  <span class="reaction-choice{% if selected and selected.type == key %} is-selected{% endif %}" data-reaction-choice data-reaction-type="{{ key }}">
-    <button type="submit" name="reaction_type" value="{{ key }}" class="reaction-button" data-reaction-button aria-pressed="{{ 'true' if selected and selected.type == key else 'false' }}" aria-label="{{ label }}. {{ count }} reaction{{ '' if count == 1 else 's' }}{% if selected and selected.type == key %}. Selected{% endif %}">
-      <span class="reaction-icon" aria-hidden="true">{{ icon }}</span><span class="reaction-label">{{ label }}</span>
+  {% for key, icon, label in choices %} {% set count =
+  post.reactions.filter_by(type=key).count() %}
+  <span
+    class="reaction-choice{% if selected and selected.type == key %} is-selected{% endif %}"
+    data-reaction-choice
+    data-reaction-type="{{ key }}"
+  >
+    <button
+      type="submit"
+      name="reaction_type"
+      value="{{ key }}"
+      class="reaction-button"
+      data-reaction-button
+      aria-pressed="{{ 'true' if selected and selected.type == key else 'false' }}"
+      aria-label="{{ label }}. {{ count }} reaction{{ '' if count == 1 else 's' }}{% if selected and selected.type == key %}. Selected{% endif %}"
+    >
+      <span class="reaction-icon" aria-hidden="true">{{ icon }}</span
+      ><span class="reaction-label">{{ label }}</span>
     </button>
-    <button type="button" class="reaction-count" data-reaction-list data-reaction-type="{{ key }}" aria-label="See who reacted with {{ label }}"><span data-reaction-count>{{ count }}</span></button>
+    <button
+      type="button"
+      class="reaction-count"
+      data-reaction-list
+      data-reaction-type="{{ key }}"
+      aria-label="See who reacted with {{ label }}"
+    >
+      <span data-reaction-count>{{ count }}</span>
+    </button>
   </span>
   {% endfor %}
 </form>
-{%- endmacro %}
-
-{% macro achievement_post_card(post) -%}
-{% set labels = {
-  'challenge_completed': ('✓', 'Challenge completed'),
-  'goal_achieved': ('★', 'Goal achieved'),
-  'streak_milestone': ('🔥', 'Streak milestone'),
-  'quiz_passed': ('✎', 'Quiz passed'),
-  'family_level_increased': ('↗', 'Family level increased'),
-  'family_upgrade_unlocked': ('✦', 'Family upgrade unlocked'),
-  'encouragement_milestone': ('♡', 'Encouragement milestone'),
-  'weekly_family_milestone': ('☀', 'Weekly Family milestone')
-} %}
-{% set achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
-<section class="achievement-post-card achievement-post-card--{{ post.achievement_type }}">
+{%- endmacro %} {% macro achievement_post_card(post) -%} {% set labels = {
+'challenge_completed': ('✓', 'Challenge completed'), 'goal_achieved': ('★',
+'Goal achieved'), 'streak_milestone': ('🔥', 'Streak milestone'), 'quiz_passed':
+('✎', 'Quiz passed'), 'family_level_increased': ('↗', 'Family level increased'),
+'family_upgrade_unlocked': ('✦', 'Family upgrade unlocked'),
+'encouragement_milestone': ('♡', 'Encouragement milestone'),
+'weekly_family_milestone': ('☀', 'Weekly Family milestone') } %} {% set
+achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
+<section
+  class="achievement-post-card achievement-post-card--{{ post.achievement_type }}"
+>
   <div class="achievement-post-glow" aria-hidden="true"></div>
-  <header><span class="achievement-post-icon" aria-hidden="true">{{ achievement[0] }}</span><div><p class="eyebrow">RiseTogether achievement</p><h3>{{ achievement[1] }}</h3></div></header>
-  {% if post.challenge_completion %}
-  {% set completion = post.challenge_completion %}
-  <div class="achievement-person"><img class="user-avatar user-avatar--medium" src="{{ user_avatar_url(completion.user) }}" alt="" /><div><strong>{{ completion.user.profile.display_name if completion.user.profile else completion.user.username }}</strong><span>@{{ completion.user.username }}</span></div></div>
-  <div class="achievement-details"><div><span>Challenge</span><strong>{{ completion.challenge.title }}</strong></div><div><span>Family</span><strong>{{ completion.challenge.family.name }}</strong></div><div><span>Points earned</span><strong>{{ completion.points_awarded }}</strong></div><div><span>Completed</span><strong>{{ completion.completed_at.strftime('%b %d, %Y') }}</strong></div></div>
-  {% if completion.evidence_media_url %}<div class="achievement-evidence"><span class="status-chip">Evidence</span>{% set evidence_type = get_media_type(completion.evidence_media_url) %}{% if evidence_type == 'image' %}<img src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}" alt="Challenge completion evidence" loading="lazy" />{% elif evidence_type == 'video' %}<video controls playsinline preload="metadata" src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"></video>{% else %}<a class="button secondary" href="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}" target="_blank" rel="noopener">View completion evidence</a>{% endif %}</div>{% endif %}
-  {% if completion.evidence_text %}<blockquote class="achievement-note"><span>Completion note</span>{{ completion.evidence_text }}</blockquote>{% endif %}
-  {% endif %}
-  <p class="achievement-encouragement">{{ post.encouraging_message or 'A meaningful step forward deserves to be celebrated.' }}</p>
+  <header>
+    <span class="achievement-post-icon" aria-hidden="true"
+      >{{ achievement[0] }}</span
+    >
+    <div>
+      <p class="eyebrow">RiseTogether achievement</p>
+      <h3>{{ achievement[1] }}</h3>
+    </div>
+  </header>
+  {% if post.challenge_completion %} {% set completion =
+  post.challenge_completion %}
+  <div class="achievement-person">
+    <img
+      class="user-avatar user-avatar--medium"
+      src="{{ user_avatar_url(completion.user) }}"
+      alt=""
+    />
+    <div>
+      <strong
+        >{{ completion.user.profile.display_name if completion.user.profile else
+        completion.user.username }}</strong
+      ><span>@{{ completion.user.username }}</span>
+    </div>
+  </div>
+  <div class="achievement-details">
+    <div>
+      <span>Challenge</span><strong>{{ completion.challenge.title }}</strong>
+    </div>
+    <div>
+      <span>Family</span><strong>{{ completion.challenge.family.name }}</strong>
+    </div>
+    <div>
+      <span>Points earned</span><strong>{{ completion.points_awarded }}</strong>
+    </div>
+    <div>
+      <span>Completed</span
+      ><strong>{{ completion.completed_at.strftime('%b %d, %Y') }}</strong>
+    </div>
+  </div>
+  {% if completion.evidence_media_url %}
+  <div class="achievement-evidence">
+    <span class="status-chip">Evidence</span>{% set evidence_type =
+    get_media_type(completion.evidence_media_url) %}{% if evidence_type ==
+    'image' %}<img
+      src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"
+      alt="Challenge completion evidence"
+      loading="lazy"
+    />{% elif evidence_type == 'video' %}<video
+      controls
+      playsinline
+      preload="metadata"
+      src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"
+    ></video
+    >{% else %}<a
+      class="button secondary"
+      href="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"
+      target="_blank"
+      rel="noopener"
+      >View completion evidence</a
+    >{% endif %}
+  </div>
+  {% endif %} {% if completion.evidence_text %}
+  <blockquote class="achievement-note">
+    <span>Completion note</span>{{ completion.evidence_text }}
+  </blockquote>
+  {% endif %} {% endif %}
+  <p class="achievement-encouragement">
+    {{ post.encouraging_message or 'A meaningful step forward deserves to be
+    celebrated.' }}
+  </p>
 </section>
 {%- endmacro %}
