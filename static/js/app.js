@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-location-dark";
+  const APP_VERSION = "20260713-media-location-tray";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;

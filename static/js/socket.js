@@ -86,17 +86,35 @@ const createVoiceNoteElement = (url, options = {}) => {
 
 const isLocationMessage = (content = "") => content.startsWith("My location: https://www.google.com/maps?q=");
 
+const createLocationCardElement = (content = "") => {
+  const url = content.replace("My location: ", "");
+  const query = url.includes("q=") ? url.split("q=").pop() : "";
+  const link = document.createElement("a");
+  link.className = "location-card";
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  const map = document.createElement("span");
+  map.className = "location-map";
+  map.setAttribute("aria-hidden", "true");
+  const pin = document.createElement("span");
+  pin.className = "location-pin";
+  map.appendChild(pin);
+  const body = document.createElement("span");
+  body.className = "location-card-body";
+  const title = document.createElement("strong");
+  title.textContent = "Shared location";
+  const meta = document.createElement("span");
+  meta.textContent = query || "Open map";
+  body.append(title, meta);
+  link.append(map, body);
+  return link;
+};
+
 const createMessageTextElement = (content = "") => {
   const body = document.createElement("p");
   if (isLocationMessage(content)) {
-    const link = document.createElement("a");
-    link.className = "location-message-link";
-    link.href = content.replace("My location: ", "");
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "Open shared location";
-    body.appendChild(link);
-    return body;
+    return createLocationCardElement(content);
   }
   body.textContent = content;
   return body;
@@ -359,6 +377,12 @@ if (typeof chatConfig !== "undefined") {
     const chatLog = document.getElementById("chat-log");
     const chatFile = document.getElementById("chat-file");
     const filePreview = document.getElementById("chat-file-preview");
+    const attachMenuButton = document.querySelector("[data-attach-menu-button]");
+    const attachmentTray = document.querySelector("[data-attachment-tray]");
+    const attachGallery = document.querySelector("[data-attach-gallery]");
+    const attachCamera = document.querySelector("[data-attach-camera]");
+    const attachLocation = document.querySelector("[data-attach-location]");
+    const attachDocument = document.querySelector("[data-attach-document]");
     const locationButton = document.getElementById("location-button");
     const voiceNoteButton = document.getElementById("voice-note-button");
     const videoNoteButton = document.getElementById("video-note-button");
@@ -526,6 +550,37 @@ if (typeof chatConfig !== "undefined") {
       }
       if (viewOnceInput) viewOnceInput.checked = false;
       if (expireInput) expireInput.checked = false;
+      if (attachmentTray) attachmentTray.hidden = true;
+    };
+
+    const openFilePicker = (accept = "image/*,video/*,audio/*,.pdf,.doc,.docx", capture = false, multiple = false) => {
+      if (!chatFile) return;
+      chatFile.accept = accept;
+      chatFile.multiple = multiple;
+      if (capture) {
+        chatFile.setAttribute("capture", "environment");
+      } else {
+        chatFile.removeAttribute("capture");
+      }
+      chatFile.click();
+    };
+
+    const shareCurrentLocation = () => {
+      if (!navigator.geolocation) {
+        notifyChat("Location sharing is not supported by this browser.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          sendTextMessage(
+            `My location: https://www.google.com/maps?q=${latitude},${longitude}`,
+          );
+          if (attachmentTray) attachmentTray.hidden = true;
+        },
+        () => notifyChat("Could not get your location."),
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
     };
 
     const clearMessageSelection = () => {
@@ -737,7 +792,10 @@ if (typeof chatConfig !== "undefined") {
         }
         const content = chatInput.value.trim();
         if (chatFile && chatFile.files && chatFile.files[0]) {
-          uploadChatFile(chatFile.files[0], content);
+          const files = Array.from(chatFile.files);
+          files.forEach((file, index) => {
+            uploadChatFile(file, index === 0 ? content : "");
+          });
           chatFile.value = "";
           chatInput.value = "";
           clearComposerState();
@@ -766,25 +824,46 @@ if (typeof chatConfig !== "undefined") {
       syncChatBottomSpace();
     }
 
+    if (attachMenuButton && attachmentTray) {
+      attachMenuButton.addEventListener("click", () => {
+        attachmentTray.hidden = !attachmentTray.hidden;
+        syncChatBottomSpace();
+      });
+    }
+    if (attachGallery) {
+      attachGallery.addEventListener("click", () => openFilePicker("image/*,video/*", false, true));
+    }
+    if (attachCamera) {
+      attachCamera.addEventListener("click", () => openFilePicker("image/*", true, false));
+    }
+    if (attachDocument) {
+      attachDocument.addEventListener("click", () => openFilePicker(".pdf,.doc,.docx,audio/*", false, false));
+    }
+    if (attachLocation) {
+      attachLocation.addEventListener("click", shareCurrentLocation);
+    }
+
     if (chatFile && filePreview) {
       chatFile.addEventListener("change", () => {
         filePreview.innerHTML = "";
-        const file = chatFile.files && chatFile.files[0];
+        const files = chatFile.files ? Array.from(chatFile.files) : [];
+        const file = files[0];
         if (!file) {
           filePreview.hidden = true;
           return;
         }
         filePreview.hidden = false;
-        if (file.type.startsWith("image/")) {
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(file);
-          img.alt = "Selected image";
-          filePreview.appendChild(img);
-        } else {
-          const span = document.createElement("span");
-          span.textContent = file.name;
-          filePreview.appendChild(span);
-        }
+        files.slice(0, 4).forEach((selectedFile) => {
+          if (selectedFile.type.startsWith("image/")) {
+            const img = document.createElement("img");
+            img.src = URL.createObjectURL(selectedFile);
+            img.alt = "Selected image";
+            filePreview.appendChild(img);
+          }
+        });
+        const span = document.createElement("span");
+        span.textContent = files.length > 1 ? `${files.length} files selected` : file.name;
+        filePreview.appendChild(span);
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "×";
@@ -865,22 +944,7 @@ if (typeof chatConfig !== "undefined") {
     }
 
     if (locationButton) {
-      locationButton.addEventListener("click", () => {
-        if (!navigator.geolocation) {
-          notifyChat("Location sharing is not supported by this browser.");
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            sendTextMessage(
-              `My location: https://www.google.com/maps?q=${latitude},${longitude}`,
-            );
-          },
-          () => notifyChat("Could not get your location."),
-          { enableHighAccuracy: true, timeout: 10000 },
-        );
-      });
+      locationButton.addEventListener("click", shareCurrentLocation);
     }
 
     const getRecorderMimeType = (kind) => {

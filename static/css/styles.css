@@ -1447,7 +1447,7 @@ textarea:focus {
 .chat-log video,
 .chat-log img {
   width: 100%;
-  border-radius: 8px;
+  border-radius: 4px;
   margin-top: 1rem;
 }
 
@@ -1455,7 +1455,7 @@ textarea:focus {
   position: relative;
   overflow: hidden;
   margin-top: 0.45rem;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: zoom-in;
 }
 
@@ -3058,6 +3058,10 @@ body.media-viewer-open {
   padding-bottom: 0.26rem;
 }
 
+.chat-message:has(.media-frame) {
+  padding: 0.18rem;
+}
+
 .call-history-pill {
   display: inline-flex;
   align-items: center;
@@ -3169,6 +3173,65 @@ body.media-viewer-open {
 
 .chat-tools {
   flex: 0 0 auto;
+}
+
+.attachment-tray {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--keyboard-inset, 0px) + env(safe-area-inset-bottom) + var(--chat-form-height, 64px) + 0.35rem);
+  z-index: 34;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  width: min(560px, calc(100vw - 1.5rem));
+  padding: 0.85rem;
+  background: rgba(251, 254, 253, 0.98);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 -16px 48px rgba(21, 33, 31, 0.16);
+  transform: translateX(-50%);
+  backdrop-filter: blur(14px);
+}
+
+.attachment-tray[hidden] {
+  display: none;
+}
+
+.attachment-tray button {
+  display: grid;
+  gap: 0.35rem;
+  place-items: center;
+  min-height: 72px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.attachment-tray button:focus-visible,
+.attachment-tray button:hover {
+  color: var(--brand-dark);
+  background: var(--soft);
+}
+
+.attachment-tray span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 34px;
+  color: var(--brand);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+:root[data-theme="dark"] .attachment-tray {
+  background: rgba(17, 27, 24, 0.96);
 }
 
 .chat-privacy-controls {
@@ -3630,12 +3693,95 @@ body.media-viewer-open {
   text-underline-offset: 3px;
 }
 
+.location-card {
+  display: grid;
+  gap: 0.55rem;
+  min-width: min(300px, 74vw);
+  margin-top: 0.15rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.location-map {
+  position: relative;
+  display: block;
+  height: 150px;
+  overflow: hidden;
+  background:
+    linear-gradient(35deg, transparent 47%, rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.18) 52%, transparent 53%),
+    linear-gradient(125deg, transparent 47%, rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0.12) 52%, transparent 53%),
+    #253641;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.location-map::before,
+.location-map::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.location-map::before {
+  left: -10%;
+  top: 42%;
+  width: 120%;
+  height: 5px;
+  transform: rotate(-8deg);
+}
+
+.location-map::after {
+  left: 55%;
+  top: -20%;
+  width: 5px;
+  height: 140%;
+  transform: rotate(28deg);
+}
+
+.location-pin {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  background: #ef4444;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50% 50% 50% 0;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.location-card-body {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.location-card-body strong {
+  font-size: 0.95rem;
+}
+
+.location-card-body span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 :root[data-theme="dark"] .chat-message .location-message-link {
   color: #67e8f9;
 }
 
 :root[data-theme="dark"] .chat-message.own .location-message-link {
   color: #0f4f46;
+}
+
+:root[data-theme="dark"] .location-card-body span {
+  color: rgba(237, 245, 242, 0.72);
+}
+
+:root[data-theme="dark"] .chat-message.own .location-card-body span {
+  color: rgba(8, 33, 28, 0.72);
 }
 
 .incoming-call-overlay {
@@ -3966,6 +4112,23 @@ body.media-viewer-open {
     gap: 0.42rem;
     font-size: 0.78rem;
     flex-wrap: wrap;
+  }
+
+  .attachment-tray {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.45rem;
+    padding: 0.7rem;
+  }
+
+  .attachment-tray button {
+    min-height: 66px;
+    font-size: 0.78rem;
+  }
+
+  .attachment-tray span {
+    width: 42px;
+    height: 32px;
+    font-size: 1.18rem;
   }
 
   .send-button {
