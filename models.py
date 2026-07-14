@@ -466,6 +466,10 @@ class FamilyMember(db.Model):
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     role = db.Column(db.String(20), default="member")
+    can_create_polls = db.Column(db.Boolean, default=False, nullable=False)
+    can_create_quizzes = db.Column(db.Boolean, default=False, nullable=False)
+    can_create_challenges = db.Column(db.Boolean, default=False, nullable=False)
+    can_create_campaigns = db.Column(db.Boolean, default=False, nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

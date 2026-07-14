@@ -203,11 +203,6 @@
 .message-row.message-row--interactive { align-items: center; min-width: 0; }
 .message-row.message-row--interactive .message-row-content { flex: 1 1 auto; min-width: 0; }
 
-@media (max-width: 560px) {
-  .notification-card { grid-template-columns: 36px minmax(0, 1fr); padding-inline: 0.45rem; }
-  .notification-card > form { grid-column: 2; }
-}
-
 /* Compact direct-chat identity controls. */
 .chat-header { gap: 0.45rem; padding: 0.5rem 0.65rem; }
 .chat-header-avatar-button {
@@ -7862,4 +7857,96 @@ body.nav-menu-open {
 @media (max-width: 560px) {
   .notification-card { grid-template-columns: 36px minmax(0, 1fr); padding-inline: 0.45rem; }
   .notification-card > form { grid-column: 2; }
+}
+
+/* Final Family and chat fit-and-finish; kept last to win the legacy cascade. */
+.family-tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: visible;
+}
+.family-tabbar a {
+  min-width: 0;
+  padding-inline: 0.45rem;
+  text-align: center;
+}
+.member-permission-editor form {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 150px;
+  padding: 0.5rem;
+}
+.footer-legal,
+.settings-legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.legal-page { width: min(780px, 100%); margin-inline: auto; }
+.legal-copy { display: grid; gap: 0.45rem; }
+.legal-copy h2 { margin: 1rem 0 0; font-size: 1.2rem; }
+.legal-copy p { margin: 0; line-height: 1.7; }
+.chat-log { overflow-x: hidden; }
+.chat-log .chat-message { min-width: 0; overflow-wrap: anywhere; }
+.chat-log .chat-message:has(.media-frame) {
+  width: min(74%, 420px);
+  max-width: min(74%, 420px);
+}
+.chat-log .media-frame,
+.chat-log .media-frame img,
+.chat-log .media-frame video {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.chat-log .media-frame img,
+.chat-log .media-frame video { display: block; height: auto; }
+
+@media (min-width: 901px) and (max-width: 1400px) {
+  .topbar { min-height: 64px; padding-block: 0.55rem; }
+  .nav-toggle { display: inline-flex; }
+  .nav-links {
+    position: fixed;
+    top: 68px;
+    right: 1rem;
+    z-index: 51;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(520px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 82px);
+    padding: 0.7rem;
+    overflow-y: auto;
+    background: color-mix(in srgb, var(--panel) 97%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+  }
+  .nav-links.open { opacity: 1; visibility: visible; transform: translateY(0); }
+  .nav-links a,
+  .install-button,
+  .share-app-button,
+  .theme-toggle { justify-content: flex-start; width: 100%; min-height: 42px; }
+}
+
+@media (max-width: 560px) {
+  .page-back-button {
+    position: fixed;
+    top: calc(66px + env(safe-area-inset-top));
+    left: 0.55rem;
+    z-index: 31;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+  }
+  .family-detail-card { margin-top: 0.2rem; }
+  .family-hero { gap: 0.65rem; }
+  .family-welcome { padding: 0.75rem; }
+  .family-dashboard-grid--living { gap: 0.55rem; }
+  .family-dashboard-grid--living .family-dashboard-panel { min-height: 0; padding: 0.75rem; }
+  .family-tabbar { margin-top: 0.65rem; }
+  .family-tabbar a { padding: 0.65rem 0.2rem; font-size: 0.9rem; }
 }

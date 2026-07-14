@@ -889,9 +889,11 @@ def create_post():
             flash(upload_message, "warning")
             return redirect(url_for("main.home"))
         filename = save_media(media_file)
-        if filename:
-            media_url = filename
-            media_type = get_media_type(filename)
+        if not filename:
+            flash("The upload could not be processed. Videos must be valid and 3 minutes or shorter.", "warning")
+            return redirect(url_for("main.home"))
+        media_url = filename
+        media_type = get_media_type(filename)
     post = Post(
         user_id=current_user.id,
         content=content,
@@ -1957,6 +1959,16 @@ def mark_all_notifications_read():
     db.session.commit()
     flash("All notifications marked as read.", "success")
     return redirect(url_for("main.notifications"))
+
+
+@main_bp.route("/privacy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+
+@main_bp.route("/terms")
+def terms_of_use():
+    return render_template("terms.html")
 
 
 @main_bp.route("/settings", methods=["GET", "POST"])

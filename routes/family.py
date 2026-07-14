@@ -199,9 +199,17 @@ FAMILY_PERMISSIONS = {
     "create_poll": {"owner", "admin"},
     "create_challenge": {"owner", "admin"},
     "create_quiz": {"owner", "admin"},
+    "create_campaign": {"owner", "admin"},
     "invite_members": {"owner", "admin"},
     "delete_family": {"owner"},
     "activate_upgrade": {"owner", "admin"},
+}
+
+FAMILY_CREATION_GRANTS = {
+    "create_poll": "can_create_polls",
+    "create_quiz": "can_create_quizzes",
+    "create_challenge": "can_create_challenges",
+    "create_campaign": "can_create_campaigns",
 }
 
 
@@ -331,6 +339,13 @@ def family_role(member):
 
 def family_has_permission(member, permission):
     return family_role(member) in FAMILY_PERMISSIONS.get(permission, set())
+
+
+def family_can_create(member, permission):
+    if family_has_permission(member, permission):
+        return True
+    field = FAMILY_CREATION_GRANTS.get(permission)
+    return bool(member and field and getattr(member, field, False))
 
 
 def role_rank(role):
@@ -670,7 +685,8 @@ def challenge_dashboard(family, members, current_member):
         "family_participant_count": family_participant_count,
         "family_completed_count": family_completed_count,
         "progress_by_challenge": progress_by_challenge,
-        "can_create_challenges": can_manage,
+        "can_create_challenges": family_can_create(current_member, "create_challenge"),
+        "can_manage_challenges": can_manage,
     }
 
 
@@ -709,7 +725,7 @@ def quiz_dashboard(family, members, current_member):
         "quiz_leaderboard": leaderboard[:10],
         "supports_quizzes": family_supports_quizzes(family),
         "can_create_quizzes": bool(
-            family_has_permission(current_member, "create_quiz") and family_supports_quizzes(family)
+            family_can_create(current_member, "create_quiz") and family_supports_quizzes(family)
         ),
         "can_review_quizzes": family_has_permission(current_member, "create_quiz"),
     }
@@ -789,7 +805,7 @@ def poll_dashboard(family, current_member):
         )
     return {
         "poll_rows": poll_rows,
-        "can_create_polls": family_has_permission(current_member, "create_poll"),
+        "can_create_polls": family_can_create(current_member, "create_poll"),
     }
 
 
@@ -1658,6 +1674,7 @@ def render_family_detail_page(
         can_change_family_image=family_has_permission(member, "change_family_image"),
         can_manage_roles=family_has_permission(member, "manage_roles"),
         can_manage_members=family_has_permission(member, "manage_members"),
+        can_manage_creation_permissions=family_has_permission(member, "manage_members"),
         can_warn_members=family_has_permission(member, "warn_members"),
         can_suspend_members=family_has_permission(member, "suspend_members"),
         can_invite_members=family_has_permission(member, "invite_members"),
@@ -1740,6 +1757,7 @@ def family_upgrades(family_id):
         available_points=family_point_balance(family.id),
         current_capacity=current_capacity,
         can_purchase=family_has_permission(member, "activate_upgrade"),
+        can_start_campaign=family_can_create(member, "create_campaign"),
         campaign_details=campaign_details,
         personal_balance=personal_point_balance(current_user.id),
     )
@@ -1825,8 +1843,8 @@ def create_upgrade_campaign(family_id):
         return redirect(url_for("family.family_detail", family_id=family_id))
     family = Family.query.filter_by(id=family_id).with_for_update().first_or_404()
     member = family_member_for_current_user(family)
-    if not family_has_permission(member, "activate_upgrade"):
-        flash("Only Family owners and admins can start contribution campaigns.", "danger")
+    if not family_can_create(member, "create_campaign"):
+        flash("You do not have permission to start a contribution campaign.", "danger")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     if FamilyContributionCampaign.query.filter_by(family_id=family.id, active_slot=True).first():
         flash("This Family already has an active contribution campaign.", "warning")
@@ -2314,8 +2332,8 @@ def join_family(family_id):
 def create_poll(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    if not family_has_permission(member, "create_poll"):
-        flash("Only Family owners and admins can create official polls.", "danger")
+    if not family_can_create(member, "create_poll"):
+        flash("You do not have permission to create official polls.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")
     question = request.form.get("question", "").strip()
     option_texts = []
@@ -2460,8 +2478,8 @@ def close_poll(family_id, poll_id):
 def create_challenge(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    if not family_has_permission(member, "create_challenge"):
-        flash("Only Family owners and admins can create official challenges.", "danger")
+    if not family_can_create(member, "create_challenge"):
+        flash("You do not have permission to create official challenges.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     active_count = FamilyChallenge.query.filter_by(family_id=family.id, status="active").count()
     challenge_limit = active_challenge_limit(family.id) if is_feature_enabled("family_upgrades") else 3
@@ -3107,8 +3125,8 @@ def share_challenge_achievement(family_id, completion_id):
 def create_quiz(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    if not family_has_permission(member, "create_quiz"):
-        flash("Only Family owners and admins can create quizzes.", "danger")
+    if not family_can_create(member, "create_quiz"):
+        flash("You do not have permission to create quizzes.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id))
     if not family_supports_quizzes(family):
         flash("This Family type does not use quizzes.", "warning")
@@ -3458,6 +3476,45 @@ def manage_family_member(family_id, member_id, action):
         return redirect(url_for("family.family_detail", family_id=family.id))
     db.session.commit()
     return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/member/<int:member_id>/creation-permissions", methods=["POST"])
+@login_required
+def update_member_creation_permissions(family_id, member_id):
+    family = Family.query.get_or_404(family_id)
+    actor_member = family_member_for_current_user(family)
+    target_member = FamilyMember.query.filter_by(id=member_id, family_id=family.id).first_or_404()
+    if not family_has_permission(actor_member, "manage_members"):
+        abort(403)
+    if (
+        target_member.user_id == current_user.id
+        or family_role(target_member) == "owner"
+        or role_rank(family_role(actor_member)) <= role_rank(family_role(target_member))
+    ):
+        flash("You cannot change creation rights for that Family role.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-members")
+    labels = []
+    for permission, field in FAMILY_CREATION_GRANTS.items():
+        enabled = request.form.get(permission) == "on"
+        setattr(target_member, field, enabled)
+        if enabled:
+            labels.append(permission.replace("create_", "").replace("_", " "))
+    description = ", ".join(labels) if labels else "none"
+    log_family_action(
+        family,
+        "member_creation_permissions_updated",
+        target_user_id=target_member.user_id,
+        reason=f"Allowed creation: {description}.",
+    )
+    add_family_notification(
+        target_member.user_id,
+        "family_role",
+        f"Your creation permissions in {family.name} were updated.",
+        url_for("family.family_detail", family_id=family.id),
+    )
+    db.session.commit()
+    flash("Member creation permissions updated.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id) + "#family-members")
 
 
 @family_bp.route("/family/<int:family_id>/member/<int:member_id>/restrict/<action>", methods=["POST"])

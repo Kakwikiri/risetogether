@@ -46,10 +46,12 @@
 
   <nav class="profile-tabbar family-tabbar" aria-label="Family sections" data-family-tabs>
     <a href="#family-home" data-family-tab>Home</a>
-    <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
+    <a href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}>Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
     <a href="#family-challenges" data-family-tab>Goals</a>
   </nav>
+
+  {% if not member %}<section id="family-chat-locked" class="family-section family-empty-panel" data-family-panel data-family-panel-group="chat" hidden><h3>Family chat</h3><p>No chat is shown here because Family conversations are private to members.</p><form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" {% if family_is_full or not family.is_active %}disabled{% endif %}>Join family to chat</button></form></section>{% endif %}
 
   {% if family.description %}
   <section class="family-description-panel" data-family-panel data-family-panel-group="home" hidden>
@@ -75,16 +77,16 @@
       <a class="family-dashboard-panel dashboard-link" href="#family-challenges" data-family-tab><span class="dashboard-icon">✓</span><h4>Active Challenge</h4><p>{% if dashboard_active_challenges %}{{ dashboard_active_challenges[0].title }}{% else %}A new shared challenge can begin here.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-goal" data-family-tab><span class="dashboard-icon">◎</span><h4>Family Goal</h4><p>{{ family.goal_title or 'Shape a shared goal together.' }}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_encouragement', family_id=family.id) if feature_enabled('anonymous_support_posts') and member else (url_for('main.post_detail', post_id=dashboard_needs_encouragement.id) if dashboard_needs_encouragement else '#family-posts') }}"><span class="dashboard-icon">♡</span><h4>Someone Needs Encouragement</h4><p>A gentle place to ask for listening, motivation, advice, or support.</p></a>
-      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}"><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}" data-family-tab><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-quizzes" data-family-tab><span class="dashboard-icon">★</span><h4>Weekly Quiz Highlight</h4><p>{% if dashboard_quiz_highlight %}{{ dashboard_quiz_highlight.participants }} {{ 'member' if dashboard_quiz_highlight.participants == 1 else 'members' }} made {{ dashboard_quiz_highlight.attempts }} {{ 'attempt' if dashboard_quiz_highlight.attempts == 1 else 'attempts' }} · {{ dashboard_quiz_highlight.passes }} passed.{% else %}The first quiz moment of the week is waiting.{% endif %}</p></a>
-      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('chat.family_chat', family_id=family.id) }}"><span class="dashboard-icon">◌</span><h4>Recent Chat</h4><p>{% if dashboard_recent_messages %}{{ dashboard_recent_messages[0].sender.username }}: {{ dashboard_recent_messages[0].content|default('Shared a message', true)|truncate(55) }}{% else %}The conversation is ready when your Family is.{% endif %}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}><span class="dashboard-icon">◌</span><h4>Recent Chat</h4><p>{% if dashboard_recent_messages %}{{ dashboard_recent_messages[0].sender.username }}: {{ dashboard_recent_messages[0].content|default('Shared a message', true)|truncate(55) }}{% else %}The conversation is ready when your Family is.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">▤</span><h4>Recent Posts</h4><p>{% if dashboard_recent_posts %}{{ dashboard_recent_posts|length }} recent Family {{ 'post' if dashboard_recent_posts|length == 1 else 'posts' }}.{% else %}Be the first to share with this Family.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">↗</span><h4>Weekly Activity</h4><p>{{ dashboard_weekly_achievements|length }} growth {{ 'moment' if dashboard_weekly_achievements|length == 1 else 'moments' }} this week.</p></section>
       {% if feature_enabled('weekly_reports') %}<a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.latest_weekly_family_report', family_id=family.id) }}"><span class="dashboard-icon">☼</span><h4>Weekly Family Report</h4><p>A warm reflection on how your Family grew together last week.</p></a>{% endif %}
       {% if member %}<a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_memories', family_id=family.id) }}"><span class="dashboard-icon">♡</span><h4>Family memories</h4><p>Revisit milestones created from this Family’s real history.</p></a>{% endif %}
       <a class="family-dashboard-panel dashboard-link" href="#family-members" data-family-tab><span class="dashboard-icon">+</span><h4>New Members</h4><p>{% if dashboard_new_members %}Welcome {{ dashboard_new_members|map(attribute='user.username')|join(', ') }}.{% else %}No new arrivals this week.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">✦</span><h4>Family Level Progress</h4><p>Level {{ family_level.level }} · {{ family_level.name }} · {{ family_level.progress_percent }}% toward the next level.</p></section>
-      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_upgrades', family_id=family.id) if feature_enabled('family_upgrades') else '#family-home' }}"><span class="dashboard-icon">◇</span><h4>Upgrade Campaign</h4><p>{% if dashboard_campaign %}{{ dashboard_campaign.upgrade.get('name', 'Family upgrade') }} · {{ dashboard_campaign.remaining }} points remaining.{% else %}No active campaign. Grow at your own pace.{% endif %}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_upgrades', family_id=family.id) if feature_enabled('family_upgrades') else '#family-home' }}" data-family-tab><span class="dashboard-icon">◇</span><h4>Upgrade Campaign</h4><p>{% if dashboard_campaign %}{{ dashboard_campaign.upgrade.get('name', 'Family upgrade') }} · {{ dashboard_campaign.remaining }} points remaining.{% else %}No active campaign. Grow at your own pace.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">☆</span><h4>Top Supporter of the Week</h4><p>{% if dashboard_top_supporter %}{{ dashboard_top_supporter.membership.user.username }} has been showing up for the Family.{% else %}Kind support this week can begin with anyone.{% endif %}</p></section>
     </div>
 
@@ -322,7 +324,7 @@
           <label>Evidence requirement<select name="evidence_requirement"><option value="none">None</option><option value="completion_note">Completion note</option><option value="photo">Photo</option><option value="video">Video</option><option value="audio">Audio</option><option value="file">File</option><option value="admin_approval">Admin approval</option></select></label>
           <label>Who can participate<select name="participant_scope"><option value="all_members">All Family members</option><option value="admins_moderators">Admins and moderators</option><option value="owners_admins">Owners and admins</option></select></label>
           <label data-participant-limit>Maximum participants, optional<input type="number" name="max_participants" min="1" max="10000" inputmode="numeric" /></label>
-          <label>Visibility<select name="visibility"><option value="family">Family members</option>{% if family.privacy == 'public' %}<option value="public">Public</option>{% endif %}<option value="admins_only">Family admins only</option></select></label>
+          <label>Visibility<select name="visibility"><option value="family">Family members</option>{% if family.privacy == 'public' %}<option value="public">Public</option>{% endif %}{% if can_manage_challenges %}<option value="admins_only">Family admins only</option>{% endif %}</select></label>
         </div>
         <label class="settings-check"><input type="checkbox" name="requires_admin_approval" /> Completion needs admin approval</label>
         <label class="settings-check"><input type="checkbox" name="allow_achievement_sharing" checked /> Achievements may be shared</label>
@@ -351,7 +353,7 @@
             {% if challenge_progress.completed_users %}<div class="challenge-progress-people"><span>Completed</span>{{ avatar_stack(challenge_progress.completed_users, 5, 'Completed participants') }}</div>{% endif %}
             {% if challenge_progress.working_users %}<div class="challenge-progress-people"><span>Still working</span>{{ avatar_stack(challenge_progress.working_users, 5, 'Participants still working') }}</div>{% endif %}
           </section>
-          {% if can_create_challenges %}
+          {% if can_manage_challenges %}
           <form action="{{ url_for('family.update_challenge_reward', family_id=family.id, challenge_id=challenge.id) }}" method="post" class="challenge-reward-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <label>Reward for future completions<select name="reward_tier">{% for tier in allowed_reward_tiers.get(challenge.challenge_type, []) %}<option value="{{ tier }}" {% if challenge.reward_tier == tier %}selected{% endif %}>{{ reward_tiers[tier] }} · {{ reward_values[tier] }} points</option>{% endfor %}</select></label>
@@ -388,6 +390,7 @@
           {% elif not member_can_participate(challenge, member) %}<span class="muted-meta">Participation is limited for this challenge.</span>
           {% endif %}
         {% endif %}
+        {% set can_create_challenges = can_manage_challenges %}
         {% if can_create_challenges %}{% for pending in challenge.completions.filter_by(verification_status='pending').all() %}<article class="challenge-approval-card"><div><strong>{{ pending.user.profile.display_name if pending.user.profile else pending.user.username }}</strong><span>@{{ pending.user.username }} · {{ pending.completed_at.strftime('%b %d, %Y %H:%M') }}</span>{% if pending.evidence_text %}<p>{{ pending.evidence_text }}</p>{% endif %}{% if pending.evidence_media_url %}<a href="{{ url_for('api.serve_upload', filename=pending.evidence_media_url) }}" target="_blank" rel="noopener">Review evidence</a>{% endif %}</div><form action="{{ url_for('family.review_challenge_completion', family_id=family.id, completion_id=pending.id, action='approve') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button" type="submit">Approve</button></form><form action="{{ url_for('family.review_challenge_completion', family_id=family.id, completion_id=pending.id, action='reject') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button class="button secondary" type="submit">Return</button></form></article>{% endfor %}
         {% set approved_completions = challenge.completions.filter_by(verification_status='completed').all() %}{% if approved_completions %}<details class="moderation-details"><summary>Review awarded completions</summary>{% for awarded in approved_completions[-5:] %}<article class="challenge-approval-card"><div><strong>{{ awarded.user.profile.display_name if awarded.user.profile else awarded.user.username }}</strong><span>{{ awarded.points_awarded }} points · {{ awarded.completed_at.strftime('%b %d, %Y %H:%M') }}</span></div>{% if awarded.user_id != current_user.id %}<form action="{{ url_for('family.review_challenge_completion', family_id=family.id, completion_id=awarded.id, action='invalidate') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Reason for invalidation<input name="reason" required minlength="10" maxlength="500" placeholder="Explain why this completion is no longer valid"></label><button class="button secondary" type="submit">Invalidate and reverse points</button></form>{% endif %}</article>{% endfor %}</details>{% endif %}{% endif %}
       </article>
@@ -430,6 +433,19 @@
         </span>
         {% if member and membership.user_id != current_user.id and membership.role != 'owner' %}
         <span class="member-actions">
+          {% if can_manage_creation_permissions %}
+          <details class="member-permission-editor">
+            <summary>Creation rights</summary>
+            <form action="{{ url_for('family.update_member_creation_permissions', family_id=family.id, member_id=membership.id) }}" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <label><input type="checkbox" name="create_poll" {% if membership.can_create_polls %}checked{% endif %}> Polls</label>
+              <label><input type="checkbox" name="create_quiz" {% if membership.can_create_quizzes %}checked{% endif %}> Quizzes</label>
+              <label><input type="checkbox" name="create_challenge" {% if membership.can_create_challenges %}checked{% endif %}> Challenges</label>
+              <label><input type="checkbox" name="create_campaign" {% if membership.can_create_campaigns %}checked{% endif %}> Campaigns</label>
+              <button class="text-button" type="submit">Save rights</button>
+            </form>
+          </details>
+          {% endif %}
           {% if can_manage_roles %}
           <form action="{{ url_for('family.manage_family_member', family_id=family.id, member_id=membership.id, action='promote') }}" method="post" onsubmit="return confirm('Promote this member to Family admin?');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -630,7 +646,7 @@
     {% for post in posts %}
     <article class="card post-card">
       <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}{{ rise_badges(rise_user_badges(post.author, family)) }}</strong>
-      <p>{{ post.content }}</p>
+      {% if post.content %}<div class="post-copy" data-post-copy><p class="post-content">{{ post.content }}</p><button class="post-read-more" type="button" data-read-more aria-expanded="false" hidden>Show more</button></div>{% endif %}
       {% if post.media_url %}
         {% if post.media_type == 'image' %}
         <div class="media-frame">

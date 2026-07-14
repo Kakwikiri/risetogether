@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import hashlib
+import re
 from datetime import datetime
 from html import escape
 from urllib.parse import quote
@@ -38,6 +39,7 @@ ALLOWED_EXTENSIONS = {
     "wav",
     "m4a",
 }
+MAX_VIDEO_DURATION_SECONDS = 180
 REACTION_TYPES = ["support", "understand", "keep-going", "inspire"]
 REACTION_LABELS = {
     "support": "❤️ Support",
@@ -220,6 +222,28 @@ def get_ffmpeg_executable():
     except ImportError:
         return None
     return imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def video_duration_seconds(path):
+    ffmpeg = get_ffmpeg_executable()
+    if not ffmpeg:
+        return None
+    try:
+        result = subprocess.run(
+            [ffmpeg, "-i", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", result.stderr or "")
+    if not match:
+        return None
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 def convert_video_for_browser(path, filename):
@@ -465,6 +489,13 @@ def save_media(file):
     if media_type == "image":
         optimize_image_for_storage(destination, filename)
     elif media_type == "video":
+        duration = video_duration_seconds(destination)
+        if duration is None or duration > MAX_VIDEO_DURATION_SECONDS:
+            try:
+                os.remove(destination)
+            except OSError:
+                pass
+            return None
         converted_filename = convert_video_for_browser(destination, filename)
         if converted_filename != filename:
             converted_path = os.path.join(current_app.config["UPLOAD_FOLDER"], converted_filename)

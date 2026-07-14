@@ -1461,7 +1461,7 @@ if (typeof chatConfig !== "undefined") {
         if (videoRecorder && videoRecorder.state !== "inactive") {
           videoRecorder.stop();
         }
-      }, 60000);
+      }, 180000);
     };
 
     const stopVideoRecording = () => {

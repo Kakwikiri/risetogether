@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260714-stage54-freeze";
+  const APP_VERSION = "20260714-family-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -571,7 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.requestAnimationFrame(syncOverflow);
     button.addEventListener("click", () => {
       const expanded = copy.classList.toggle("is-expanded");
-      button.textContent = expanded ? "Show less" : "Read more";
+      button.textContent = expanded ? "Show less" : "Show more";
       button.setAttribute("aria-expanded", String(expanded));
     });
   });
@@ -642,6 +642,16 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (file.type.startsWith("video/")) {
         element = document.createElement("video");
         element.controls = true;
+        element.preload = "metadata";
+        element.addEventListener("loadedmetadata", () => {
+          if (Number.isFinite(element.duration) && element.duration > 180) {
+            URL.revokeObjectURL(url);
+            input.value = "";
+            preview.innerHTML = "";
+            preview.hidden = true;
+            showToast("Videos must be 3 minutes or shorter.", "warning");
+          }
+        });
       } else if (file.type.startsWith("audio/")) {
         element = document.createElement("audio");
         element.controls = true;

@@ -475,7 +475,7 @@ def upload_message_file():
         return jsonify({"error": upload_message}), 400
     filename = save_media(media_file)
     if not filename:
-        return jsonify({"error": "Upload failed."}), 400
+        return jsonify({"error": "Upload failed. Videos must be valid and 3 minutes or shorter."}), 400
     media_type = media_kind if media_kind in {"audio", "video"} else get_media_type(filename)
     message = Message(
         sender_id=current_user.id,
