@@ -166,12 +166,25 @@
 .message-reactions button { display: inline-flex; align-items: center; gap: .15rem; min-width: 28px; min-height: 24px; padding: .1rem .35rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: inherit; }
 .message-reactions button[aria-pressed="true"] { border-color: var(--brand-dark); background: var(--soft); }
 .message-reactions small { font-size: .7rem; }
+.welcome-back-card, .return-suggestions { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.welcome-back-list { display: grid; gap: .6rem; }
+.welcome-back-list article, .welcome-back-list > a { display: block; padding: .7rem; color: inherit; text-decoration: none; border-radius: 10px; background: var(--soft); }
+.welcome-back-list p { margin: .3rem 0; overflow-wrap: anywhere; }
+.return-suggestions > article { display: grid; gap: .55rem; padding-block: .7rem; border-top: 1px solid var(--line); }
+.return-suggestion-person { display: flex; gap: .7rem; align-items: center; }
+.return-suggestion-person img, .return-checkin-row > img { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 50%; object-fit: cover; }
+.return-suggestion-person p { margin: 0; }
+.return-suggestions details form { display: grid; gap: .55rem; padding-top: .6rem; }
+.return-suggestions textarea { width: 100%; min-height: 76px; resize: vertical; }
+.return-checkin-row { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: .75rem; padding-block: .8rem; border-bottom: 1px solid var(--line); }
+.return-checkin-row p { margin: .25rem 0; overflow-wrap: anywhere; }
 
 @media (max-width: 560px) {
   .connection-page { width: 100%; }
   .impact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .appreciation-row { align-items: flex-start; flex-direction: column; gap: .25rem; }
   .post-purpose-support { padding: .6rem; }
+  .welcome-back-card, .return-suggestions { padding: .75rem; }
 }
 
 /* Final component-scoped cascade guards for the compact interface. */

@@ -145,6 +145,8 @@ def ensure_schema_compatibility():
         MediaAsset,
         MessageDeletion,
         MessageReaction,
+        ReturnCheckIn,
+        ReturnSuggestionDismissal,
         PushSubscription,
         AuditLog,
         FamilyMember,
@@ -175,6 +177,8 @@ def ensure_schema_compatibility():
     MediaAsset.__table__.create(db.engine, checkfirst=True)
     MessageDeletion.__table__.create(db.engine, checkfirst=True)
     MessageReaction.__table__.create(db.engine, checkfirst=True)
+    ReturnCheckIn.__table__.create(db.engine, checkfirst=True)
+    ReturnSuggestionDismissal.__table__.create(db.engine, checkfirst=True)
     PushSubscription.__table__.create(db.engine, checkfirst=True)
     AuditLog.__table__.create(db.engine, checkfirst=True)
     FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
@@ -214,11 +218,16 @@ def ensure_schema_compatibility():
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS original_post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(32) DEFAULT 'text'",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'read_at') THEN ALTER TABLE messages ADD COLUMN read_at TIMESTAMP; UPDATE messages SET read_at = created_at WHERE delivered = TRUE; END IF; END $$",
+        "CREATE INDEX IF NOT EXISTS ix_messages_read_at ON messages (read_at)",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255) DEFAULT ''",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS group_key VARCHAR(180) NOT NULL DEFAULT ''",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS dedupe_key VARCHAR(180)",
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_count INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS important BOOLEAN NOT NULL DEFAULT FALSE",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_important ON notifications (important)",
+        "UPDATE notifications SET important = TRUE WHERE category IN ('message','family_invitation','challenge_invitation','challenge_reminder','challenge_completed','encouragement')",
         "CREATE INDEX IF NOT EXISTS ix_notifications_user_group_unread ON notifications (user_id, group_key, seen, updated_at)",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_notifications_dedupe_key') THEN CREATE UNIQUE INDEX uq_notifications_dedupe_key ON notifications (dedupe_key) WHERE dedupe_key IS NOT NULL; END IF; END $$",
         "ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS code_hash VARCHAR(256) DEFAULT ''",
@@ -233,7 +242,14 @@ def ensure_schema_compatibility():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(80) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_hidden_from_directory BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP",
+        "CREATE INDEX IF NOT EXISTS ix_users_last_active_at ON users (last_active_at)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS return_summary_since TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS return_summary_dismissed_at TIMESTAMP",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS notification_previews_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS checkin_suggestions_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS miss_you_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS return_summaries_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS auto_share_completed_challenges BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Africa/Kampala'",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_point_balance BOOLEAN NOT NULL DEFAULT FALSE",
@@ -378,25 +394,47 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+@app.before_request
+def record_real_user_activity():
+    if not current_user.is_authenticated or request.endpoint in {"static", "service_worker"}:
+        return
+    now = datetime.utcnow()
+    previous = current_user.last_active_at
+    if (
+        previous
+        and now - previous >= timedelta(days=3)
+        and current_user.profile
+        and current_user.profile.return_summaries_enabled
+        and current_user.return_summary_since is None
+    ):
+        current_user.return_summary_since = previous
+        current_user.return_summary_dismissed_at = None
+    if previous is None or now - previous >= timedelta(minutes=15):
+        current_user.last_active_at = now
+        db.session.commit()
+
+
 @app.context_processor
 def inject_navigation_counts():
     from badges import family_badges, user_badges
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
     from models import Message, Notification
+    from notifications_service import important_unread_count, unread_private_message_count
 
     unread_notifications = 0
     unread_messages = 0
+    app_badge_count = 0
     if current_user.is_authenticated:
         unread_notifications = Notification.query.filter_by(
             user_id=current_user.id, seen=False
         ).count()
-        unread_messages = Message.query.filter_by(
-            recipient_id=current_user.id, delivered=False
-        ).count()
+        unread_messages = unread_private_message_count(current_user.id)
+        app_badge_count = unread_messages + important_unread_count(current_user.id)
     feature_flags = get_feature_flags()
     return {
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
+        "app_badge_count": app_badge_count,
         "is_hevc_upload": is_hevc_upload,
         "get_media_type": get_media_type,
         "chat_day_label": chat_day_label,

@@ -3,32 +3,42 @@ from datetime import datetime, timedelta
 from extensions import db, socketio
 from sqlalchemy.exc import IntegrityError
 from helpers import send_device_push
-from models import Notification, NotificationDeliveryKey, NotificationPreference, User
+from sqlalchemy import or_
+from models import Message, MessageDeletion, Notification, NotificationDeliveryKey, NotificationPreference, User
 
 
 NOTIFICATION_CATEGORIES = {
-    "message": "Messages", "comment": "Comments", "reaction": "Reactions",
-    "follow": "Follows and connections", "family_invitation": "Family invitations",
-    "challenge_invitation": "Challenge invitations", "challenge_reminder": "Challenge reminders",
-    "challenge_completed": "Challenge completions", "goal_progress": "Goal progress",
-    "weekly_report": "Weekly reports", "upgrade_campaign": "Upgrade campaigns",
-    "contribution_received": "Contributions received", "family_level": "Family level increases",
-    "encouragement": "Encouragement requests",
+    "message": "Messages",
+    "friends": "Friends",
+    "families": "Families",
+    "support": "Support and encouragement",
+    "challenges": "Challenges",
+    "reminders": "Reminders",
+    "admin": "Admin notices",
 }
 
 CATEGORY_ALIASES = {
     "family_chat": "message", "voice_note": "message", "video_note": "message", "call": "message",
-    "comment_reply": "comment", "mention": "comment", "comment_reaction": "comment",
-    "friend_request": "follow", "friend_accept": "follow", "followed_post": "follow",
-    "family_invite": "family_invitation", "family_poll": "family_invitation", "family_role": "family_invitation",
-    "quiz_starting": "challenge_invitation", "family_challenge": "challenge_invitation", "challenge_created": "challenge_invitation",
-    "challenge_pending": "challenge_completed", "challenge_approved": "challenge_completed", "challenge_approval": "challenge_completed",
-    "goal": "goal_progress", "weekly_family_report": "weekly_report",
-    "family_upgrade": "upgrade_campaign", "campaign_milestone": "upgrade_campaign",
-    "contribution_campaign": "upgrade_campaign", "family_upgrade_unlocked": "upgrade_campaign",
-    "campaign_contribution": "contribution_received", "family_level_up": "family_level",
-    "checkin_support": "encouragement", "encouragement_request": "encouragement", "encouragement_response": "encouragement",
-    "appreciation": "encouragement", "post_support": "encouragement", "listen_accepted": "encouragement",
+    "comment": "families", "comment_reply": "families", "mention": "families", "comment_reaction": "families", "reaction": "families",
+    "follow": "friends", "friend_request": "friends", "friend_accept": "friends", "followed_post": "friends",
+    "family_invitation": "families", "family_invite": "families", "family_poll": "families", "family_role": "families",
+    "weekly_report": "families", "weekly_family_report": "families", "family_upgrade": "families", "upgrade_campaign": "families",
+    "campaign_milestone": "families", "contribution_campaign": "families", "family_upgrade_unlocked": "families",
+    "campaign_contribution": "families", "contribution_received": "families", "family_level": "families", "family_level_up": "families",
+    "challenge_invitation": "challenges", "quiz_starting": "challenges", "family_challenge": "challenges", "challenge_created": "challenges",
+    "challenge_completed": "challenges", "challenge_pending": "challenges", "challenge_approved": "challenges", "challenge_approval": "challenges",
+    "goal": "challenges", "goal_progress": "challenges", "challenge_reminder": "reminders",
+    "encouragement": "support", "checkin_support": "support", "encouragement_request": "support", "encouragement_response": "support",
+    "appreciation": "support", "post_support": "support", "listen_accepted": "support", "return_checkin": "support", "return_thanks": "support",
+    "share": "families", "live": "families", "family": "families",
+    "family_moderation": "admin", "points_reversed": "admin", "admin_warning": "admin",
+}
+
+IMPORTANT_EVENT_CATEGORIES = {
+    "message", "voice_note", "video_note", "friend_request", "family_invite",
+    "encouragement_response", "checkin_support", "appreciation", "post_support", "listen_accepted",
+    "return_checkin", "return_thanks", "challenge_approved", "challenge_approval",
+    "family", "family_moderation", "points_reversed", "admin_warning",
 }
 
 
@@ -46,10 +56,12 @@ def notification_allowed(user_id, category):
 
 
 def smart_notify(*, user_id, category, message, action_url="", group_key="", dedupe_key=None,
-                 reminder=False, push=True):
+                 reminder=False, push=True, important=None):
     if not notification_allowed(user_id, category):
         return None, False
+    raw_category = category
     canonical = canonical_category(category)
+    is_important = raw_category in IMPORTANT_EVENT_CATEGORIES if important is None else bool(important)
     delivery_key = None
     if dedupe_key:
         try:
@@ -78,6 +90,7 @@ def smart_notify(*, user_id, category, message, action_url="", group_key="", ded
         existing.message = message[:1000]
         existing.action_url = action_url[:255]
         existing.updated_at = datetime.utcnow()
+        existing.important = existing.important or is_important
         notification = existing
         created = False
     else:
@@ -85,6 +98,7 @@ def smart_notify(*, user_id, category, message, action_url="", group_key="", ded
             user_id=user_id, category=canonical, message=message[:1000],
             action_url=action_url[:255], group_key=normalized_group,
             dedupe_key=dedupe_key[:180] if dedupe_key else None,
+            important=is_important,
         )
         db.session.add(notification)
         db.session.flush()
@@ -95,9 +109,10 @@ def smart_notify(*, user_id, category, message, action_url="", group_key="", ded
         "id": notification.id, "category": notification.category,
         "message": notification.message, "action_url": notification.action_url,
         "event_count": notification.event_count,
+        "important": notification.important,
         "created_at": notification.updated_at.strftime("%Y-%m-%d %H:%M"),
     }, room=f"user-{user_id}")
-    if push and (created or not reminder):
+    if push and is_important and (created or not reminder):
         send_device_push(notification)
     return notification, created
 
@@ -114,3 +129,22 @@ def save_notification_preferences(user, form):
 def preference_map(user):
     stored = {row.category: row.enabled for row in user.notification_preferences.all()}
     return {category: stored.get(category, True) for category in NOTIFICATION_CATEGORIES}
+
+
+def important_unread_count(user_id):
+    return Notification.query.filter(
+        Notification.user_id == user_id,
+        Notification.seen == False,
+        Notification.important == True,
+        Notification.category != "message",
+    ).count()
+
+
+def unread_private_message_count(user_id):
+    return Message.query.filter(
+        Message.recipient_id == user_id,
+        Message.family_id == None,
+        Message.read_at == None,
+        or_(Message.expires_at == None, Message.expires_at > datetime.utcnow()),
+        ~Message.deletions.any(MessageDeletion.user_id == user_id),
+    ).count()

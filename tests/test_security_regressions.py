@@ -990,7 +990,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("#message-{message.id}", chat)
         self.assertIn('id="message-{{ message.id }}"', template)
         self.assertIn("notification_previews_enabled", helpers)
-        self.assertIn("You received a new message.", helpers)
+        self.assertIn("You have a new message.", helpers)
 
     def test_stage_twenty_nine_preferences_reads_and_required_categories(self):
         service = (ROOT / "notifications_service.py").read_text()

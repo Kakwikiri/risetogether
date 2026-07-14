@@ -34,6 +34,13 @@
       <p class="muted-meta">Turn off anything that is not useful to you. Essential account and safety notices remain available.</p>
       {% for key, label in notification_categories.items() %}<label><input type="checkbox" name="notification_{{ key }}" {% if notification_preferences.get(key, true) %}checked{% endif %} />{{ label }}</label>{% endfor %}
     </fieldset>
+    <fieldset class="notification-preference-grid">
+      <legend>Connection and return settings</legend>
+      <p class="muted-meta">These controls never reveal your exact last-seen time.</p>
+      <label><input type="checkbox" name="checkin_suggestions_enabled" {% if current_user.profile.checkin_suggestions_enabled %}checked{% endif %} /> Suggest trusted people I may want to check on</label>
+      <label><input type="checkbox" name="miss_you_notifications_enabled" {% if current_user.profile.miss_you_notifications_enabled %}checked{% endif %} /> Receive “we miss you” check-ins</label>
+      <label><input type="checkbox" name="return_summaries_enabled" {% if current_user.profile.return_summaries_enabled %}checked{% endif %} /> Show a welcome-back summary after time away</label>
+    </fieldset>
     {% if feature_enabled('achievement_posts') %}
     <label>
       <input type="checkbox" name="auto_share_completed_challenges" {% if current_user.profile.auto_share_completed_challenges %}checked{% endif %} />

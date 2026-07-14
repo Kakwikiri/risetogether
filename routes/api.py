@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from urllib.parse import urlparse
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory, url_for
 from flask_login import current_user, login_required
@@ -9,6 +10,7 @@ from werkzeug.utils import safe_join
 from extensions import db
 from helpers import user_avatar_url
 from models import Family, FamilyMember, MediaAsset, Message, Profile, PushSubscription, User
+from notifications_service import important_unread_count, unread_private_message_count
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -174,7 +176,16 @@ def push_subscribe():
     keys = data.get("keys") or {}
     p256dh = (keys.get("p256dh") or "").strip()
     auth = (keys.get("auth") or "").strip()
-    if not endpoint or not p256dh or not auth:
+    parsed_endpoint = urlparse(endpoint)
+    if (
+        parsed_endpoint.scheme != "https"
+        or not parsed_endpoint.netloc
+        or not p256dh
+        or not auth
+        or len(endpoint) > 4096
+        or len(p256dh) > 4096
+        or len(auth) > 1024
+    ):
         return jsonify({"error": "Invalid push subscription."}), 400
     subscription = PushSubscription.query.filter_by(endpoint=endpoint).first()
     if not subscription:
@@ -195,13 +206,24 @@ def push_subscribe():
 def push_unsubscribe():
     data = request.get_json(silent=True) or {}
     endpoint = (data.get("endpoint") or "").strip()
-    query = PushSubscription.query.filter_by(user_id=current_user.id, active=True)
-    if endpoint:
-        query = query.filter_by(endpoint=endpoint)
+    if not endpoint:
+        return jsonify({"error": "A device endpoint is required."}), 400
+    query = PushSubscription.query.filter_by(user_id=current_user.id, endpoint=endpoint, active=True)
     query.update({"active": False})
-    current_user.profile.notifications_enabled = False
     db.session.commit()
     return jsonify({"ok": True})
+
+
+@api_bp.route("/unread-counts")
+@login_required
+def unread_counts():
+    unread_messages = unread_private_message_count(current_user.id)
+    important_notifications = important_unread_count(current_user.id)
+    return jsonify({
+        "messages": unread_messages,
+        "important_notifications": important_notifications,
+        "combined": unread_messages + important_notifications,
+    })
 
 
 @api_bp.route("/families/<int:family_id>/members")

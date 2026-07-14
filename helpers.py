@@ -368,7 +368,7 @@ def device_push_body(notification):
     if notification.category in private_categories:
         if previews_enabled:
             return notification.message
-        return "You received a new message."
+        return "You have a new message."
     if notification.category in media_categories:
         if previews_enabled:
             return notification.message
@@ -399,15 +399,22 @@ def send_device_push(notification, title="RiseTogether"):
 
     from extensions import db
     from models import PushSubscription
+    from notifications_service import important_unread_count, unread_private_message_count
+
+    unread_messages = unread_private_message_count(notification.user_id)
+    badge_count = unread_messages + important_unread_count(notification.user_id)
 
     payload = json.dumps(
         {
             "title": title,
             "body": device_push_body(notification),
-            "url": notification.action_url or "/notifications",
+            # Route push clicks through the existing notification opener so the
+            # same record is marked read before its exact destination opens.
+            "url": f"/notifications/{notification.id}/open",
             "tag": f"notification-{notification.id}",
             "notification_id": notification.id,
             "category": notification.category,
+            "badge_count": badge_count,
         }
     )
     subscriptions = PushSubscription.query.filter_by(

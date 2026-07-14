@@ -296,9 +296,10 @@ def cleanup_family_image(filename):
         db.session.commit()
 
 
-def add_family_notification(user_id, category, message, action_url):
+def add_family_notification(user_id, category, message, action_url, important=None):
     notification, _ = smart_notify(
         user_id=user_id, category=category, message=message, action_url=action_url,
+        important=important,
     )
     return notification
 
@@ -1533,6 +1534,7 @@ def respond_to_encouragement(family_id, request_id):
             current_user.id, "encouragement_response",
             f"You encouraged {encouraged_name} today.",
             url_for("main.impact"),
+            important=False,
         )
     if len(comment) >= 10:
         db.session.flush()

@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260713-stage14-point-ledger";
+  const APP_VERSION = "20260714-stage54-freeze";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -186,6 +186,37 @@ document.addEventListener("DOMContentLoaded", () => {
     return navigator.serviceWorker.register(`/service-worker.js?v=${APP_VERSION}`, { scope: "/" });
   };
 
+  const originalDocumentTitle = document.title.replace(/^\((?:\d+|9\+)\)\s*/, "");
+  const applyAppBadge = async (count) => {
+    const safeCount = Math.max(0, Number(count) || 0);
+    document.title = safeCount ? `(${safeCount > 9 ? "9+" : safeCount}) ${originalDocumentTitle}` : originalDocumentTitle;
+    try {
+      if (safeCount && "setAppBadge" in navigator) await navigator.setAppBadge(safeCount);
+      else if (!safeCount && "clearAppBadge" in navigator) await navigator.clearAppBadge();
+    } catch (error) {
+      // App badging depends on browser, launcher, and installation support.
+    }
+  };
+
+  const syncUnreadBadge = async () => {
+    if (document.body.dataset.authenticated !== "1") return applyAppBadge(0);
+    try {
+      const response = await fetch("/api/unread-counts", { headers: { Accept: "application/json" } });
+      if (!response.ok) return;
+      const counts = await response.json();
+      await applyAppBadge(counts.combined);
+    } catch (error) {
+      // In-app counters remain server rendered when the API or Badging API is unavailable.
+    }
+  };
+
+  applyAppBadge(document.querySelector('meta[name="app-badge-count"]')?.content || 0);
+  window.addEventListener("risetogether:unread-changed", syncUnreadBadge);
+  window.addEventListener("focus", syncUnreadBadge);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncUnreadBadge();
+  });
+
   const showUpdateNotice = (worker) => {
     if (localStorage.getItem(dismissedUpdateKey) === APP_VERSION) return;
     waitingServiceWorker = worker;
@@ -281,17 +312,61 @@ document.addEventListener("DOMContentLoaded", () => {
         const subscription = await registration.pushManager.getSubscription();
         const endpoint = subscription ? subscription.endpoint : "";
         if (subscription) await subscription.unsubscribe();
-        await fetch("/api/push/unsubscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint }),
-        });
+        if (endpoint) {
+          const response = await fetch("/api/push/unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint }),
+          });
+          if (!response.ok) throw new Error("This device could not be disabled.");
+        }
         setPushStatus("Device notifications disabled.");
       } catch (error) {
         setPushStatus(error.message || "Device notifications could not be disabled.");
       }
     });
   }
+
+  document.querySelectorAll("[data-return-message-select]").forEach((select) => {
+    const textarea = select.closest("form")?.querySelector("[data-return-message]");
+    select.addEventListener("change", () => {
+      if (textarea) textarea.value = select.value;
+    });
+  });
+
+  if ("Notification" in window && Notification.permission === "denied" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistration().then(async (registration) => {
+      const subscription = await registration?.pushManager?.getSubscription();
+      if (!subscription) return;
+      await fetch("/api/push/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
+  document.querySelectorAll("[data-logout]").forEach((link) => {
+    link.addEventListener("click", async (event) => {
+      event.preventDefault();
+      await applyAppBadge(0);
+      try {
+        const registration = await navigator.serviceWorker?.getRegistration();
+        const subscription = await registration?.pushManager?.getSubscription();
+        if (subscription) {
+          await fetch("/api/push/unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          });
+          await subscription.unsubscribe();
+        }
+      } catch (error) {
+        // Logout must still complete if this browser cannot manage subscriptions.
+      }
+      window.location.assign(link.href);
+    });
+  });
 
   const navToggle = document.querySelector(".nav-toggle");
   const navLinks = document.querySelector(".nav-links");

@@ -226,6 +226,7 @@ def serialize_message(message):
         "reply_to_id": message.reply_to_id,
         "view_once": message.view_once,
         "delivered": message.delivered,
+        "read_at": message.read_at.isoformat() if message.read_at else None,
         "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
     }
 
@@ -286,6 +287,22 @@ def mark_private_messages_delivered(sender_id, recipient_id):
         room=room_for_private_chat(sender_id, recipient_id),
     )
     return message_ids
+
+
+def mark_private_messages_read(sender_id, recipient_id):
+    now = datetime.utcnow()
+    messages = Message.query.filter_by(sender_id=sender_id, recipient_id=recipient_id, read_at=None).all()
+    for message in messages:
+        message.read_at = now
+        message.delivered = True
+    if messages:
+        db.session.commit()
+        socketio.emit(
+            "messages_read",
+            {"message_ids": [message.id for message in messages], "reader_id": recipient_id},
+            room=user_room(sender_id),
+        )
+    return [message.id for message in messages]
 
 
 def create_call_history(sender_id, recipient_id, mode, status):
@@ -373,6 +390,7 @@ def direct_chat(user_id):
         .all()
     )
     mark_private_messages_delivered(other.id, current_user.id)
+    mark_private_messages_read(other.id, current_user.id)
     Notification.query.filter(
         Notification.user_id == current_user.id,
         Notification.category.in_(["message", "call"]),
@@ -513,7 +531,7 @@ def upload_message_file():
         notification_message = f"{current_user.username} shared a file."
     for user_id in recipients:
         smart_notify(
-            user_id=user_id, category="message", message=notification_message,
+            user_id=user_id, category="family_chat" if message.family_id else "message", message=notification_message,
             action_url=(
                 url_for("chat.family_chat", family_id=message.family_id)
                 if message.family_id
@@ -902,7 +920,7 @@ def family_message(data):
         if member.user_id != current_user.id:
             preview = " ".join(content.split())[:100]
             smart_notify(
-                user_id=member.user_id, category="message",
+                user_id=member.user_id, category="family_chat",
                 message=f"{current_user.username} in {family.name}: ‘{preview}{'…' if len(content) > 100 else ''}’",
                 action_url=url_for("chat.family_chat", family_id=family.id) + f"#message-{message.id}",
                 group_key=f"message:{current_user.id}:family:{family.id}",

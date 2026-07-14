@@ -1,4 +1,4 @@
-const CACHE_NAME = "risetogether-cache-v54";
+const CACHE_NAME = "risetogether-cache-v55";
 const ASSETS = [
   "/offline",
   "/static/css/styles.css",
@@ -114,7 +114,14 @@ self.addEventListener("push", (event) => {
       category: data.category || "notification",
     },
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    Number.isFinite(Number(data.badge_count)) && Number(data.badge_count) > 0 && "setAppBadge" in self.registration
+      ? self.registration.setAppBadge(Number(data.badge_count)).catch(() => {})
+      : Number(data.badge_count) === 0 && "clearAppBadge" in self.registration
+        ? self.registration.clearAppBadge().catch(() => {})
+        : Promise.resolve(),
+  ]));
 });
 
 self.addEventListener("notificationclick", (event) => {

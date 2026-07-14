@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f766e" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <meta name="app-badge-count" content="{{ app_badge_count }}" />
     <meta name="feature-media-autoplay" content="{{ '1' if feature_enabled('media_autoplay') else '0' }}" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -59,19 +60,19 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-connection-history"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-stage54-freeze"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260714-family-tabs"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260714-stage54-freeze"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-human-chat"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-stage54-freeze"
     ></script>
   </head>
-  <body>
+  <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
     <header class="topbar">
       <div class="brand">
         <a href="{{ url_for('main.home') }}">
@@ -94,12 +95,12 @@
         <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
         <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
           data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge" data-message-badge
-            >{{ unread_messages }}</span
+            >{{ '9+' if unread_messages > 9 else unread_messages }}</span
           >{% endif %}</a
         >
         <a href="{{ url_for('main.notifications') }}"
           data-icon="●"><span>Notifications</span> {% if unread_notifications %}<span class="nav-badge" data-notification-badge
-            >{{ unread_notifications }}</span
+            >{{ '9+' if unread_notifications > 9 else unread_notifications }}</span
           >{% endif %}</a
         >
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
@@ -130,7 +131,7 @@
         <a href="{{ url_for('moderation.admin_feature_flags') }}" data-icon="⚑"><span>Features</span></a>
         {% endif %}
         {% endif %}
-        <a href="{{ url_for('auth.logout') }}" data-icon="⇥"><span>Logout</span></a>
+        <a href="{{ url_for('auth.logout') }}" data-icon="⇥" data-logout><span>Logout</span></a>
         {% else %}
         <a href="{{ url_for('auth.login') }}">Login</a>
         <a href="{{ url_for('auth.signup') }}">Signup</a>
@@ -209,8 +210,8 @@
       <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="Feed"><span aria-hidden="true">⌂</span><small>Feed</small></a>
       <a href="{{ url_for('main.people') }}" class="{% if request.endpoint == 'main.people' %}is-active{% endif %}" aria-label="People"><span aria-hidden="true">☻</span><small>People</small></a>
       <a href="{{ url_for('family.families') }}" class="{% if request.endpoint in ['family.families', 'family.family_detail'] %}is-active{% endif %}" aria-label="Families"><span aria-hidden="true">♡</span><small>Families</small></a>
-      <a href="{{ url_for('chat.inbox') }}" class="{% if request.endpoint == 'chat.inbox' %}is-active{% endif %}" aria-label="Messages"><span aria-hidden="true">✉</span><small>Messages</small>{% if unread_messages %}<b class="mobile-nav-badge" data-message-badge>{{ unread_messages }}</b>{% endif %}</a>
-      <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ unread_notifications }}</b>{% endif %}</a>
+      <a href="{{ url_for('chat.inbox') }}" class="{% if request.endpoint == 'chat.inbox' %}is-active{% endif %}" aria-label="Messages"><span aria-hidden="true">✉</span><small>Messages</small>{% if unread_messages %}<b class="mobile-nav-badge" data-message-badge>{{ '9+' if unread_messages > 9 else unread_messages }}</b>{% endif %}</a>
+      <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ '9+' if unread_notifications > 9 else unread_notifications }}</b>{% endif %}</a>
     </nav>
     {% endif %}
     {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat'] %}

@@ -30,6 +30,7 @@ from models import (
     EncouragementRequest,
     EncouragementResponse,
     Family,
+    FamilyChallenge,
     FamilyMember,
     FamilyMemberRestriction,
     Follow,
@@ -41,7 +42,10 @@ from models import (
     Post,
     PostSupportResponse,
     PostShare,
+    Profile,
     Reaction,
+    ReturnCheckIn,
+    ReturnSuggestionDismissal,
     StreakMilestone,
     StreakActivity,
     UserStreak,
@@ -64,6 +68,13 @@ POST_PURPOSES = {
     "practical_help": "I need practical help",
     "celebrating": "I'm celebrating",
 }
+RETURN_CHECKIN_MESSAGES = (
+    "We miss you here.",
+    "I hope you are doing okay.",
+    "Just checking on you.",
+    "Your RiseTogether family is thinking about you.",
+    "No pressure to reply. I only wanted you to know that you matter.",
+)
 FEED_FILTERS = {"all", "videos", "families", "highlights", "kindness", "trending"}
 SUPPORTIVE_PROMPTS = (
     "What’s on your heart today?",
@@ -135,9 +146,10 @@ def validate_profile_avatar_upload(file):
     return True, ""
 
 
-def add_notification(user_id, category, message, action_url=""):
+def add_notification(user_id, category, message, action_url="", important=None):
     notification, _ = smart_notify(
         user_id=user_id, category=category, message=message, action_url=action_url,
+        important=important,
     )
     return notification
 
@@ -197,6 +209,8 @@ def home():
             for block in Block.query.filter_by(blocker_id=current_user.id).all()
         ]
         hidden_ids = set(blocked + blocked_by)
+        return_suggestions = return_suggestions_for(current_user, hidden_ids)
+        return_summary = welcome_back_summary(current_user)
         memberships = user_family_ids(current_user)
         shared_post_ids = [
             share.post_id
@@ -301,6 +315,8 @@ def home():
             supportive_prompts=SUPPORTIVE_PROMPTS,
             encouragement_suggestions=encouragement_suggestions,
             daily_reasons=daily_reasons,
+            return_suggestions=return_suggestions,
+            return_summary=return_summary,
         )
     return render_template("landing.html")
 
@@ -399,6 +415,106 @@ def users_are_friends(user_id, other_id):
         ).first()
         is not None
     )
+
+
+def trusted_connection_ids(user_id):
+    ids = set()
+    for friendship in FriendRequest.query.filter(
+        FriendRequest.status == "accepted",
+        or_(FriendRequest.sender_id == user_id, FriendRequest.receiver_id == user_id),
+    ).all():
+        ids.add(friendship.receiver_id if friendship.sender_id == user_id else friendship.sender_id)
+    family_ids = [row.family_id for row in FamilyMember.query.filter_by(user_id=user_id).all()]
+    if family_ids:
+        ids.update(
+            row.user_id for row in FamilyMember.query.filter(
+                FamilyMember.family_id.in_(family_ids), FamilyMember.user_id != user_id,
+            ).all()
+        )
+    recent_cutoff = datetime.utcnow() - timedelta(days=90)
+    for message in Message.query.filter(
+        Message.family_id == None,
+        Message.created_at >= recent_cutoff,
+        or_(Message.sender_id == user_id, Message.recipient_id == user_id),
+    ).all():
+        ids.add(message.recipient_id if message.sender_id == user_id else message.sender_id)
+    return {candidate_id for candidate_id in ids if candidate_id}
+
+
+def can_send_return_checkin(sender_id, recipient_id):
+    if sender_id == recipient_id or recipient_id not in trusted_connection_ids(sender_id):
+        return False
+    return not Block.query.filter(or_(
+        (Block.blocker_id == sender_id) & (Block.blocked_id == recipient_id),
+        (Block.blocker_id == recipient_id) & (Block.blocked_id == sender_id),
+    )).first()
+
+
+def return_suggestions_for(user, hidden_ids):
+    if not user.profile.checkin_suggestions_enabled:
+        return []
+    now = datetime.utcnow()
+    candidate_ids = trusted_connection_ids(user.id) - set(hidden_ids) - {user.id}
+    if not candidate_ids:
+        return []
+    dismissed_ids = {
+        row.inactive_user_id for row in ReturnSuggestionDismissal.query.filter(
+            ReturnSuggestionDismissal.viewer_id == user.id,
+            ReturnSuggestionDismissal.dismissed_until > now,
+        ).all()
+    }
+    recent_sent_ids = {
+        row.recipient_id for row in ReturnCheckIn.query.filter(
+            ReturnCheckIn.sender_id == user.id,
+            ReturnCheckIn.created_at >= now - timedelta(days=7),
+        ).all()
+    }
+    candidates = User.query.join(Profile).filter(
+        User.id.in_(candidate_ids - dismissed_ids - recent_sent_ids),
+        User.last_active_at != None,
+        User.last_active_at <= now - timedelta(days=3),
+        Profile.checkin_suggestions_enabled == True,
+        Profile.miss_you_notifications_enabled == True,
+    ).order_by(User.last_active_at.asc()).limit(12).all()
+    if not candidates:
+        return []
+    start = now.date().toordinal() % len(candidates)
+    return (candidates[start:] + candidates[:start])[:3]
+
+
+def welcome_back_summary(user):
+    since = user.return_summary_since
+    if not since or not user.profile.return_summaries_enabled:
+        return None
+    checkins = ReturnCheckIn.query.filter(
+        ReturnCheckIn.recipient_id == user.id,
+        ReturnCheckIn.created_at >= since,
+    ).order_by(ReturnCheckIn.created_at.desc()).all()
+    family_ids = [row.family_id for row in user.family_memberships]
+    family_activity = []
+    if family_ids:
+        completions = ChallengeCompletion.query.join(FamilyChallenge).filter(
+            FamilyChallenge.family_id.in_(family_ids),
+            ChallengeCompletion.completed_at >= since,
+            ChallengeCompletion.verification_status == "completed",
+        ).all()
+        counts = {}
+        for completion in completions:
+            counts[completion.challenge.family_id] = counts.get(completion.challenge.family_id, 0) + 1
+        family_activity = [
+            {"family": Family.query.get(family_id), "count": count}
+            for family_id, count in counts.items()
+        ]
+    encouragement_count = EncouragementResponse.query.join(EncouragementRequest).filter(
+        EncouragementRequest.user_id == user.id,
+        EncouragementResponse.created_at >= since,
+    ).count()
+    return {
+        "since": since,
+        "checkins": checkins,
+        "family_activity": [row for row in family_activity if row["family"]],
+        "encouragement_count": encouragement_count,
+    }
 
 
 def can_view_post(post):
@@ -859,7 +975,7 @@ def support_post(post_id):
     if is_new:
         add_notification(post.user_id, "post_support", notification_text, url_for("main.post_detail", post_id=post.id))
     if is_new and action == "idea":
-        add_notification(current_user.id, "post_support", "Your advice was shared.", url_for("main.impact"))
+        add_notification(current_user.id, "post_support", "Your advice was shared.", url_for("main.impact"), important=False)
     db.session.commit()
     flash("Your response was shared." if action != "listen" else "Your invitation was sent. A chat will open only if it is accepted.", "success")
     return redirect(request.referrer or url_for("main.post_detail", post_id=post.id))
@@ -1661,6 +1777,108 @@ def notifications():
     return render_template("notifications.html", notifications=notifications)
 
 
+@main_bp.route("/check-ins")
+@login_required
+def return_checkins():
+    received = ReturnCheckIn.query.filter_by(recipient_id=current_user.id).order_by(ReturnCheckIn.created_at.desc()).limit(50).all()
+    sent = ReturnCheckIn.query.filter_by(sender_id=current_user.id).order_by(ReturnCheckIn.created_at.desc()).limit(20).all()
+    return render_template("return_checkins.html", received=received, sent=sent)
+
+
+@main_bp.route("/check-in/<int:user_id>/send", methods=["POST"])
+@login_required
+def send_return_checkin(user_id):
+    recipient = User.query.get_or_404(user_id)
+    message = request.form.get("message", "").strip()
+    now = datetime.utcnow()
+    if not can_send_return_checkin(current_user.id, recipient.id):
+        abort(403)
+    if not recipient.profile or not recipient.profile.miss_you_notifications_enabled:
+        flash("This person is not receiving check-in messages.", "info")
+        return redirect(request.referrer or url_for("main.home"))
+    if not recipient.last_active_at or recipient.last_active_at > now - timedelta(days=3):
+        flash("A check-in suggestion is no longer needed.", "info")
+        return redirect(request.referrer or url_for("main.home"))
+    if len(message) < 3 or len(message) > 500:
+        flash("Write a check-in message between 3 and 500 characters.", "warning")
+        return redirect(request.referrer or url_for("main.home"))
+    recent_pair = ReturnCheckIn.query.filter(
+        ReturnCheckIn.sender_id == current_user.id,
+        ReturnCheckIn.recipient_id == recipient.id,
+        ReturnCheckIn.created_at >= now - timedelta(days=7),
+    ).first()
+    recent_total = ReturnCheckIn.query.filter(
+        ReturnCheckIn.recipient_id == recipient.id,
+        ReturnCheckIn.created_at >= now - timedelta(days=7),
+    ).count()
+    if recent_pair or recent_total >= 3:
+        flash("A recent check-in has already been sent. We are giving them quiet space.", "info")
+        return redirect(request.referrer or url_for("main.home"))
+    checkin = ReturnCheckIn(sender_id=current_user.id, recipient_id=recipient.id, message=message)
+    db.session.add(checkin)
+    db.session.flush()
+    smart_notify(
+        user_id=recipient.id,
+        category="return_checkin",
+        message=f"{current_user.username} checked on you.",
+        action_url=url_for("main.return_checkins") + f"#checkin-{checkin.id}",
+        group_key=f"return-checkin:{recipient.id}",
+        dedupe_key=f"return-checkin:{checkin.id}:{recipient.id}",
+    )
+    db.session.commit()
+    flash(f"Your check-in was sent to {recipient.username}. You reminded them that they are not alone.", "success")
+    return redirect(request.referrer or url_for("main.home"))
+
+
+@main_bp.route("/check-in/<int:user_id>/dismiss", methods=["POST"])
+@login_required
+def dismiss_return_suggestion(user_id):
+    target = User.query.get_or_404(user_id)
+    if not can_send_return_checkin(current_user.id, target.id):
+        abort(403)
+    dismissal = ReturnSuggestionDismissal.query.filter_by(
+        viewer_id=current_user.id, inactive_user_id=target.id,
+    ).first()
+    if not dismissal:
+        dismissal = ReturnSuggestionDismissal(viewer_id=current_user.id, inactive_user_id=target.id)
+        db.session.add(dismissal)
+    dismissal.dismissed_until = datetime.utcnow() + timedelta(days=30)
+    db.session.commit()
+    return redirect(request.referrer or url_for("main.home"))
+
+
+@main_bp.route("/check-in/<int:checkin_id>/thank", methods=["POST"])
+@login_required
+def thank_return_checkin(checkin_id):
+    checkin = ReturnCheckIn.query.filter_by(id=checkin_id, recipient_id=current_user.id).first_or_404()
+    if checkin.thanked_at is None:
+        checkin.thanked_at = datetime.utcnow()
+        blocked = Block.query.filter(or_(
+            (Block.blocker_id == current_user.id) & (Block.blocked_id == checkin.sender_id),
+            (Block.blocker_id == checkin.sender_id) & (Block.blocked_id == current_user.id),
+        )).first()
+        if not blocked:
+            smart_notify(
+                user_id=checkin.sender_id,
+                category="return_thanks",
+                message=f"{current_user.username} thanked you for checking on them.",
+                action_url=url_for("main.profile", username=current_user.username),
+                dedupe_key=f"return-thanks:{checkin.id}:{checkin.sender_id}",
+            )
+        db.session.commit()
+    flash("Your thanks were shared.", "success")
+    return redirect(request.referrer or url_for("main.return_checkins"))
+
+
+@main_bp.route("/welcome-back/dismiss", methods=["POST"])
+@login_required
+def dismiss_welcome_back():
+    current_user.return_summary_dismissed_at = datetime.utcnow()
+    current_user.return_summary_since = None
+    db.session.commit()
+    return redirect(url_for("main.home"))
+
+
 @main_bp.route("/points")
 @login_required
 def point_history():
@@ -1724,7 +1942,10 @@ def open_notification(notification_id):
     ).first_or_404()
     notification.seen = True
     db.session.commit()
-    return redirect(notification.action_url or url_for("main.notifications"))
+    destination = notification.action_url or url_for("main.notifications")
+    if not destination.startswith("/") or destination.startswith("//"):
+        destination = url_for("main.notifications")
+    return redirect(destination)
 
 
 @main_bp.route("/notifications/mark-all-read", methods=["POST"])
@@ -1747,6 +1968,15 @@ def settings():
         )
         current_user.profile.notification_previews_enabled = (
             request.form.get("notification_previews_enabled") == "on"
+        )
+        current_user.profile.checkin_suggestions_enabled = (
+            request.form.get("checkin_suggestions_enabled") == "on"
+        )
+        current_user.profile.miss_you_notifications_enabled = (
+            request.form.get("miss_you_notifications_enabled") == "on"
+        )
+        current_user.profile.return_summaries_enabled = (
+            request.form.get("return_summaries_enabled") == "on"
         )
         current_user.profile.auto_share_completed_challenges = (
             request.form.get("auto_share_completed_challenges") == "on"

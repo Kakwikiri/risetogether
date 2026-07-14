@@ -408,7 +408,8 @@ const incrementBadge = (selector, linkHref) => {
   }
   badges.forEach((badge) => {
     const current = Number.parseInt(badge.textContent || "0", 10) || 0;
-    badge.textContent = current + 1;
+    const next = current + 1;
+    badge.textContent = next > 9 ? "9+" : next;
   });
 };
 
@@ -423,6 +424,7 @@ socket.on("notification_received", (data) => {
       toast.hidden = true;
     }, 5200);
   }
+  window.dispatchEvent(new Event("risetogether:unread-changed"));
 });
 
 if (typeof chatConfig !== "undefined") {
@@ -1588,7 +1590,7 @@ if (typeof chatConfig !== "undefined") {
 
     document.querySelectorAll(".voice-note-player").forEach(enhanceVoiceNotePlayer);
 
-    socket.on("new_private_message", (data) => {
+socket.on("new_private_message", (data) => {
       if (!chatConfig.targetUserId) return;
       const belongsToChat =
         [data.sender_id, data.recipient_id].includes(chatConfig.currentUserId) &&
@@ -1598,8 +1600,9 @@ if (typeof chatConfig !== "undefined") {
         if (data.sender_id === chatConfig.targetUserId) {
           markOpenPrivateChatDelivered();
         }
-      }
-    });
+  }
+  window.dispatchEvent(new Event("risetogether:unread-changed"));
+});
 
     socket.on("message_deleted", (data) => {
       const item = chatLog && chatLog.querySelector(`[data-message-id="${data.message_id}"]`);

@@ -14,6 +14,9 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(256), nullable=False)
     country = db.Column(db.String(80), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_active_at = db.Column(db.DateTime, nullable=True, index=True)
+    return_summary_since = db.Column(db.DateTime, nullable=True)
+    return_summary_dismissed_at = db.Column(db.DateTime, nullable=True)
     profile = db.relationship(
         "Profile", backref="user", uselist=False, cascade="all, delete-orphan"
     )
@@ -117,6 +120,9 @@ class Profile(db.Model):
     privacy_posts = db.Column(db.String(20), default="public")
     notifications_enabled = db.Column(db.Boolean, default=True)
     notification_previews_enabled = db.Column(db.Boolean, default=True)
+    checkin_suggestions_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    miss_you_notifications_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    return_summaries_enabled = db.Column(db.Boolean, default=True, nullable=False)
     auto_share_completed_challenges = db.Column(db.Boolean, default=False, nullable=False)
     timezone = db.Column(db.String(64), default="Africa/Kampala", nullable=False)
     show_point_balance = db.Column(db.Boolean, default=False, nullable=False)
@@ -853,6 +859,7 @@ class Message(db.Model):
     pinned_until = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     delivered = db.Column(db.Boolean, default=False)
+    read_at = db.Column(db.DateTime, nullable=True, index=True)
     reply_to = db.relationship("Message", remote_side=[id], backref="replies")
     sender = db.relationship(
         "User",
@@ -914,6 +921,7 @@ class Notification(db.Model):
     group_key = db.Column(db.String(180), default="", nullable=False, index=True)
     dedupe_key = db.Column(db.String(180), nullable=True, unique=True)
     event_count = db.Column(db.Integer, default=1, nullable=False)
+    important = db.Column(db.Boolean, default=False, nullable=False, index=True)
 
 
 class NotificationPreference(db.Model):
@@ -1210,6 +1218,34 @@ class PushSubscription(db.Model):
         "User",
         backref=db.backref("push_subscriptions", lazy="dynamic", cascade="all, delete-orphan"),
     )
+
+
+class ReturnCheckIn(db.Model):
+    __tablename__ = "return_checkins"
+    __table_args__ = (
+        db.CheckConstraint("sender_id <> recipient_id", name="ck_return_checkin_different_users"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    thanked_at = db.Column(db.DateTime, nullable=True)
+    sender = db.relationship("User", foreign_keys=[sender_id], backref=db.backref("return_checkins_sent", lazy="dynamic", cascade="all, delete-orphan"))
+    recipient = db.relationship("User", foreign_keys=[recipient_id], backref=db.backref("return_checkins_received", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class ReturnSuggestionDismissal(db.Model):
+    __tablename__ = "return_suggestion_dismissals"
+    __table_args__ = (
+        db.UniqueConstraint("viewer_id", "inactive_user_id", name="uq_return_suggestion_dismissal"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    viewer_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    inactive_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    dismissed_until = db.Column(db.DateTime, nullable=False, index=True)
+    viewer = db.relationship("User", foreign_keys=[viewer_id])
+    inactive_user = db.relationship("User", foreign_keys=[inactive_user_id])
 
 
 class Block(db.Model):

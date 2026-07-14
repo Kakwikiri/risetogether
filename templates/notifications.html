@@ -10,7 +10,7 @@
   </div>
   {% for notification in notifications %}
   <article class="notification-card {% if not notification.seen %}unseen{% endif %}">
-    <span class="notification-icon" aria-hidden="true">{% if notification.category in ['message', 'family_chat'] %}✉{% elif notification.category in ['reaction', 'comment'] %}♡{% elif notification.category == 'friend_request' %}☻{% elif notification.category == 'family_invite' %}⌁{% else %}●{% endif %}</span>
+    <span class="notification-icon" aria-hidden="true">{% if notification.category in ['message', 'family_chat'] %}✉{% elif notification.category in ['support', 'encouragement', 'reaction', 'comment'] %}♡{% elif notification.category in ['friends', 'friend_request'] %}☻{% elif notification.category in ['families', 'family_invite'] %}⌁{% elif notification.category in ['challenges', 'challenge_completed', 'challenge_invitation'] %}✓{% elif notification.category == 'admin' %}⚑{% else %}●{% endif %}</span>
     {% if notification.action_url %}
     <a class="notification-main" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
       <span>{% if not notification.seen %}<i class="notification-unread-dot" aria-label="Unread"></i>{% endif %}{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
