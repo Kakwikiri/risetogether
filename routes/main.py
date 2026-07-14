@@ -18,12 +18,14 @@ from helpers import (
 )
 from feature_flags import feature_required, is_feature_enabled
 from models import (
+    Appreciation,
     AuditLog,
     Block,
     Comment,
     CommentReaction,
     CheckInResponse,
     ChallengeCompletion,
+    ChallengeParticipant,
     DailyCheckIn,
     EncouragementRequest,
     EncouragementResponse,
@@ -34,11 +36,14 @@ from models import (
     FriendRequest,
     Goal,
     Notification,
+    Message,
     PointTransaction,
     Post,
+    PostSupportResponse,
     PostShare,
     Reaction,
     StreakMilestone,
+    StreakActivity,
     UserStreak,
     User,
 )
@@ -51,6 +56,14 @@ from streaks import STREAK_DEFINITIONS, local_activity_date, queue_expiring_stre
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
+POST_PURPOSES = {
+    "normal": "Normal",
+    "encouragement": "I need encouragement",
+    "advice": "I need advice",
+    "listen": "I need someone to listen",
+    "practical_help": "I need practical help",
+    "celebrating": "I'm celebrating",
+}
 FEED_FILTERS = {"all", "videos", "families", "highlights", "kindness", "trending"}
 SUPPORTIVE_PROMPTS = (
     "What’s on your heart today?",
@@ -215,6 +228,33 @@ def home():
         )
         posts = [post for post in posts if can_view_post(post)]
         families = [membership.family for membership in current_user.family_memberships]
+        encouragement_suggestions = []
+        if memberships and is_feature_enabled("anonymous_support_posts"):
+            suggestion_pool = (
+                EncouragementRequest.query.filter(
+                    EncouragementRequest.family_id.in_(memberships),
+                    EncouragementRequest.user_id != current_user.id,
+                    EncouragementRequest.status == "active",
+                    EncouragementRequest.visibility == "identity",
+                    ~EncouragementRequest.responses.any(),
+                )
+                .order_by(EncouragementRequest.created_at.desc())
+                .limit(12)
+                .all()
+            )
+            if suggestion_pool:
+                start = datetime.utcnow().date().toordinal() % len(suggestion_pool)
+                encouragement_suggestions = (suggestion_pool[start:] + suggestion_pool[:start])[:3]
+        daily_reasons = [
+            {"text": item.message, "url": item.action_url or url_for("main.notifications")}
+            for item in Notification.query.filter_by(user_id=current_user.id, seen=False)
+            .order_by(Notification.updated_at.desc()).limit(3).all()
+        ]
+        if not daily_reasons and encouragement_suggestions:
+            daily_reasons.append({
+                "text": "Someone in your Family asked for encouragement.",
+                "url": url_for("family.family_encouragement", family_id=encouragement_suggestions[0].family_id),
+            })
         available_families = Family.query.order_by(Family.created_at.desc()).limit(8).all()
         all_visible_posts = list(posts)
         trending_posts = [
@@ -259,6 +299,8 @@ def home():
             feed_filter=feed_filter,
             query=query,
             supportive_prompts=SUPPORTIVE_PROMPTS,
+            encouragement_suggestions=encouragement_suggestions,
+            daily_reasons=daily_reasons,
         )
     return render_template("landing.html")
 
@@ -650,6 +692,7 @@ def profile(username):
         people_supported=len(supported_ids),
         profile_badges=badges,
         recent_checkins=recent_checkins,
+        profile_appreciations=(user.appreciations_received.order_by(Appreciation.created_at.desc()).limit(10).all() if is_owner_view else []),
         personal_balance=personal_point_balance(user.id) if show_points and is_feature_enabled("personal_points") else None,
     )
 
@@ -713,6 +756,9 @@ def create_post():
     content = request.form.get("content", "").strip()
     family_id = request.form.get("family_id")
     audience = request.form.get("audience", current_user.profile.privacy_posts)
+    purpose = request.form.get("purpose", "normal").strip()
+    if purpose not in POST_PURPOSES:
+        purpose = "normal"
     if audience not in POST_AUDIENCES:
         audience = "public"
     media_file = request.files.get("media")
@@ -736,6 +782,7 @@ def create_post():
         media_url=media_url,
         media_type=media_type,
         audience=audience,
+        purpose=purpose,
     )
     if family_id:
         try:
@@ -771,6 +818,71 @@ def create_post():
     db.session.commit()
     flash("Post shared with RiseTogether.", "success")
     return redirect(url_for("main.home"))
+
+
+@main_bp.route("/post/<int:post_id>/support", methods=["POST"])
+@login_required
+def support_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if not can_view_post(post) or post.user_id == current_user.id:
+        abort(403)
+    action = request.form.get("action", "").strip()
+    explanation = request.form.get("explanation", "").strip()
+    visibility = request.form.get("visibility", "private").strip()
+    if action not in {"idea", "may_help", "listen"}:
+        abort(400)
+    required_purpose = {"idea": "advice", "may_help": "practical_help", "listen": "listen"}[action]
+    if post.purpose != required_purpose:
+        abort(400)
+    if action in {"idea", "may_help"} and not explanation:
+        flash("Please explain your idea or how you may help.", "warning")
+        return redirect(request.referrer or url_for("main.post_detail", post_id=post.id))
+    if len(explanation) > 1000 or visibility not in {"public", "private"}:
+        flash("Keep your response under 1,000 characters and choose where to share it.", "warning")
+        return redirect(request.referrer or url_for("main.post_detail", post_id=post.id))
+    response = PostSupportResponse.query.filter_by(post_id=post.id, user_id=current_user.id, action=action).first()
+    is_new = response is None
+    if response and action == "listen" and response.status == "accepted":
+        flash("This listening invitation has already been accepted.", "info")
+        return redirect(request.referrer or url_for("main.post_detail", post_id=post.id))
+    if not response:
+        response = PostSupportResponse(post_id=post.id, user_id=current_user.id, action=action)
+        db.session.add(response)
+    response.explanation = explanation
+    response.visibility = visibility
+    response.status = "pending" if action == "listen" else "shared"
+    notification_text = {
+        "idea": f"{current_user.username} shared an idea that may help.",
+        "may_help": f"{current_user.username} offered practical help.",
+        "listen": f"{current_user.username} offered to listen.",
+    }[action]
+    if is_new:
+        add_notification(post.user_id, "post_support", notification_text, url_for("main.post_detail", post_id=post.id))
+    if is_new and action == "idea":
+        add_notification(current_user.id, "post_support", "Your advice was shared.", url_for("main.impact"))
+    db.session.commit()
+    flash("Your response was shared." if action != "listen" else "Your invitation was sent. A chat will open only if it is accepted.", "success")
+    return redirect(request.referrer or url_for("main.post_detail", post_id=post.id))
+
+
+@main_bp.route("/post-support/<int:response_id>/<decision>", methods=["POST"])
+@login_required
+def decide_listen_invitation(response_id, decision):
+    response = PostSupportResponse.query.get_or_404(response_id)
+    if response.post.user_id != current_user.id or response.action != "listen" or response.status != "pending":
+        abort(403)
+    if decision not in {"accept", "decline"}:
+        abort(400)
+    response.status = "accepted" if decision == "accept" else "declined"
+    if decision == "accept":
+        add_notification(
+            response.user_id, "listen_accepted",
+            f"{current_user.username} accepted your offer to listen.",
+            url_for("chat.direct_chat", user_id=current_user.id),
+        )
+    db.session.commit()
+    flash("Invitation accepted." if decision == "accept" else "Invitation declined privately.", "success")
+    return redirect(url_for("main.post_detail", post_id=response.post_id))
 
 
 @main_bp.route("/follow/<int:user_id>", methods=["POST"])
@@ -1306,6 +1418,95 @@ def people():
         incoming_requests=incoming_requests,
         accepted_requests=accepted_requests,
     )
+
+
+@main_bp.route("/memories")
+@login_required
+def memories():
+    today = datetime.utcnow().date()
+    rows = []
+    for response in EncouragementResponse.query.filter_by(user_id=current_user.id).all():
+        happened = response.created_at.date()
+        if happened.month == today.month and happened.day == today.day and happened.year < today.year:
+            name = response.request.requester.username if response.request.visibility == "identity" else "someone"
+            years = today.year - happened.year
+            rows.append({"date": response.created_at, "text": f"{years} year{'s' if years != 1 else ''} ago today you encouraged {name}.", "url": url_for("family.family_encouragement", family_id=response.request.family_id)})
+    first_completion = ChallengeCompletion.query.filter_by(user_id=current_user.id, verification_status="completed").order_by(ChallengeCompletion.completed_at.asc()).first()
+    if first_completion and first_completion.completed_at:
+        rows.append({"date": first_completion.completed_at, "text": "You completed your first challenge.", "url": url_for("family.family_detail", family_id=first_completion.challenge.family_id) + "#family-challenges"})
+    for membership in current_user.family_memberships:
+        if membership.joined_at:
+            years = today.year - membership.joined_at.date().year
+            if years > 0 and membership.joined_at.month == today.month and membership.joined_at.day == today.day:
+                rows.append({"date": membership.joined_at, "text": f"You joined {membership.family.name} {years} year{'s' if years != 1 else ''} ago today.", "url": url_for("family.family_detail", family_id=membership.family_id)})
+    rows.sort(key=lambda row: row["date"], reverse=True)
+    return render_template("memories.html", memories=rows)
+
+
+@main_bp.route("/impact")
+@login_required
+def impact():
+    encouraged_user_ids = {
+        response.request.user_id for response in current_user.encouragement_responses
+        if response.request and response.request.user_id != current_user.id
+    }
+    family_ids_helped = {
+        response.request.family_id for response in current_user.encouragement_responses
+        if response.request
+    }
+    impact_rows = [
+        ("People encouraged", len(encouraged_user_ids)),
+        ("Advice shared", EncouragementResponse.query.join(EncouragementRequest).filter(EncouragementResponse.user_id == current_user.id, EncouragementResponse.comment != "", EncouragementRequest.category == "advice").count()),
+        ("Families helped", len(family_ids_helped)),
+        ("Challenges inspired", current_user.created_family_challenges.count()),
+        ("Thank-you messages received", current_user.appreciations_received.count()),
+        ("Days active", StreakActivity.query.filter_by(user_id=current_user.id).with_entities(db.func.count(db.func.distinct(StreakActivity.activity_date))).scalar() or 0),
+        ("Goals completed", current_user.owned_goals.filter_by(status="completed").count()),
+    ]
+    return render_template("impact.html", impact_rows=impact_rows, appreciations=current_user.appreciations_received.order_by(Appreciation.created_at.desc()).limit(20).all())
+
+
+@main_bp.route("/friendship/<int:user_id>")
+@login_required
+def friendship_journey(user_id):
+    friend = User.query.get_or_404(user_id)
+    friendship = FriendRequest.query.filter(
+        FriendRequest.status == "accepted",
+        or_(
+            (FriendRequest.sender_id == current_user.id) & (FriendRequest.receiver_id == friend.id),
+            (FriendRequest.sender_id == friend.id) & (FriendRequest.receiver_id == current_user.id),
+        ),
+    ).first()
+    if not friendship:
+        abort(403)
+    events = [{"date": friendship.responded_at or friendship.created_at, "text": "You became friends."}]
+    first_message = Message.query.filter(or_(
+        (Message.sender_id == current_user.id) & (Message.recipient_id == friend.id),
+        (Message.sender_id == friend.id) & (Message.recipient_id == current_user.id),
+    )).order_by(Message.created_at.asc()).first()
+    if first_message:
+        events.append({"date": first_message.created_at, "text": "Your first conversation began."})
+    my_challenges = {row.challenge_id: row for row in ChallengeParticipant.query.filter_by(user_id=current_user.id).all()}
+    shared = ChallengeParticipant.query.filter(ChallengeParticipant.user_id == friend.id, ChallengeParticipant.challenge_id.in_(list(my_challenges) or [-1])).order_by(ChallengeParticipant.joined_at.asc()).first()
+    if shared:
+        events.append({"date": max(shared.joined_at, my_challenges[shared.challenge_id].joined_at), "text": f"You joined {shared.challenge.title} together."})
+    first_support = EncouragementResponse.query.join(EncouragementRequest).filter(or_(
+        (EncouragementResponse.user_id == current_user.id) & (EncouragementRequest.user_id == friend.id),
+        (EncouragementResponse.user_id == friend.id) & (EncouragementRequest.user_id == current_user.id),
+    )).order_by(EncouragementResponse.created_at.asc()).first()
+    if first_support:
+        events.append({"date": first_support.created_at, "text": "Support was shared between you."})
+    first_celebration = Reaction.query.join(Post).filter(
+        Post.purpose == "celebrating",
+        or_(
+            (Post.user_id == current_user.id) & (Reaction.user_id == friend.id),
+            (Post.user_id == friend.id) & (Reaction.user_id == current_user.id),
+        ),
+    ).order_by(Reaction.created_at.asc()).first()
+    if first_celebration:
+        events.append({"date": first_celebration.created_at, "text": "You celebrated a meaningful moment together."})
+    events.sort(key=lambda event: event["date"])
+    return render_template("friendship_journey.html", friend=friend, events=events)
 
 
 @login_required

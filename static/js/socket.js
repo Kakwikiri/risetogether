@@ -480,6 +480,7 @@ if (typeof chatConfig !== "undefined") {
     const deleteForMe = document.querySelector("[data-delete-me]");
     const deleteCancel = document.querySelector("[data-delete-cancel]");
     const replyPreview = document.getElementById("reply-preview");
+    const typingIndicator = document.querySelector("[data-chat-typing]");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
     let replyToId = null;
@@ -504,7 +505,14 @@ if (typeof chatConfig !== "undefined") {
     let videoCancelled = false;
     let videoFacingMode = "user";
     let sendVideoAfterStop = false;
+    let typingTimer = null;
     const selectedMessages = new Map();
+
+    const emitTyping = (isTyping) => socket.emit("chat_typing", {
+      recipient_id: chatConfig.targetUserId,
+      family_id: chatConfig.familyId,
+      is_typing: isTyping,
+    });
 
     const notifyChat = (message) => {
       showRealtimeToast(message);
@@ -879,7 +887,12 @@ if (typeof chatConfig !== "undefined") {
           chatLog.scrollTop = chatLog.scrollHeight;
         }, 250);
       });
-      chatInput.addEventListener("input", syncChatBottomSpace);
+      chatInput.addEventListener("input", () => {
+        syncChatBottomSpace();
+        emitTyping(Boolean(chatInput.value.trim()));
+        window.clearTimeout(typingTimer);
+        typingTimer = window.setTimeout(() => emitTyping(false), 1200);
+      });
     }
 
     if (chatForm && "ResizeObserver" in window) {
@@ -1601,6 +1614,15 @@ if (typeof chatConfig !== "undefined") {
       if (data.family_id === chatConfig.familyId) {
         appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
       }
+    });
+
+    socket.on("chat_typing", (data) => {
+      const belongsHere = chatConfig.familyId
+        ? data.family_id === chatConfig.familyId
+        : data.user_id === chatConfig.targetUserId;
+      if (!typingIndicator || !belongsHere) return;
+      typingIndicator.textContent = chatConfig.familyId ? `${data.username} is typing…` : "Typing…";
+      typingIndicator.hidden = !data.is_typing;
     });
 
     const callButton = document.getElementById("call-button");

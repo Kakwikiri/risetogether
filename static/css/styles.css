@@ -138,6 +138,42 @@
   .message-row { align-items: center; padding: 0.6rem; }
 }
 
+/* Connection history, human support, and chat additions. */
+.connection-page { width: min(760px, 100%); margin: 0 auto; display: grid; gap: 1rem; }
+.memory-list, .impact-grid { display: grid; gap: .75rem; }
+.memory-row { display: flex; gap: .8rem; align-items: center; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; text-decoration: none; }
+.memory-row > span { font-size: 1.4rem; color: var(--brand-dark); }
+.memory-row div { display: grid; gap: .2rem; min-width: 0; }
+.memory-row time, .appreciation-row time { color: var(--muted); font-size: .82rem; }
+.impact-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+.impact-grid article { display: grid; gap: .3rem; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.impact-grid strong { font-size: 1.6rem; color: var(--brand-dark); }
+.appreciation-row { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; padding-block: .65rem; border-bottom: 1px solid var(--line); }
+.needs-you-today, .daily-reasons { display: grid; gap: .65rem; padding: 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.needs-you-today > a { display: flex; align-items: center; gap: .7rem; color: inherit; text-decoration: none; min-width: 0; }
+.needs-you-today img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.needs-you-today span { display: grid; min-width: 0; }
+.needs-you-today small { color: var(--muted); }
+.daily-reasons a { color: inherit; text-decoration: none; padding: .55rem .7rem; border-radius: 10px; background: var(--soft); }
+.post-purpose-support { display: grid; gap: .65rem; margin-top: .75rem; padding: .75rem; border-radius: 12px; background: var(--soft); }
+.post-purpose-label { color: var(--brand-dark); }
+.post-purpose-support form { display: grid; gap: .55rem; }
+.post-purpose-support textarea { width: 100%; min-height: 80px; resize: vertical; }
+.post-support-response { padding: .6rem; border-inline-start: 3px solid var(--brand-dark); background: var(--panel); }
+.post-support-response p { margin: .25rem 0; overflow-wrap: anywhere; }
+.chat-typing { padding: .25rem 1rem; color: var(--muted); font-size: .85rem; font-style: italic; }
+.message-reactions { display: flex; gap: .2rem; margin-top: .2rem; }
+.message-reactions button { display: inline-flex; align-items: center; gap: .15rem; min-width: 28px; min-height: 24px; padding: .1rem .35rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: inherit; }
+.message-reactions button[aria-pressed="true"] { border-color: var(--brand-dark); background: var(--soft); }
+.message-reactions small { font-size: .7rem; }
+
+@media (max-width: 560px) {
+  .connection-page { width: 100%; }
+  .impact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .appreciation-row { align-items: flex-start; flex-direction: column; gap: .25rem; }
+  .post-purpose-support { padding: .6rem; }
+}
+
 /* Final component-scoped cascade guards for the compact interface. */
 .notification-card {
   display: grid;

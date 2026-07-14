@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
 <section class="profile-page">
   <header class="profile-hero">
     <div class="profile-identity-row">
@@ -32,6 +32,7 @@
         </a>
         {% endif %}
         {% if friend_status == 'accepted' %}
+        <a class="button secondary" href="{{ url_for('main.friendship_journey', user_id=user.id) }}">Friendship journey</a>
         {% elif friend_status == 'pending' %}
         <span class="status-pill">Friend request pending</span>
         {% else %}
@@ -65,6 +66,7 @@
       {% if show_points %}<article><strong>{{ personal_balance }}</strong><span>Personal Points</span></article>{% endif %}
     </div>
   </section>{% endif %}
+  {% if is_owner_view %}<section class="profile-section"><div class="split-header"><h2>Thank-you history</h2><a href="{{ url_for('main.impact') }}">View impact</a></div>{% for appreciation in profile_appreciations %}<p class="appreciation-row"><strong>{% if appreciation.message_key == 'words_helped' %}Your words helped me.{% elif appreciation.message_key == 'appreciate_advice' %}I appreciate your advice.{% else %}Thank you.{% endif %}</strong><time>{{ appreciation.created_at.strftime('%b %d, %Y') }}</time></p>{% else %}<p class="muted-meta">Thank-you messages you receive will be kept here.</p>{% endfor %}</section>{% endif %}
 
   {% if show_achievements %}<section class="profile-section">
     <h2>Achievements and badges</h2>
@@ -144,8 +146,9 @@
         </div>
         {% endif %}
         {% endif %}
+        {{ purpose_support(content_post, csrf_token()) }}
         <div class="profile-post-actions">
-          {{ reaction_bar(post, csrf_token()) }}
+          {{ reaction_bar(post, csrf_token(), content_post) }}
           <a href="{{ url_for('main.post_detail', post_id=post.id) }}">💬 Comments {{ post.comments.count() }}</a>
           <a href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
         </div>

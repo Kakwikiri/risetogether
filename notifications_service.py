@@ -28,6 +28,7 @@ CATEGORY_ALIASES = {
     "contribution_campaign": "upgrade_campaign", "family_upgrade_unlocked": "upgrade_campaign",
     "campaign_contribution": "contribution_received", "family_level_up": "family_level",
     "checkin_support": "encouragement", "encouragement_request": "encouragement", "encouragement_response": "encouragement",
+    "appreciation": "encouragement", "post_support": "encouragement", "listen_accepted": "encouragement",
 }
 
 

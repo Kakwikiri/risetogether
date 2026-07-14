@@ -11,7 +11,7 @@ from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import smart_notify
-from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, Notification, User
+from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -560,6 +560,26 @@ def delete_message(message_id):
     return jsonify({"ok": True, "scope": "me"})
 
 
+@chat_bp.route("/chat/message/<int:message_id>/react", methods=["POST"])
+@login_required
+def react_to_message(message_id):
+    message = Message.query.get_or_404(message_id)
+    if not can_access_message(message):
+        return jsonify({"error": "Not allowed."}), 403
+    reaction = request.form.get("reaction", "").strip()
+    if reaction not in {"heart", "support", "understand"}:
+        return jsonify({"error": "Invalid reaction."}), 400
+    existing = MessageReaction.query.filter_by(message_id=message.id, user_id=current_user.id).first()
+    if existing and existing.reaction == reaction:
+        db.session.delete(existing)
+    elif existing:
+        existing.reaction = reaction
+    else:
+        db.session.add(MessageReaction(message_id=message.id, user_id=current_user.id, reaction=reaction))
+    db.session.commit()
+    return redirect((request.referrer or url_for("chat.inbox")) + f"#message-{message.id}")
+
+
 @chat_bp.route("/chat/message/<int:message_id>/viewed", methods=["POST"])
 @login_required
 def viewed_once_message(message_id):
@@ -830,6 +850,27 @@ def mark_messages_delivered(data):
     if not sender_id:
         return
     mark_private_messages_delivered(sender_id, current_user.id)
+
+
+@socketio.on("chat_typing")
+def chat_typing(data):
+    payload = data or {}
+    family_id = parse_user_id(payload.get("family_id"))
+    recipient_id = parse_user_id(payload.get("recipient_id"))
+    if family_id:
+        if not FamilyMember.query.filter_by(family_id=family_id, user_id=current_user.id).first():
+            return
+        room = f"family-{family_id}"
+    elif recipient_id and users_can_message(current_user.id, recipient_id):
+        room = room_for_private_chat(current_user.id, recipient_id)
+    else:
+        return
+    emit(
+        "chat_typing",
+        {"user_id": current_user.id, "username": current_user.username, "is_typing": bool(payload.get("is_typing")), "family_id": family_id},
+        room=room,
+        include_self=False,
+    )
 
 
 @socketio.on("family_message")

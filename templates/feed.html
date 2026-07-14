@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card, rise_badges with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
 <div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
   <section class="panel panel-feed">
     <div class="panel-header">
@@ -24,6 +24,8 @@
     </div>
     {% endif %}
     {% if not video_only %}
+    {% if daily_reasons %}<section class="daily-reasons"><p class="eyebrow">A reason to return today</p>{% for reason in daily_reasons %}<a href="{{ reason.url }}">{{ reason.text }}</a>{% endfor %}</section>{% endif %}
+    {% if encouragement_suggestions %}<section class="needs-you-today"><div><p class="eyebrow">They may need you today</p><h3>A gentle chance to show up</h3></div>{% for suggestion in encouragement_suggestions %}<a href="{{ url_for('family.family_encouragement', family_id=suggestion.family_id) }}#encouragement-{{ suggestion.id }}"><img src="{{ user_avatar_url(suggestion.requester) }}" alt="" /><span><strong>{{ suggestion.requester.profile.display_name }}</strong><small>Asked for encouragement in {{ suggestion.family.name }}</small></span></a>{% endfor %}</section>{% endif %}
     {% if feature_enabled('daily_checkins') %}<aside class="daily-checkin-prompt"><div><span aria-hidden="true">♡</span><div><strong>How are you feeling today?</strong><p>A private moment to notice what’s here.</p></div></div><a class="button secondary" href="{{ url_for('main.daily_checkins') }}">Check in</a></aside>{% endif %}
     <section class="composer-card" data-mobile-composer data-supportive-prompts='{{ supportive_prompts|tojson }}'>
       <h3>Share your story</h3>
@@ -50,6 +52,7 @@
           placeholder="{{ supportive_prompts[0] }}"
           data-supportive-prompt-input
         ></textarea>
+        <select name="purpose" aria-label="Post purpose"><option value="normal">Normal</option><option value="encouragement">I need encouragement</option><option value="advice">I need advice</option><option value="listen">I need someone to listen</option><option value="practical_help">I need practical help</option><option value="celebrating">I'm celebrating</option></select>
         <div class="composer-preview" data-media-preview hidden></div>
         <div class="composer-tools">
           <label class="file-pill">
@@ -150,8 +153,9 @@
       </a>
       {% endif %} {% endif %}
       {% endif %}
+      {{ purpose_support(content_post, csrf_token()) }}
       <div class="post-actions">
-        {{ reaction_bar(post, csrf_token()) }}
+        {{ reaction_bar(post, csrf_token(), content_post) }}
         <a class="button secondary" href="{{ url_for('main.post_detail', post_id=post.id) }}">
           Comments {{ post.comments.count() }}
         </a>

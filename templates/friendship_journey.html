@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% block content %}
+<main class="connection-page"><header class="page-heading"><p class="eyebrow">Real moments together</p><h1>Your friendship with {{ friend.profile.display_name }}</h1><a class="button secondary" href="{{ url_for('main.profile', username=friend.username) }}">View profile</a></header><section class="friendship-timeline">{% for event in events %}<article><span aria-hidden="true">♡</span><div><strong>{{ event.text }}</strong><time datetime="{{ event.date.isoformat() }}">{{ event.date.strftime('%b %d, %Y') }}</time></div></article>{% endfor %}</section></main>
+{% endblock %}

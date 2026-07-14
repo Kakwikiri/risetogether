@@ -100,9 +100,14 @@ feature_enabled('verification_badges') and badges %}{% set badge = badges|first 
       ><strong>{{ badge.label }}</strong>{{ badge.explanation }}</span
     ></button
   ></span
->{% endif %}{%- endmacro %} {% macro reaction_bar(post, csrf) -%} {% set choices
-= [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'),
-('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %} {%
+>{% endif %}{%- endmacro %} {% macro reaction_bar(post, csrf, purpose_post=none) -%}
+{% set emotional_post = purpose_post or post %}
+{% if emotional_post.purpose == 'celebrating' %}{% set choices = [('support', '🎉', 'Celebrate'), ('understand', '😊', 'So happy for you'), ('keep-going', '👏', 'Proud of you'), ('inspire', '✨', 'You inspire me')] %}
+{% elif emotional_post.purpose == 'listen' %}{% set choices = [('support', '♡', 'Here with you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌿', 'Take your time'), ('inspire', '☀', 'You matter')] %}
+{% elif emotional_post.purpose == 'advice' %}{% set choices = [('support', '♡', 'I hear you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '💡', 'Thinking with you')] %}
+{% elif emotional_post.purpose == 'practical_help' %}{% set choices = [('support', '♡', 'Support'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '💡', 'Thinking with you')] %}
+{% elif emotional_post.purpose == 'encouragement' %}{% set choices = [('support', '♡', 'You matter'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '☀', 'Proud of you')] %}
+{% else %}{% set choices = [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'), ('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %}{% endif %} {%
 set selected = post.reactions.filter_by(user_id=current_user.id).first() if
 current_user.is_authenticated else none %}
 <form
@@ -226,4 +231,16 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
     celebrated.' }}
   </p>
 </section>
+{%- endmacro %}
+
+{% macro purpose_support(post, csrf) -%}
+{% set purpose_labels = {'encouragement': 'I need encouragement', 'advice': 'I need advice', 'listen': 'I need someone to listen', 'practical_help': 'I need practical help', 'celebrating': "I’m celebrating"} %}
+{% if post.purpose and post.purpose != 'normal' %}<section class="post-purpose-support"><strong class="post-purpose-label">{{ purpose_labels.get(post.purpose, post.purpose|replace('_', ' ')|title) }}</strong>
+{% if current_user.is_authenticated and post.user_id != current_user.id %}
+  {% if post.purpose == 'advice' %}<details><summary>I have an idea</summary><form action="{{ url_for('main.support_post', post_id=post.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="idea"><textarea name="explanation" maxlength="1000" required placeholder="Explain the idea that may help"></textarea><select name="visibility" aria-label="Who can see this idea"><option value="private">Send privately</option><option value="public">Share publicly</option></select><button class="button secondary" type="submit">Share idea</button></form></details>{% endif %}
+  {% if post.purpose == 'practical_help' %}<details><summary>I may help</summary><form action="{{ url_for('main.support_post', post_id=post.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="may_help"><textarea name="explanation" maxlength="1000" required placeholder="Explain how you may be able to help"></textarea><select name="visibility" aria-label="Who can see this offer"><option value="private">Send privately</option><option value="public">Share publicly</option></select><button class="button secondary" type="submit">Offer help</button></form></details>{% endif %}
+  {% if post.purpose == 'listen' %}<form action="{{ url_for('main.support_post', post_id=post.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="listen"><input type="hidden" name="visibility" value="private"><button class="button secondary" type="submit">I can listen</button></form>{% endif %}
+{% endif %}
+{% for response in post.support_responses.all()|sort(attribute='created_at') if response.visibility == 'public' or response.user_id == current_user.id or post.user_id == current_user.id %}<article class="post-support-response"><strong>{{ response.user.username }}</strong>{% if response.explanation %}<p>{{ response.explanation }}</p>{% endif %}{% if response.action == 'listen' %}<small>Listening invitation · {{ response.status }}</small>{% if post.user_id == current_user.id and response.status == 'pending' %}<div class="inline-actions"><form action="{{ url_for('main.decide_listen_invitation', response_id=response.id, decision='accept') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="text-button" type="submit">Accept</button></form><form action="{{ url_for('main.decide_listen_invitation', response_id=response.id, decision='decline') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="text-button" type="submit">Decline</button></form></div>{% endif %}{% endif %}</article>{% endfor %}
+</section>{% endif %}
 {%- endmacro %}

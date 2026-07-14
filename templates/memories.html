@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% block content %}
+<main class="connection-page"><header class="page-heading"><p class="eyebrow">Real moments from your history</p><h1>Memories</h1><p>RiseTogether only shows moments recorded by your activity.</p></header><section class="memory-list">{% for memory in memories %}<a class="memory-row" href="{{ memory.url }}"><span aria-hidden="true">♡</span><div><strong>{{ memory.text }}</strong><time datetime="{{ memory.date.isoformat() }}">{{ memory.date.strftime('%b %d, %Y') }}</time></div></a>{% else %}<div class="empty-state-card"><span>♡</span><h2>No memory for today yet</h2><p>Meaningful moments will appear here when real history gives you something to revisit.</p></div>{% endfor %}</section></main>
+{% endblock %}

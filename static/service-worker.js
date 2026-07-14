@@ -1,4 +1,4 @@
-const CACHE_NAME = "risetogether-cache-v53";
+const CACHE_NAME = "risetogether-cache-v54";
 const ASSETS = [
   "/offline",
   "/static/css/styles.css",

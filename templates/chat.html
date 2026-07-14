@@ -37,6 +37,7 @@
     {% endfor %}
   </button>
   {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Voice rooms are not available yet. Family messages remain ready below.</small></div></aside>{% endif %}
+  <div class="chat-typing" data-chat-typing role="status" aria-live="polite" hidden>Typing…</div>
   <div id="chat-log" class="chat-log">
     {% set date_state = namespace(last_day='') %}
     {% for message in messages %}
@@ -121,6 +122,7 @@
         <span class="message-ticks">{{ '✓✓' if message.delivered else '✓' }}</span>
         {% endif %}
       </small>
+      <form class="message-reactions" action="{{ url_for('chat.react_to_message', message_id=message.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />{% for key, symbol in [('heart', '♡'), ('support', '✦'), ('understand', '🤝')] %}<button type="submit" name="reaction" value="{{ key }}" aria-label="React with {{ key }}"{% if message.reactions.filter_by(user_id=current_user.id, reaction=key).first() %} aria-pressed="true"{% endif %}>{{ symbol }}{% set count = message.reactions.filter_by(reaction=key).count() %}{% if count %}<small>{{ count }}</small>{% endif %}</button>{% endfor %}</form>
     </div>
     {% endfor %}
   </div>

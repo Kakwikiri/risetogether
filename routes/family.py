@@ -2,7 +2,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -17,6 +17,7 @@ from family_upgrades import (
 )
 from helpers import get_media_type, get_upload_limit, save_media, validate_upload
 from models import (
+    Appreciation,
     ChallengeCompletion,
     ChallengeParticipant,
     DailyCheckIn,
@@ -91,6 +92,11 @@ ENCOURAGEMENT_CATEGORIES = {
 ENCOURAGEMENT_REACTIONS = {
     "support": "Support", "understand": "I Understand",
     "keep_going": "Keep Going", "inspire": "You Inspire Me",
+}
+APPRECIATION_MESSAGES = {
+    "thank_you": "Thank you.",
+    "words_helped": "Your words helped me.",
+    "appreciate_advice": "I appreciate your advice.",
 }
 CRISIS_PHRASES = (
     "kill myself", "end my life", "want to die", "going to die",
@@ -1295,6 +1301,46 @@ def family_detail(family_id):
     )
 
 
+@family_bp.route("/family/<int:family_id>/memories")
+@login_required
+def family_memories(family_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    if not member and not is_super_admin:
+        abort(403)
+
+    memories = []
+    today = datetime.utcnow().date()
+    if family.created_at:
+        years = today.year - family.created_at.year
+        if years > 0 and (family.created_at.month, family.created_at.day) == (today.month, today.day):
+            memories.append({
+                "date": family.created_at,
+                "text": f"{family.name} began {years} year{'s' if years != 1 else ''} ago today.",
+            })
+
+    memberships = family.members.order_by(FamilyMember.joined_at.asc()).all()
+    if len(memberships) >= 50 and memberships[49].joined_at:
+        memories.append({"date": memberships[49].joined_at, "text": f"{family.name} welcomed its 50th member."})
+
+    completions = (
+        ChallengeCompletion.query.join(FamilyChallenge)
+        .filter(FamilyChallenge.family_id == family.id, ChallengeCompletion.verification_status == "completed")
+        .order_by(ChallengeCompletion.completed_at.asc())
+        .all()
+    )
+    if len(completions) >= 100 and completions[99].completed_at:
+        memories.append({"date": completions[99].completed_at, "text": f"{family.name} reached 100 challenge completions."})
+
+    first_goal = Goal.query.filter_by(family_id=family.id, scope="family", status="completed").order_by(Goal.completed_at.asc()).first()
+    if first_goal and first_goal.completed_at:
+        memories.append({"date": first_goal.completed_at, "text": f"{family.name} completed its first shared goal: {first_goal.title}."})
+
+    memories.sort(key=lambda item: item["date"], reverse=True)
+    return render_template("family_memories.html", family=family, memories=memories)
+
+
 def ensure_weekly_report_ready(family):
     try:
         report, _ = get_or_create_weekly_report(family)
@@ -1482,6 +1528,12 @@ def respond_to_encouragement(family_id, request_id):
             f"Someone in {family.name} responded supportively to your request.",
             url_for("family.family_encouragement", family_id=family.id),
         )
+        encouraged_name = item.requester.username if item.visibility == "identity" else "someone"
+        add_family_notification(
+            current_user.id, "encouragement_response",
+            f"You encouraged {encouraged_name} today.",
+            url_for("main.impact"),
+        )
     if len(comment) >= 10:
         db.session.flush()
         record_streak_activity(
@@ -1491,6 +1543,41 @@ def respond_to_encouragement(family_id, request_id):
         )
     db.session.commit()
     flash("Your support was shared.", "success")
+    return redirect(url_for("family.family_encouragement", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/encouragement/<int:response_id>/thank", methods=["POST"])
+@login_required
+@feature_required("anonymous_support_posts")
+def thank_encouragement_response(family_id, response_id):
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    response = EncouragementResponse.query.get_or_404(response_id)
+    if not member or response.request.family_id != family.id or response.request.user_id != current_user.id:
+        abort(403)
+    if response.user_id == current_user.id:
+        abort(400)
+    message_key = request.form.get("message_key", "").strip()
+    if message_key not in APPRECIATION_MESSAGES:
+        flash("Choose a thank-you message.", "warning")
+        return redirect(url_for("family.family_encouragement", family_id=family.id))
+    appreciation = Appreciation.query.filter_by(response_id=response.id, sender_id=current_user.id).first()
+    is_new = appreciation is None
+    if appreciation:
+        appreciation.message_key = message_key
+    else:
+        appreciation = Appreciation(response_id=response.id, sender_id=current_user.id, recipient_id=response.user_id, message_key=message_key)
+        db.session.add(appreciation)
+    db.session.flush()
+    if is_new:
+        add_family_notification(
+            response.user_id,
+            "appreciation",
+            "You made someone's day better.",
+            url_for("main.impact"),
+        )
+    db.session.commit()
+    flash("Your appreciation was shared.", "success")
     return redirect(url_for("family.family_encouragement", family_id=family.id))
 
 

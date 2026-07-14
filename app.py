@@ -144,6 +144,7 @@ def ensure_schema_compatibility():
         FamilyChallenge,
         MediaAsset,
         MessageDeletion,
+        MessageReaction,
         PushSubscription,
         AuditLog,
         FamilyMember,
@@ -167,11 +168,13 @@ def ensure_schema_compatibility():
         NotificationPreference,
         NotificationDeliveryKey,
         RiseBadgeAssignment,
+        PostSupportResponse,
     )
     from helpers import get_media_type, mimetype_for_filename
 
     MediaAsset.__table__.create(db.engine, checkfirst=True)
     MessageDeletion.__table__.create(db.engine, checkfirst=True)
+    MessageReaction.__table__.create(db.engine, checkfirst=True)
     PushSubscription.__table__.create(db.engine, checkfirst=True)
     AuditLog.__table__.create(db.engine, checkfirst=True)
     FamilyMemberRestriction.__table__.create(db.engine, checkfirst=True)
@@ -197,11 +200,13 @@ def ensure_schema_compatibility():
     NotificationPreference.__table__.create(db.engine, checkfirst=True)
     NotificationDeliveryKey.__table__.create(db.engine, checkfirst=True)
     RiseBadgeAssignment.__table__.create(db.engine, checkfirst=True)
+    PostSupportResponse.__table__.create(db.engine, checkfirst=True)
     default_family_member_limit = int(app.config["DEFAULT_FAMILY_MEMBER_LIMIT"])
     platform_owner_username = os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip()
     platform_owner_literal = platform_owner_username.replace("'", "''")
     updates = [
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'public'",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS purpose VARCHAR(32) NOT NULL DEFAULT 'normal'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE",
         "ALTER TABLE comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP",

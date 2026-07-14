@@ -166,6 +166,7 @@ class Post(db.Model):
     media_url = db.Column(db.String(255), default="")
     media_type = db.Column(db.String(32), default="text")
     audience = db.Column(db.String(20), default="public", nullable=False)
+    purpose = db.Column(db.String(32), default="normal", nullable=False)
     is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     family_id = db.Column(
@@ -207,6 +208,26 @@ class Post(db.Model):
     shares = db.relationship(
         "PostShare", backref="post", lazy="dynamic", cascade="all, delete-orphan"
     )
+
+
+class PostSupportResponse(db.Model):
+    __tablename__ = "post_support_responses"
+    __table_args__ = (
+        db.UniqueConstraint("post_id", "user_id", "action", name="uq_post_support_action_user"),
+        db.CheckConstraint("action IN ('idea','may_help','listen')", name="ck_post_support_action"),
+        db.CheckConstraint("visibility IN ('public','private')", name="ck_post_support_visibility"),
+        db.CheckConstraint("status IN ('shared','pending','accepted','declined')", name="ck_post_support_status"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    action = db.Column(db.String(16), nullable=False)
+    explanation = db.Column(db.String(1000), default="", nullable=False)
+    visibility = db.Column(db.String(16), default="private", nullable=False)
+    status = db.Column(db.String(16), default="shared", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    post = db.relationship("Post", backref=db.backref("support_responses", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("post_support_responses", lazy="dynamic", cascade="all, delete-orphan"))
 
 
 class PostShare(db.Model):
@@ -846,6 +867,21 @@ class Message(db.Model):
     family = db.relationship("Family", backref="messages", foreign_keys=[family_id])
 
 
+class MessageReaction(db.Model):
+    __tablename__ = "message_reactions"
+    __table_args__ = (
+        db.UniqueConstraint("message_id", "user_id", name="uq_message_reaction_user"),
+        db.CheckConstraint("reaction IN ('heart','support','understand')", name="ck_message_reaction"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reaction = db.Column(db.String(16), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    message = db.relationship("Message", backref=db.backref("reactions", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("message_reactions", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class MessageDeletion(db.Model):
     __tablename__ = "message_deletions"
     __table_args__ = (
@@ -981,6 +1017,26 @@ class EncouragementResponse(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     request = db.relationship("EncouragementRequest", backref=db.backref("responses", lazy="dynamic", cascade="all, delete-orphan"))
     user = db.relationship("User", backref=db.backref("encouragement_responses", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class Appreciation(db.Model):
+    __tablename__ = "appreciations"
+    __table_args__ = (
+        db.UniqueConstraint("response_id", "sender_id", name="uq_appreciation_response_sender"),
+        db.CheckConstraint(
+            "message_key IN ('thank_you','words_helped','appreciate_advice')",
+            name="ck_appreciation_message_key",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    response_id = db.Column(db.Integer, db.ForeignKey("encouragement_responses.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_key = db.Column(db.String(32), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    response = db.relationship("EncouragementResponse", backref=db.backref("appreciations", lazy="dynamic", cascade="all, delete-orphan"))
+    sender = db.relationship("User", foreign_keys=[sender_id], backref=db.backref("appreciations_sent", lazy="dynamic"))
+    recipient = db.relationship("User", foreign_keys=[recipient_id], backref=db.backref("appreciations_received", lazy="dynamic"))
 
 
 class EncouragementRequestReport(db.Model):

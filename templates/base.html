@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-family-tabs"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-connection-history"
     />
     <script
       defer
@@ -68,7 +68,7 @@
     <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260714-family-tabs"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-remove-realtime"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-human-chat"
     ></script>
   </head>
   <body>
@@ -108,6 +108,8 @@
         {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
         {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗"><span>Streaks</span></a>{% endif %}
         <a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>
+        <a href="{{ url_for('main.memories') }}" data-icon="♡"><span>Memories</span></a>
+        <a href="{{ url_for('main.impact') }}" data-icon="↗"><span>My impact</span></a>
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}

@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
 {% set content_post = post.original_post or post %}
 <section class="card post-card">
   <header>
@@ -53,8 +53,9 @@
   </a>
   {% endif %} {% endif %}
   {% endif %}
+  {{ purpose_support(content_post, csrf_token()) }}
   <div class="post-actions">
-    {{ reaction_bar(post, csrf_token()) }}
+    {{ reaction_bar(post, csrf_token(), content_post) }}
     <span class="comment-count">{{ comments|length }} comments</span>
     <a class="button secondary" href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
     {% if post.user_id != current_user.id %}
