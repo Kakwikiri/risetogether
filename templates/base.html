@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-interface-review"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-chat-identity"
     />
     <script
       defer
@@ -207,7 +207,7 @@
     <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
       <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="Feed"><span aria-hidden="true">⌂</span><small>Feed</small></a>
       <a href="{{ url_for('main.people') }}" class="{% if request.endpoint == 'main.people' %}is-active{% endif %}" aria-label="People"><span aria-hidden="true">☻</span><small>People</small></a>
-      <a href="{{ url_for('family.families') }}" class="{% if request.endpoint in ['family.families', 'family.family_detail'] %}is-active{% endif %}" aria-label="Families"><span aria-hidden="true">⌁</span><small>Families</small></a>
+      <a href="{{ url_for('family.families') }}" class="{% if request.endpoint in ['family.families', 'family.family_detail'] %}is-active{% endif %}" aria-label="Families"><span aria-hidden="true">♡</span><small>Families</small></a>
       <a href="{{ url_for('chat.inbox') }}" class="{% if request.endpoint == 'chat.inbox' %}is-active{% endif %}" aria-label="Messages"><span aria-hidden="true">✉</span><small>Messages</small>{% if unread_messages %}<b class="mobile-nav-badge" data-message-badge>{{ unread_messages }}</b>{% endif %}</a>
       <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ unread_notifications }}</b>{% endif %}</a>
     </nav>

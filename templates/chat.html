@@ -3,21 +3,12 @@
   <header class="chat-header">
     <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back">‹</a>
     <div class="chat-identity" data-chat-normal-header>
-      <img
-        class="chat-header-avatar"
-        src="{{ family_avatar_url(family) if family else user_avatar_url(other) }}"
-        alt=""
-      />
+      {% if not family and other.profile and other.profile.avatar %}<button class="chat-header-avatar-button" type="button" data-avatar-preview="{{ user_avatar_url(other) }}" aria-label="Preview {{ other.username }} profile picture"><img class="chat-header-avatar" src="{{ user_avatar_url(other) }}" alt="" /></button>{% else %}<img class="chat-header-avatar" src="{{ family_avatar_url(family) if family else user_avatar_url(other) }}" alt="" />{% endif %}
       <div class="chat-title">
         <h2>
-          {% if not family %}
-          <span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-label="{{ 'Online' if is_other_online else 'Offline' }}"></span>
-          {% endif %}
-          {% if family %}{{ family.name }}{% else %}{{ other.username }}{{ rise_badges(rise_user_badges(other)) }}{% endif %}
+          {% if family %}{{ family.name }}{% else %}<a class="chat-profile-link" href="{{ url_for('main.profile', username=other.username) }}">{{ other.username }}{{ rise_badges(rise_user_badges(other)) }}</a>{% endif %}
         </h2>
-        <span data-presence-label>
-          {% if family %}Family chat{% else %}{{ 'Online' if is_other_online else 'Offline' }}{% endif %}
-        </span>
+        {% if family %}<span data-presence-label>Family chat</span>{% else %}<span class="chat-presence"><span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-hidden="true"></span><span data-presence-label>{{ 'Online' if is_other_online else 'Offline' }}</span></span>{% endif %}
       </div>
     </div>
     <div class="chat-selection-toolbar" data-chat-selection-toolbar hidden>
@@ -225,6 +216,7 @@
     </div>
   </section>
 </section>
+{% if not family and other.profile and other.profile.avatar %}<dialog class="message-avatar-modal" data-message-avatar-modal aria-label="Profile picture preview"><button type="button" data-message-avatar-close aria-label="Close profile picture preview">×</button><img data-message-avatar-image alt="{{ other.username }} profile picture" /></dialog>{% endif %}
 <script>
   const chatConfig = {
       currentUserId: {{ current_user.id }},
