@@ -56,16 +56,6 @@
           <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=user.id) }}"
             >Message</a
           >
-          {% if realtime_media_enabled %}
-          <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='audio', start='1') }}"
-            >Audio</a
-          >
-          <a class="button secondary" href="{{ url_for('chat.calls', user_id=user.id, mode='video', start='1') }}"
-            >Video</a
-          >
-          {% else %}
-          <span class="status-pill">Calls soon</span>
-          {% endif %}
         </div>
       </article>
       {% else %}
@@ -118,14 +108,6 @@
         >
         <span>
           <a href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a>
-          {% if realtime_media_enabled %}
-          ·
-          <a href="{{ url_for('chat.calls', user_id=friend.id, mode='audio', start='1') }}">Audio</a>
-          ·
-          <a href="{{ url_for('chat.calls', user_id=friend.id, mode='video', start='1') }}">Video</a>
-          {% else %}
-          · <span class="muted-inline">Calls soon</span>
-          {% endif %}
         </span>
       </article>
       {% else %}

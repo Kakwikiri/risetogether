@@ -27,16 +27,6 @@
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 17 5-5-5-5"></path><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
       </button>
     </div>
-    <div class="chat-header-actions" data-chat-normal-header>
-      {% if not family %}
-      {% if realtime_media_enabled %}
-      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='audio', start='1') }}" aria-label="Audio call" title="Audio call">☎</a>
-      <a class="icon-button" href="{{ url_for('chat.calls', user_id=other.id, mode='video', start='1') }}" aria-label="Video call" title="Video call">▣</a>
-      {% else %}
-      <span class="status-pill">Calls soon</span>
-      {% endif %}
-      {% endif %}
-    </div>
   </header>
   <button class="pinned-chat-strip" type="button" data-pinned-strip {% if not messages|selectattr('pinned_until')|list %}hidden{% endif %}>
     {% for pinned in messages|selectattr('pinned_until')|list %}

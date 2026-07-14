@@ -11,7 +11,6 @@ from markupsafe import Markup, escape
 from extensions import db, socketio
 from helpers import (
     REACTION_LABELS,
-    get_ice_servers,
     get_media_type,
     save_media,
     user_avatar_url,
@@ -34,7 +33,6 @@ from models import (
     Follow,
     FriendRequest,
     Goal,
-    LiveSession,
     Notification,
     PointTransaction,
     Post,
@@ -250,13 +248,6 @@ def home():
         elif feed_filter == "trending":
             posts = [post for post in posts if trend_score(post) > 0]
             posts.sort(key=trend_score, reverse=True)
-        active_live_sessions = (
-            LiveSession.query.filter_by(status="live")
-            .order_by(LiveSession.created_at.desc())
-            .limit(8)
-            .all()
-        )
-        live_user_ids = {session.user_id for session in active_live_sessions}
         return render_template(
             "feed.html",
             posts=posts,
@@ -268,8 +259,6 @@ def home():
             feed_filter=feed_filter,
             query=query,
             supportive_prompts=SUPPORTIVE_PROMPTS,
-            active_live_sessions=active_live_sessions,
-            live_user_ids=live_user_ids,
         )
     return render_template("landing.html")
 
@@ -580,7 +569,6 @@ def profile(username):
         .limit(12)
         .all()
     ]
-    live_session = LiveSession.query.filter_by(user_id=user.id, status="live").first()
     can_message_user = False
     if current_user.is_authenticated and current_user.id != user.id:
         can_message_user = (
@@ -647,7 +635,6 @@ def profile(username):
         follower_count=Follow.query.filter_by(followed_id=user.id).count(),
         following_count=Follow.query.filter_by(follower_id=user.id).count(),
         following=following,
-        live_session=live_session,
         can_message_user=can_message_user,
         is_owner_view=is_owner_view,
         show_achievements=show_achievements,
@@ -1321,7 +1308,6 @@ def people():
     )
 
 
-@main_bp.route("/live", methods=["GET", "POST"])
 @login_required
 def live_sessions():
     if request.method == "POST":
@@ -1370,7 +1356,6 @@ def live_sessions():
     return render_template("live_sessions.html", sessions=sessions)
 
 
-@main_bp.route("/live/<int:session_id>")
 @login_required
 def live_room(session_id):
     if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
@@ -1385,7 +1370,6 @@ def live_room(session_id):
     )
 
 
-@main_bp.route("/live/<int:session_id>/end", methods=["POST"])
 @login_required
 def end_live_session(session_id):
     from datetime import datetime

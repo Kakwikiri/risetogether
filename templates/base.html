@@ -59,7 +59,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-chat-identity"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-remove-realtime"
     />
     <script
       defer
@@ -68,7 +68,7 @@
     <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260714-interface-review"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-interface-review"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-remove-realtime"
     ></script>
   </head>
   <body>
@@ -92,7 +92,6 @@
         <a href="{{ url_for('main.home') }}" data-icon="⌂"><span>Feed</span></a>
         <a href="{{ url_for('main.people') }}" data-icon="☻"><span>People</span></a>
         <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
-        <a href="{{ url_for('main.live_sessions') }}" data-icon="▶"><span>Live</span><small>Soon</small></a>
         <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
           data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge" data-message-badge
             >{{ unread_messages }}</span
@@ -190,7 +189,7 @@
         </div>
       </div>
     </div>
-    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'main.live_room'] %}
+    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat'] %}
     <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
     {% endif %}
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
@@ -203,7 +202,7 @@
       </section>
       {% endif %} {% endwith %} {% block content %}{% endblock %}
     </main>
-    {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.calls', 'main.live_room'] %}
+    {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat'] %}
     <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
       <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="Feed"><span aria-hidden="true">⌂</span><small>Feed</small></a>
       <a href="{{ url_for('main.people') }}" class="{% if request.endpoint == 'main.people' %}is-active{% endif %}" aria-label="People"><span aria-hidden="true">☻</span><small>People</small></a>
@@ -212,7 +211,7 @@
       <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ unread_notifications }}</b>{% endif %}</a>
     </nav>
     {% endif %}
-    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.calls', 'main.live_room'] %}
+    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat'] %}
     <footer class="footer">
       <p>
         RiseTogether — a safe, supportive community for stories, hope, and

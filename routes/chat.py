@@ -417,7 +417,6 @@ def family_chat(family_id):
     return render_template("chat.html", other=None, messages=messages, family=family)
 
 
-@chat_bp.route("/calls/<int:user_id>")
 @login_required
 def calls(user_id):
     if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
@@ -878,7 +877,6 @@ def family_message(data):
     )
 
 
-@socketio.on("webrtc_offer")
 def webrtc_offer(data):
     target_id = parse_user_id(data.get("target_id"))
     offer = data.get("offer")
@@ -915,7 +913,6 @@ def webrtc_offer(data):
     log_call_signal("server_forwarded_webrtc_offer", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("webrtc_answer")
 def webrtc_answer(data):
     target_id = parse_user_id(data.get("target_id"))
     answer = data.get("answer")
@@ -952,7 +949,6 @@ def webrtc_answer(data):
     log_call_signal("server_forwarded_webrtc_answer", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("ice_candidate")
 def ice_candidate(data):
     target_id = parse_user_id(data.get("target_id"))
     candidate = data.get("candidate")
@@ -982,7 +978,6 @@ def ice_candidate(data):
     log_call_signal("server_forwarded_ice_candidate", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("call_invite")
 def call_invite(data):
     target_id = parse_user_id(data.get("target_id"))
     mode = data.get("mode", "video")
@@ -1049,7 +1044,6 @@ def call_invite(data):
     log_call_signal("server_sent_incoming_call", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("call_accepted")
 def call_accepted(data):
     target_id = parse_user_id(data.get("target_id"))
     if not target_id:
@@ -1079,12 +1073,10 @@ def call_accepted(data):
         log_call_signal("server_sent_call_acceptance_to_caller", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("ready_for_call")
 def ready_for_call(data):
     call_accepted(data)
 
 
-@socketio.on("call_ended")
 def call_ended(data):
     target_id = parse_user_id(data.get("target_id"))
     call_id = data.get("call_id") or (call_id_for_users(current_user.id, target_id) if target_id else None)
@@ -1109,7 +1101,6 @@ def call_ended(data):
         emit("call_ended", {"sender_id": current_user.id}, room=user_room(target_id))
 
 
-@socketio.on("call_declined")
 def call_declined(data):
     target_id = parse_user_id(data.get("target_id"))
     call_id = data.get("call_id") or (call_id_for_users(current_user.id, target_id) if target_id else None)
@@ -1135,7 +1126,6 @@ def call_declined(data):
         )
 
 
-@socketio.on("leave_call")
 def leave_call(data):
     call_id = data.get("call_id")
     room_id = data.get("room_id") or (call_room_for_id(call_id) if call_id else None)
@@ -1145,7 +1135,6 @@ def leave_call(data):
         log_call_signal("server_leave_call_room", call_id, room_id=room_id, target_id=target_id)
 
 
-@socketio.on("join_live")
 def join_live(data):
     session_id = parse_user_id(data.get("session_id"))
     role = data.get("role", "viewer")
@@ -1197,7 +1186,6 @@ def join_live(data):
         emit("live_waiting_for_host", {"session_id": session.id}, room=request.sid)
 
 
-@socketio.on("live_offer")
 def live_offer(data):
     viewer_sid = data.get("viewer_sid")
     offer = data.get("offer")
@@ -1223,7 +1211,6 @@ def live_offer(data):
         )
 
 
-@socketio.on("live_answer")
 def live_answer(data):
     session_id = parse_user_id(data.get("session_id"))
     answer = data.get("answer")
@@ -1244,7 +1231,6 @@ def live_answer(data):
         )
 
 
-@socketio.on("live_ice_candidate")
 def live_ice_candidate(data):
     session_id = parse_user_id(data.get("session_id"))
     candidate = data.get("candidate")
@@ -1266,7 +1252,6 @@ def live_ice_candidate(data):
         )
 
 
-@socketio.on("live_comment")
 def live_comment(data):
     session_id = parse_user_id(data.get("session_id"))
     content = (data.get("content") or "").strip()
