@@ -48,35 +48,17 @@
     <a href="#family-home" data-family-tab>Home</a>
     <a href="{{ url_for('chat.family_chat', family_id=family.id) }}">Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
-    <a href="#family-goal" data-family-tab>Goal</a>
+    <a href="#family-challenges" data-family-tab>Goals</a>
   </nav>
 
-  <div class="family-action-dock" data-family-tabs aria-label="Family quick actions">
-    <a href="#family-posts" data-family-tab>Post</a>
-    <a href="#family-polls" data-family-tab>Poll</a>
-    <a href="#family-challenges" data-family-tab>Challenge</a>
-    {% if feature_enabled('anonymous_support_posts') and member %}<a href="{{ url_for('family.family_encouragement', family_id=family.id) }}">Encourage</a>{% endif %}
-    {% if supports_quizzes %}
-    <a href="#family-quizzes" data-family-tab>Quiz</a>
-    {% endif %}
-    <a href="#family-members" data-family-tab>Members</a>
-    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
-    {% if family.description %}
-    <button type="button" data-family-description-toggle aria-expanded="false">About</button>
-    {% endif %}
-  </div>
-
   {% if family.description %}
-  <section class="family-description-panel" data-family-description-panel hidden>
-    <div class="split-header">
-      <h3>About this Family</h3>
-      <button class="text-button" type="button" data-family-description-close>Close</button>
-    </div>
+  <section class="family-description-panel" data-family-panel data-family-panel-group="home" hidden>
+    <div class="split-header"><h3>About this Family</h3></div>
     <p>{{ family.description }}</p>
   </section>
   {% endif %}
 
-  <section id="family-home" class="family-section" data-family-panel>
+  <section id="family-home" class="family-section" data-family-panel data-family-panel-group="home">
     <div class="family-welcome"><p class="eyebrow">Family Home</p><h3>{{ dashboard_greeting }}, {{ current_user.profile.display_name if current_user.profile and current_user.profile.display_name else current_user.username }}.</h3><p>Here’s what your family is growing through today.</p></div>
     {% if feature_enabled('family_levels') %}
     <section class="family-level-card" aria-label="{{ family.name }} Family level">
@@ -139,7 +121,7 @@
     </section>{% endif %}
   </section>
 
-  <section id="family-activity" class="family-section family-activity-section">
+  <section id="family-activity" class="family-section family-activity-section" data-family-panel data-family-panel-group="home">
     <div class="split-header"><div><p class="eyebrow">Growing together</p><h3>Family activity</h3></div><span class="muted-meta">Meaningful moments, without the noise</span></div>
     {% if family_activity_visible %}
     <nav class="activity-filters" aria-label="Filter Family activity">
@@ -162,9 +144,9 @@
     {% endif %}
   </section>
 
-  {% if has_family_gallery %}<section id="family-gallery" class="family-section"><div class="split-header"><div><p class="eyebrow">Shared memories</p><h3>Family gallery</h3></div><span class="muted-meta">{{ family.gallery_items.count() }} / 30 memories</span></div>{% if member %}<form action="{{ url_for('family.add_family_gallery_item', family_id=family.id) }}" method="post" enctype="multipart/form-data" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Photo<input type="file" name="gallery_image" accept="image/png,image/jpeg,image/gif" required></label><label>Caption<input type="text" name="caption" maxlength="240" placeholder="A small memory worth keeping"></label><button class="button" type="submit">Add to gallery</button></form>{% endif %}<div class="family-gallery-grid">{% for item in family.gallery_items.all()|reverse %}<figure><img src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ item.caption or family.name ~ ' memory' }}" loading="lazy">{% if item.caption %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>{% else %}<p class="muted-meta">The gallery is ready for its first Family memory.</p>{% endfor %}</div></section>{% endif %}
+  {% if has_family_gallery %}<section id="family-gallery" class="family-section" data-family-panel data-family-panel-group="home"><div class="split-header"><div><p class="eyebrow">Shared memories</p><h3>Family gallery</h3></div><span class="muted-meta">{{ family.gallery_items.count() }} / 30 memories</span></div>{% if member %}<form action="{{ url_for('family.add_family_gallery_item', family_id=family.id) }}" method="post" enctype="multipart/form-data" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Photo<input type="file" name="gallery_image" accept="image/png,image/jpeg,image/gif" required></label><label>Caption<input type="text" name="caption" maxlength="240" placeholder="A small memory worth keeping"></label><button class="button" type="submit">Add to gallery</button></form>{% endif %}<div class="family-gallery-grid">{% for item in family.gallery_items.all()|reverse %}<figure><img src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ item.caption or family.name ~ ' memory' }}" loading="lazy">{% if item.caption %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>{% else %}<p class="muted-meta">The gallery is ready for its first Family memory.</p>{% endfor %}</div></section>{% endif %}
 
-  <section id="family-goal" class="family-section" data-family-panel hidden>
+  <section id="family-goal" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
     <div class="split-header"><h3>Goals</h3><a class="button secondary" href="{{ url_for('goals.goals_dashboard') }}">Open goals</a></div>
     <p>{{ family.goal_description or family.description or 'This Family is preparing its shared goal.' }}</p>
     {% if family.target_date %}
@@ -173,7 +155,7 @@
     <div class="dashboard-list">{% for expanded_goal in family.expanded_goals.order_by(Goal.created_at.desc()).limit(5).all() %}<a href="{{ url_for('goals.goal_detail', goal_id=expanded_goal.id) }}"><strong>{{ expanded_goal.title }}</strong><small>{{ expanded_goal.current_progress|round(2) }} / {{ expanded_goal.target_amount|round(2) }}</small></a>{% else %}<p class="muted-meta">Expanded goals will appear here when a Family owner or admin creates one.</p>{% endfor %}</div>
   </section>
 
-  <section id="family-polls" class="family-section" data-family-panel hidden>
+  <section id="family-polls" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
     <h3>Polls</h3>
     {% if can_create_polls %}
     <form class="poll-form compact-composer" action="{{ url_for('family.create_poll', family_id=family.id) }}" method="post">
@@ -285,7 +267,7 @@
     </div>
   </section>
 
-  <section id="family-challenges" class="family-section" data-family-panel hidden>
+  <section id="family-challenges" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
     <h3>Challenges</h3>
     {% if family_progress is not none %}
     <div class="family-goal-summary">
@@ -414,7 +396,7 @@
     </div>
   </section>
 
-  <section id="family-members" class="family-section" data-family-panel hidden data-live-search data-live-search-singular="member" data-live-search-plural="members">
+  <section id="family-members" class="family-section" data-family-panel data-family-panel-group="home" hidden data-live-search data-live-search-singular="member" data-live-search-plural="members">
     <div class="split-header">
       <h3>Members</h3>
       <span class="search-results-count" data-live-search-count>
@@ -500,7 +482,7 @@
     <p class="live-search-empty" data-live-search-empty hidden>No matching members in this Family.</p>
   </section>
 
-  <section id="family-quizzes" class="family-section" data-family-panel hidden>
+  <section id="family-quizzes" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
     <h3>Quizzes</h3>
     {% if not supports_quizzes %}
     <p class="muted-meta">This Family category does not use quizzes by default.</p>
@@ -616,7 +598,7 @@
     </div>
   </section>
 
-  <section id="family-posts" class="family-section" data-family-panel hidden>
+  <section id="family-posts" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
     <h3>Family posts</h3>
     {% if member %}
     <form
@@ -673,7 +655,7 @@
   </section>
 
   {% if can_invite_members %}
-  <section id="family-invite" class="family-section" data-family-panel hidden>
+  <section id="family-invite" class="family-section" data-family-panel data-family-panel-group="home" hidden>
     <h3>Invite someone</h3>
     <form
       action="{{ url_for('family.invite_family_member', family_id=family.id) }}"

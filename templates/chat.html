@@ -36,6 +36,7 @@
     {% endif %}
     {% endfor %}
   </button>
+  {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Voice rooms are not available yet. Family messages remain ready below.</small></div></aside>{% endif %}
   <div id="chat-log" class="chat-log">
     {% set date_state = namespace(last_day='') %}
     {% for message in messages %}

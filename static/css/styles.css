@@ -189,6 +189,26 @@
   .chat-header-avatar-button { min-width: 44px; min-height: 44px; }
 }
 
+/* Four-section Family navigation and safe voice-room placeholder. */
+#family-challenges { display: flex; flex-direction: column; }
+#family-challenges[hidden] { display: none; }
+#family-challenges > h3 { order: 0; }
+#family-challenges > .challenge-list { order: 1; }
+#family-challenges > .family-goal-summary { order: 2; margin-top: 1rem; }
+#family-challenges > .challenge-form { order: 3; margin-top: 1rem; }
+.family-voice-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  color: var(--muted);
+  background: var(--soft);
+  border-bottom: 1px solid var(--line);
+}
+.family-voice-placeholder > span { font-size: 1.25rem; color: var(--brand); }
+.family-voice-placeholder > div { display: grid; min-width: 0; }
+.family-voice-placeholder strong { color: var(--ink); }
+
 body {
   overflow-x: hidden;
 }

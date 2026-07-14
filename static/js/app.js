@@ -884,11 +884,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (familyPanels.length && familyTabs.length) {
     const showFamilyPanel = (id, updateHash = true) => {
       const target = familyPanels.find((panel) => panel.id === id) || familyPanels[0];
+      const group = target.dataset.familyPanelGroup || target.id;
+      const groupPanels = familyPanels.filter(
+        (panel) => (panel.dataset.familyPanelGroup || panel.id) === group,
+      );
+      if (target.parentNode && groupPanels.length && groupPanels[0] !== target) {
+        target.parentNode.insertBefore(target, groupPanels[0]);
+      }
       familyPanels.forEach((panel) => {
-        panel.hidden = panel !== target;
+        panel.hidden = (panel.dataset.familyPanelGroup || panel.id) !== group;
       });
       familyTabs.forEach((tab) => {
-        tab.classList.toggle("active", tab.getAttribute("href") === `#${target.id}`);
+        const tabTarget = familyPanels.find(
+          (panel) => tab.getAttribute("href") === `#${panel.id}`,
+        );
+        tab.classList.toggle(
+          "active",
+          Boolean(tabTarget) && (tabTarget.dataset.familyPanelGroup || tabTarget.id) === group,
+        );
       });
       if (updateHash && window.location.hash !== `#${target.id}`) {
         window.history.replaceState(null, "", `#${target.id}`);
