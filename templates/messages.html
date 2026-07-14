@@ -32,23 +32,18 @@
   </p>
   <div class="message-list">
     {% for item in conversations %}
-    <a
-      class="message-row"
-      href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"
+    <article
+      class="message-row message-row--interactive"
       data-search-item
       data-search-text="{{ item.user.username }} {{ item.user.profile.display_name if item.user.profile else '' }} {{ item.message.content or item.message.media_type or '' }}"
     >
-      <img
-        class="avatar"
-        src="{{ user_avatar_url(item.user) }}"
-        alt="Avatar"
-      />
-      <div>
-        <strong>{{ item.user.profile.display_name }}{{ rise_badges(rise_user_badges(item.user)) }}</strong>
-        <p>{{ item.message.content }}</p>
+      {% if item.user.profile and item.user.profile.avatar %}<button class="message-avatar-button" type="button" data-avatar-preview="{{ user_avatar_url(item.user) }}" aria-label="Preview {{ item.user.profile.display_name }} profile picture"><img class="avatar" src="{{ user_avatar_url(item.user) }}" alt="" /></button>{% else %}<img class="avatar" src="{{ user_avatar_url(item.user) }}" alt="" />{% endif %}
+      <div class="message-row-content">
+        <a class="message-profile-link" href="{{ url_for('main.profile', username=item.user.username) }}"><strong>{{ item.user.profile.display_name }}{{ rise_badges(rise_user_badges(item.user)) }}</strong></a>
+        <a class="message-conversation-link" href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"><p>{{ item.message.content }}</p></a>
       </div>
       <span>{{ item.message.created_at.strftime('%H:%M') }}</span>
-    </a>
+    </article>
     {% else %}
     <p>No direct messages yet.</p>
     {% endfor %}
@@ -91,4 +86,8 @@
   </div>
   <p class="live-search-empty" data-live-search-empty hidden>No matching Family chats.</p>
 </section>
+<dialog class="message-avatar-modal" data-message-avatar-modal aria-label="Profile picture preview">
+  <button type="button" data-message-avatar-close aria-label="Close profile picture preview">×</button>
+  <img data-message-avatar-image alt="Profile picture preview" />
+</dialog>
 {% endblock %}

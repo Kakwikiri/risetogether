@@ -9,20 +9,16 @@
     </form>
   </div>
   {% for notification in notifications %}
-  <article
-    class="notification-card {% if not notification.seen %}unseen{% endif %}"
-  >
+  <article class="notification-card {% if not notification.seen %}unseen{% endif %}">
+    <span class="notification-icon" aria-hidden="true">{% if notification.category in ['message', 'family_chat'] %}✉{% elif notification.category in ['reaction', 'comment'] %}♡{% elif notification.category == 'friend_request' %}☻{% elif notification.category == 'family_invite' %}⌁{% else %}●{% endif %}</span>
     {% if notification.action_url %}
     <a class="notification-main" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
-      <span>{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
+      <span>{% if not notification.seen %}<i class="notification-unread-dot" aria-label="Unread"></i>{% endif %}{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
       <small>{{ notification.category|replace('_', ' ')|title }} · {{ notification.updated_at.strftime('%b %d, %Y %H:%M') }}</small>
-    </a>
-    <a class="button secondary notification-view" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
-      {% if notification.category in ['message', 'family_chat'] %}View message{% elif notification.category in ['reaction', 'comment'] %}View post{% else %}View{% endif %}
     </a>
     {% else %}
     <div class="notification-main">
-      <span>{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
+      <span>{% if not notification.seen %}<i class="notification-unread-dot" aria-label="Unread"></i>{% endif %}{% if notification.event_count > 1 %}<b>{{ notification.event_count }} updates · </b>{% endif %}{{ notification.message }}</span>
       <small>{{ notification.category|replace('_', ' ')|title }} · {{ notification.updated_at.strftime('%b %d, %Y %H:%M') }}</small>
     </div>
     {% endif %}
@@ -47,7 +43,7 @@
         >Open people</a
       >
     </p>
-    {% endif %} {% if not notification.seen %}
+    {% endif %} {% if not notification.seen and not notification.action_url %}
     <form
       action="{{ url_for('main.mark_notification_read', notification_id=notification.id) }}"
       method="post"

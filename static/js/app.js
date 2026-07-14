@@ -134,6 +134,32 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const avatarModal = document.querySelector("[data-message-avatar-modal]");
+  const avatarModalImage = avatarModal?.querySelector("[data-message-avatar-image]");
+  const closeAvatarModal = () => {
+    if (!avatarModal) return;
+    if (typeof avatarModal.close === "function") avatarModal.close();
+    else avatarModal.removeAttribute("open");
+    if (avatarModalImage) avatarModalImage.removeAttribute("src");
+  };
+  document.querySelectorAll("[data-avatar-preview]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!avatarModal || !avatarModalImage || !button.dataset.avatarPreview) return;
+      avatarModalImage.src = button.dataset.avatarPreview;
+      if (typeof avatarModal.showModal === "function") avatarModal.showModal();
+      else avatarModal.setAttribute("open", "");
+    });
+  });
+  avatarModal?.querySelector("[data-message-avatar-close]")?.addEventListener("click", closeAvatarModal);
+  avatarModal?.addEventListener("click", (event) => {
+    if (event.target === avatarModal) closeAvatarModal();
+  });
+  avatarModal?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeAvatarModal();
+  });
+
   const urlBase64ToUint8Array = (base64String) => {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");

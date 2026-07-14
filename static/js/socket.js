@@ -396,19 +396,20 @@ socket.on("messages_delivered", (data) => {
 });
 
 const incrementBadge = (selector, linkHref) => {
-  let badge = document.querySelector(selector);
-  if (!badge && linkHref) {
-    const link = document.querySelector(`a[href="${linkHref}"]`);
-    if (link) {
-      badge = document.createElement("span");
-      badge.className = "nav-badge";
+  let badges = [...document.querySelectorAll(selector)];
+  if (!badges.length && linkHref) {
+    document.querySelectorAll(`a[href="${linkHref}"]`).forEach((link) => {
+      const badge = document.createElement("span");
+      badge.className = link.closest(".mobile-bottom-nav") ? "mobile-nav-badge" : "nav-badge";
       badge.dataset[selector.includes("notification") ? "notificationBadge" : "messageBadge"] = "";
       link.append(" ", badge);
-    }
+      badges.push(badge);
+    });
   }
-  if (!badge) return;
-  const current = Number.parseInt(badge.textContent || "0", 10) || 0;
-  badge.textContent = current + 1;
+  badges.forEach((badge) => {
+    const current = Number.parseInt(badge.textContent || "0", 10) || 0;
+    badge.textContent = current + 1;
+  });
 };
 
 socket.on("notification_received", (data) => {
