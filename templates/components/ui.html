@@ -159,8 +159,10 @@ current_user.is_authenticated else none %}
 'encouragement_milestone': ('♡', 'Encouragement milestone'),
 'weekly_family_milestone': ('☀', 'Weekly Family milestone') } %} {% set
 achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
+{% set certificate_completion = post.challenge_completion if post.challenge_completion else none %}
+{% set decorated_certificate = certificate_completion and feature_enabled('family_upgrades') and family_has_upgrade(certificate_completion.challenge.family_id, 'celebration_certificates') %}
 <section
-  class="achievement-post-card achievement-post-card--{{ post.achievement_type }}"
+  class="achievement-post-card achievement-post-card--{{ post.achievement_type }}{% if decorated_certificate %} achievement-post-card--decorated{% endif %}"
 >
   <div class="achievement-post-glow" aria-hidden="true"></div>
   <header>

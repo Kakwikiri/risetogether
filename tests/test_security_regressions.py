@@ -8,7 +8,7 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction, User
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -32,12 +32,47 @@ from feature_flags import (
 )
 from family_levels import family_level_for_xp
 from family_upgrades import UPGRADE_CATALOG
+from points import award_points, personal_point_balance, spend_personal_points
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_friend_point_gift_preserves_total_points(self):
+        test_app = Flask(__name__)
+        test_app.config.update(
+            SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
+            SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        )
+        db.init_app(test_app)
+        with test_app.app_context():
+            User.__table__.create(db.engine)
+            PointTransaction.__table__.create(db.engine)
+            sender = User(username="sender", email="sender@example.com", password_hash="x")
+            friend = User(username="friend", email="friend@example.com", password_hash="x")
+            db.session.add_all((sender, friend))
+            db.session.flush()
+            award_points(
+                amount=100, reason="Starting test balance", source_type="test",
+                source_id=1, unique_reward_key="test:gift:starting", user_id=sender.id,
+            )
+            db.session.commit()
+            spend_personal_points(
+                user_id=sender.id, amount=25, reason="Shared with friend",
+                source_type="friend_point_gift", source_id=friend.id,
+                unique_reward_key="test:gift:sent",
+            )
+            award_points(
+                amount=25, reason="Shared by sender", source_type="friend_point_gift_received",
+                source_id=sender.id, unique_reward_key="test:gift:received", user_id=friend.id,
+                awarded_by_id=sender.id,
+            )
+            db.session.commit()
+            self.assertEqual(personal_point_balance(sender.id), 75)
+            self.assertEqual(personal_point_balance(friend.id), 25)
+            self.assertEqual(personal_point_balance(sender.id) + personal_point_balance(friend.id), 100)
+
     def test_stage_eighteen_campaigns_have_safe_unique_accounting(self):
         constraint_columns = {
             column.name for constraint in FamilyContributionCampaign.__table__.constraints
@@ -88,6 +123,7 @@ class SecurityRegressionTests(unittest.TestCase):
         expected = {
             "custom_banner", "pinned_announcements", "challenge_slots", "family_gallery",
             "quiz_slots", "extra_themes", "advanced_statistics", "custom_badge_frame",
+            "celebration_certificates",
             "capacity_75", "capacity_100", "capacity_150", "capacity_250",
         }
         self.assertEqual(set(UPGRADE_CATALOG), expected)
@@ -446,7 +482,7 @@ class SecurityRegressionTests(unittest.TestCase):
         }
         self.assertEqual(set(FEATURE_FLAG_DEFINITIONS), expected)
         defaults = default_feature_flags()
-        self.assertFalse(defaults["personal_points"])
+        self.assertTrue(defaults["personal_points"])
         self.assertFalse(defaults["anonymous_support_posts"])
         self.assertTrue(defaults["verification_badges"])
         self.assertTrue(defaults["family_leaderboards"])
@@ -469,12 +505,12 @@ class SecurityRegressionTests(unittest.TestCase):
         db.init_app(test_app)
         with test_app.app_context():
             SiteSetting.__table__.create(db.engine)
-            self.assertFalse(get_feature_flags()["personal_points"])
+            self.assertTrue(get_feature_flags()["personal_points"])
             db.session.add(
-                SiteSetting(key=feature_flag_key("personal_points"), value="true")
+                SiteSetting(key=feature_flag_key("personal_points"), value="false")
             )
             db.session.commit()
-            self.assertTrue(get_feature_flags()["personal_points"])
+            self.assertFalse(get_feature_flags()["personal_points"])
 
     def test_csrf_rejects_missing_token_and_accepts_valid_token(self):
         test_app = Flask(__name__)

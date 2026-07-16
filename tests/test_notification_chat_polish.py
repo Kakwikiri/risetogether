@@ -51,6 +51,19 @@ class NotificationChatPolishTests(unittest.TestCase):
         self.assertIn('id="device-notifications"', settings)
         self.assertIn('button.textContent = "Enabled"', app_js)
 
+    def test_friend_point_gifts_and_family_certificate_upgrade_are_connected(self):
+        main = (ROOT / "routes/main.py").read_text()
+        points = (ROOT / "templates/point_history.html").read_text()
+        upgrades = (ROOT / "family_upgrades.py").read_text()
+        certificate = (ROOT / "templates/components/ui.html").read_text()
+        self.assertIn("def gift_friend_points", main)
+        self.assertIn("users_are_friends(current_user.id, recipient.id)", main)
+        self.assertIn("spend_personal_points(", main)
+        self.assertIn('source_type="friend_point_gift_received"', main)
+        self.assertIn("Share points with a friend", points)
+        self.assertIn('"celebration_certificates"', upgrades)
+        self.assertIn("achievement-post-card--decorated", certificate)
+
     def test_inbox_unread_state_and_audio_quality_controls_are_present(self):
         messages = (ROOT / "templates/messages.html").read_text()
         socket_js = (ROOT / "static/js/socket.js").read_text()

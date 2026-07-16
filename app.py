@@ -426,6 +426,7 @@ def record_real_user_activity():
 @app.context_processor
 def inject_navigation_counts():
     from badges import family_badges, user_badges
+    from family_upgrades import family_has_upgrade
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
     from models import Message, Notification
     from notifications_service import important_unread_count, unread_private_message_count
@@ -452,6 +453,7 @@ def inject_navigation_counts():
         "family_avatar_url": family_avatar_url,
         "feature_flags": feature_flags,
         "feature_enabled": lambda name: feature_flags.get(name, False),
+        "family_has_upgrade": family_has_upgrade,
         "rise_user_badges": user_badges,
         "rise_family_badges": family_badges,
     }

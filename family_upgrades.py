@@ -10,6 +10,7 @@ UPGRADE_CATALOG = {
     "extra_themes": {"name": "Extra family themes", "cost": 450, "description": "Unlock sunrise, ocean, and forest Family themes."},
     "advanced_statistics": {"name": "Advanced family statistics", "cost": 800, "description": "See deeper participation and completion insights."},
     "custom_badge_frame": {"name": "Custom family badge frame", "cost": 500, "description": "Give the Family avatar a distinctive growth frame."},
+    "celebration_certificates": {"name": "Celebration certificates", "cost": 550, "description": "Add a warm decorative frame to certificates earned through this Family's challenges."},
     "capacity_75": {"name": "Capacity: 75 members", "cost": 1000, "description": "Increase member capacity from 50 to 75.", "capacity": 75},
     "capacity_100": {"name": "Capacity: 100 members", "cost": 1800, "description": "Increase member capacity from 75 to 100.", "capacity": 100},
     "capacity_150": {"name": "Capacity: 150 members", "cost": 3000, "description": "Increase member capacity from 100 to 150.", "capacity": 150},

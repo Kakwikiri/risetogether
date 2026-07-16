@@ -8,12 +8,12 @@ from models import SiteSetting
 
 FEATURE_FLAG_DEFINITIONS = {
     "daily_checkins": ("Daily check-ins", True),
-    "personal_points": ("Personal points", False),
+    "personal_points": ("Personal points", True),
     "family_points": ("Family points", True),
     "streaks": ("Streaks", False),
     "achievement_posts": ("Achievement posts", True),
     "family_levels": ("Family levels", False),
-    "family_upgrades": ("Family upgrades", False),
+    "family_upgrades": ("Family upgrades", True),
     "weekly_reports": ("Weekly reports", False),
     "enhanced_notifications": ("Enhanced notifications", True),
     "verification_badges": ("Verification badges", True),
@@ -78,4 +78,3 @@ def feature_required(name):
         return wrapped
 
     return decorator
-

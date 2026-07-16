@@ -34,6 +34,21 @@
       {% endfor %}
     {% endif %}
   </div>
+  {% if personal_enabled %}
+  <section class="card point-gift-card">
+    <div><p class="eyebrow">Grow together</p><h2>Share points with a friend</h2><p>Use points you have earned to help an accepted friend. Every gift appears in both point histories.</p></div>
+    {% if gift_friends and personal_balance > 0 %}
+    <form action="{{ url_for('main.gift_friend_points') }}" method="post" class="point-gift-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label>Friend<select name="recipient_id" required><option value="">Choose a friend</option>{% for friend in gift_friends %}<option value="{{ friend.id }}">{{ friend.profile.display_name if friend.profile else friend.username }} · @{{ friend.username }}</option>{% endfor %}</select></label>
+      <label>Points<select name="amount" required>{% for amount in (5, 10, 25, 50, 100) if amount <= personal_balance %}<option value="{{ amount }}">{{ amount }} points</option>{% endfor %}</select></label>
+      <label class="point-gift-note">Warm note (optional)<input name="note" maxlength="120" placeholder="Keep growing. I’m with you." /></label>
+      <button class="button" type="submit" data-confirm="Share these Personal Points with your friend?">Share points</button>
+    </form>
+    {% elif not gift_friends %}<p class="muted-meta">Accepted friends will appear here when you have someone to support.</p>
+    {% else %}<p class="muted-meta">Complete approved activities to earn points you can share.</p>{% endif %}
+  </section>
+  {% endif %}
   <section class="card point-history-card">
     <div class="section-heading"><div><p class="eyebrow">Accountable by design</p><h2>Point history</h2></div></div>
     {% if transactions.items %}

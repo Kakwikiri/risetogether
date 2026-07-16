@@ -1,4 +1,5 @@
 import re
+import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -52,7 +53,14 @@ from models import (
     UserStreak,
     User,
 )
-from points import family_point_balance, personal_point_balance, reverse_completion_rewards_for_user
+from points import (
+    PointLimitExceeded,
+    award_points,
+    family_point_balance,
+    personal_point_balance,
+    reverse_completion_rewards_for_user,
+    spend_personal_points,
+)
 from notifications_service import (
     NOTIFICATION_CATEGORIES, notification_allowed, preference_map,
     save_notification_preferences, smart_notify,
@@ -1953,6 +1961,30 @@ def point_history():
     transactions = query.order_by(
         PointTransaction.created_at.desc(), PointTransaction.id.desc()
     ).paginate(page=page, per_page=30, error_out=False)
+    gift_friends = []
+    if personal_enabled:
+        friendships = FriendRequest.query.filter(
+            FriendRequest.status == "accepted",
+            or_(
+                FriendRequest.sender_id == current_user.id,
+                FriendRequest.receiver_id == current_user.id,
+            ),
+        ).all()
+        friend_ids = {
+            row.receiver_id if row.sender_id == current_user.id else row.sender_id
+            for row in friendships
+        }
+        blocked_ids = {
+            row.blocked_id for row in Block.query.filter_by(blocker_id=current_user.id).all()
+        } | {
+            row.blocker_id for row in Block.query.filter_by(blocked_id=current_user.id).all()
+        }
+        visible_friend_ids = friend_ids - blocked_ids
+        if visible_friend_ids:
+            gift_friends = User.query.filter(
+                User.id.in_(visible_friend_ids),
+                User.is_hidden_from_directory == False,
+            ).order_by(User.username.asc()).all()
     family_balances = []
     if family_enabled:
         family_balances = [
@@ -1968,7 +2000,80 @@ def point_history():
         transactions=transactions,
         personal_enabled=personal_enabled,
         family_enabled=family_enabled,
+        gift_friends=gift_friends,
     )
+
+
+@main_bp.route("/points/gift", methods=["POST"])
+@login_required
+def gift_friend_points():
+    if not is_feature_enabled("personal_points"):
+        flash("Personal Points are not available yet.", "info")
+        return redirect(url_for("main.point_history"))
+    recipient_id = request.form.get("recipient_id", type=int)
+    try:
+        amount = int(request.form.get("amount", "0"))
+    except (TypeError, ValueError):
+        amount = 0
+    note = request.form.get("note", "").strip()
+    if not recipient_id or recipient_id == current_user.id or amount not in {5, 10, 25, 50, 100}:
+        flash("Choose a friend and a supported gift amount.", "warning")
+        return redirect(url_for("main.point_history"))
+    if len(note) > 120:
+        flash("A point gift note can be up to 120 characters.", "warning")
+        return redirect(url_for("main.point_history"))
+    recipient = User.query.filter_by(id=recipient_id, is_hidden_from_directory=False).first_or_404()
+    if not users_are_friends(current_user.id, recipient.id) or Block.query.filter(or_(
+        (Block.blocker_id == current_user.id) & (Block.blocked_id == recipient.id),
+        (Block.blocker_id == recipient.id) & (Block.blocked_id == current_user.id),
+    )).first():
+        abort(403)
+    start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    gifts_today = PointTransaction.query.filter(
+        PointTransaction.user_id == current_user.id,
+        PointTransaction.source_type == "friend_point_gift",
+        PointTransaction.transaction_kind == "spend",
+        PointTransaction.reversed == False,
+        PointTransaction.created_at >= start_of_day,
+    ).count()
+    if gifts_today >= 10:
+        flash("You can share points with friends up to 10 times each day.", "warning")
+        return redirect(url_for("main.point_history"))
+    User.query.filter(User.id.in_(sorted((current_user.id, recipient.id)))).order_by(User.id).with_for_update().all()
+    gift_key = secrets.token_urlsafe(18)
+    note_suffix = f": {note}" if note else ""
+    try:
+        spend_personal_points(
+            user_id=current_user.id,
+            amount=amount,
+            reason=f"Shared with {recipient.username}{note_suffix}",
+            source_type="friend_point_gift",
+            source_id=recipient.id,
+            unique_reward_key=f"friend-gift:{gift_key}:sent",
+        )
+        award_points(
+            user_id=recipient.id,
+            amount=amount,
+            reason=f"Shared by {current_user.username}{note_suffix}",
+            source_type="friend_point_gift_received",
+            source_id=current_user.id,
+            unique_reward_key=f"friend-gift:{gift_key}:received",
+            awarded_by_id=current_user.id,
+        )
+        smart_notify(
+            user_id=recipient.id,
+            category="point_gift",
+            message=f"{current_user.username} shared {amount} points with you.",
+            action_url=url_for("main.point_history"),
+            dedupe_key=f"friend-point-gift:{gift_key}",
+        )
+        db.session.commit()
+    except (PointLimitExceeded, ValueError, IntegrityError) as exc:
+        db.session.rollback()
+        flash(str(exc) if not isinstance(exc, IntegrityError) else "This point gift was already recorded.", "warning")
+        return redirect(url_for("main.point_history"))
+    flash(f"You shared {amount} points with {recipient.username}.", "success")
+    return redirect(url_for("main.point_history"))
 
 
 @main_bp.route("/notification/mark-read/<int:notification_id>", methods=["POST"])
