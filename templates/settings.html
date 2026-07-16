@@ -51,7 +51,7 @@
     {% if feature_enabled('streaks') %}<label>Your time zone<input type="text" name="timezone" value="{{ current_user.profile.timezone or 'Africa/Kampala' }}" maxlength="64" list="common-timezones" required /><small>Streak days follow this local time zone.</small></label><datalist id="common-timezones"><option value="Africa/Kampala"><option value="Africa/Nairobi"><option value="Africa/Lagos"><option value="UTC"><option value="Europe/London"><option value="America/New_York"><option value="Asia/Kolkata"></datalist>{% else %}<input type="hidden" name="timezone" value="{{ current_user.profile.timezone or 'Africa/Kampala' }}" />{% endif %}
     <button class="button" type="submit">Save settings</button>
   </form>
-  <section class="device-notification-panel">
+  <section class="device-notification-panel" id="device-notifications">
     <h3>Device notifications</h3>
     <p class="muted-meta">
       Turn this on to receive supported browser notifications from this device.

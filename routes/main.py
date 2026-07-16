@@ -1543,12 +1543,30 @@ def people():
         .order_by(FriendRequest.responded_at.desc().nullslast())
         .all()
     )
+    relationship_requests = FriendRequest.query.filter(
+        or_(
+            FriendRequest.sender_id == current_user.id,
+            FriendRequest.receiver_id == current_user.id,
+        )
+    ).all()
+    friendship_states = {}
+    for friend_request in relationship_requests:
+        other_id = (
+            friend_request.receiver_id
+            if friend_request.sender_id == current_user.id
+            else friend_request.sender_id
+        )
+        if friend_request.status == "accepted":
+            friendship_states[other_id] = "friend"
+        elif friend_request.status == "pending":
+            friendship_states[other_id] = "pending"
     return render_template(
         "people.html",
         users=users,
         query=query,
         incoming_requests=incoming_requests,
         accepted_requests=accepted_requests,
+        friendship_states=friendship_states,
     )
 
 
@@ -1749,11 +1767,17 @@ def send_friend_request(user_id):
             & (FriendRequest.receiver_id == current_user.id),
         )
     ).first()
-    if existing:
+    if existing and existing.status in {"pending", "accepted"}:
         flash("A friend request already exists with this person.", "info")
         return redirect(url_for("main.profile", username=target.username))
-    friend_request = FriendRequest(sender_id=current_user.id, receiver_id=target.id)
-    db.session.add(friend_request)
+    if existing:
+        existing.sender_id = current_user.id
+        existing.receiver_id = target.id
+        existing.status = "pending"
+        existing.created_at = datetime.utcnow()
+        existing.responded_at = None
+    else:
+        db.session.add(FriendRequest(sender_id=current_user.id, receiver_id=target.id))
     add_notification(
         target.id,
         "friend_request",

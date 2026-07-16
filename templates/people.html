@@ -49,10 +49,16 @@
           <p>@{{ user.username }}</p>
         </div>
         <div class="person-actions">
+          {% if friendship_states.get(user.id) == 'friend' %}
+          <span class="status-pill" aria-label="Already friends">Friend</span>
+          {% elif friendship_states.get(user.id) == 'pending' %}
+          <span class="status-pill" aria-label="Friend request pending">Pending</span>
+          {% else %}
           <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Add friend</button>
           </form>
+          {% endif %}
           <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=user.id) }}"
             >Message</a
           >

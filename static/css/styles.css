@@ -177,6 +177,29 @@
 .message-reactions button { transition: background 0.15s ease, transform 0.15s ease; }
 .message-reactions button:active { transform: scale(0.92); }
 .message-reactions small { min-width: 0.8em; text-align: center; }
+.chat-video-download-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  width: min(100%, 320px);
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--soft) 82%, var(--panel));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.chat-video-download-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: white;
+  background: var(--brand);
+  border-radius: 50%;
+}
+.chat-video-download-card > div { display: grid; gap: 0.15rem; min-width: 0; }
+.chat-video-download-card small { color: var(--muted); line-height: 1.35; }
+.chat-video-download-card .button { grid-column: 1 / -1; width: 100%; }
 
 .profile-hero { justify-items: center; text-align: center; }
 .profile-identity-row,
@@ -219,6 +242,11 @@
   .family-list { grid-template-columns: 1fr; }
   .reaction-button { overflow: hidden; }
   .reaction-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .grid-layout > .panel,
+  .grid-layout > .panel-sidebar,
+  .panel-sidebar .card { width: 100%; min-width: 0; box-sizing: border-box; }
+  .request-card,
+  .friend-row { width: 100%; min-width: 0; box-sizing: border-box; }
 }
 
 /* Connection history, human support, and chat additions. */

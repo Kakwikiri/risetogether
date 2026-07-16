@@ -202,6 +202,13 @@ document.addEventListener("DOMContentLoaded", () => {
     pushStatuses.forEach((status) => { status.textContent = message; });
     if (message) showToast(message);
   };
+  const markPushEnabled = () => {
+    pushEnableButtons.forEach((button) => {
+      button.textContent = "Enabled";
+      button.disabled = true;
+      button.setAttribute("aria-pressed", "true");
+    });
+  };
 
   const getServiceWorkerRegistration = async () => {
     if (!("serviceWorker" in navigator)) {
@@ -339,7 +346,11 @@ document.addEventListener("DOMContentLoaded", () => {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || "Subscription could not be saved.");
         }
+        markPushEnabled();
         setPushStatus("Device notifications enabled.");
+        if (pushEnable.dataset.pushRedirect) {
+          window.setTimeout(() => window.location.assign(pushEnable.dataset.pushRedirect), 350);
+        }
       } catch (error) {
         setPushStatus(error.message || "Device notifications could not be enabled.");
       }
@@ -372,6 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
     navigator.serviceWorker.ready.then(async (registration) => {
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
+        markPushEnabled();
         document.querySelectorAll("[data-push-prompt]").forEach((prompt) => { prompt.hidden = true; });
       }
     }).catch(() => {});

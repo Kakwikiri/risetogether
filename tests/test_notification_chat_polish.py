@@ -31,6 +31,25 @@ class NotificationChatPolishTests(unittest.TestCase):
         self.assertIn('"message_reaction_updated"', chat)
         self.assertIn('[data-message-reaction-form]', socket_js)
         self.assertIn('socket.on("message_reaction_updated"', socket_js)
+        self.assertIn("queue_device_push(notification.id)", chat)
+
+    def test_people_states_and_received_video_download_are_explicit(self):
+        main = (ROOT / "routes/main.py").read_text()
+        people = (ROOT / "templates/people.html").read_text()
+        chat = (ROOT / "templates/chat.html").read_text()
+        self.assertIn("friendship_states=friendship_states", main)
+        for label in ("Friend", "Pending", "Add friend"):
+            self.assertIn(label, people)
+        self.assertIn("message.sender_id != current_user.id and not message.view_once", chat)
+        self.assertIn("Download video", chat)
+
+    def test_push_activation_moves_management_to_settings(self):
+        messages = (ROOT / "templates/messages.html").read_text()
+        settings = (ROOT / "templates/settings.html").read_text()
+        app_js = (ROOT / "static/js/app.js").read_text()
+        self.assertIn("data-push-redirect", messages)
+        self.assertIn('id="device-notifications"', settings)
+        self.assertIn('button.textContent = "Enabled"', app_js)
 
     def test_inbox_unread_state_and_audio_quality_controls_are_present(self):
         messages = (ROOT / "templates/messages.html").read_text()

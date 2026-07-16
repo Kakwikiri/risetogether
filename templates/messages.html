@@ -6,7 +6,7 @@
   </div>
   <aside class="inbox-notification-prompt" data-push-prompt>
     <div><strong>Keep conversations close</strong><span>Enable phone alerts for messages received while RiseTogether is closed.</span></div>
-    <button class="button secondary" type="button" data-push-enable>Enable alerts</button>
+    <button class="button secondary" type="button" data-push-enable data-push-redirect="{{ url_for('main.settings') }}#device-notifications">Enable alerts</button>
     <span class="muted-meta" data-push-status role="status"></span>
   </aside>
   <form
