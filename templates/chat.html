@@ -122,7 +122,7 @@
         <span class="message-ticks">{{ '✓✓' if message.delivered else '✓' }}</span>
         {% endif %}
       </small>
-      <form class="message-reactions" action="{{ url_for('chat.react_to_message', message_id=message.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />{% for key, symbol in [('heart', '♡'), ('support', '✦'), ('understand', '🤝')] %}<button type="submit" name="reaction" value="{{ key }}" aria-label="React with {{ key }}"{% if message.reactions.filter_by(user_id=current_user.id, reaction=key).first() %} aria-pressed="true"{% endif %}>{{ symbol }}{% set count = message.reactions.filter_by(reaction=key).count() %}{% if count %}<small>{{ count }}</small>{% endif %}</button>{% endfor %}</form>
+      <form class="message-reactions" action="{{ url_for('chat.react_to_message', message_id=message.id) }}" method="post" data-message-reaction-form data-message-id="{{ message.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />{% for key, symbol in [('heart', '♡'), ('support', '✦'), ('understand', '🤝')] %}<button type="submit" name="reaction" value="{{ key }}" data-message-reaction="{{ key }}" aria-label="React with {{ key }}" aria-pressed="{{ 'true' if message.reactions.filter_by(user_id=current_user.id, reaction=key).first() else 'false' }}">{{ symbol }} <small data-message-reaction-count>{{ message.reactions.filter_by(reaction=key).count() }}</small></button>{% endfor %}</form>
     </div>
     {% endfor %}
   </div>

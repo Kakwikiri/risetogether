@@ -103,11 +103,10 @@
       {% for request in accepted_requests %}
       {% set friend = request.receiver if request.sender_id == current_user.id else request.sender %}
       <article class="friend-row">
-        <a href="{{ url_for('main.profile', username=friend.username) }}"
-          >{{ friend.username }}</a
-        >
+        <img class="avatar" src="{{ user_avatar_url(friend) }}" alt="" />
+        <a class="friend-identity-link" href="{{ url_for('main.profile', username=friend.username) }}"><strong>{{ friend.profile.display_name if friend.profile else friend.username }}</strong><span>@{{ friend.username }}</span></a>
         <span>
-          <a href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a>
+          <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a>
         </span>
       </article>
       {% else %}

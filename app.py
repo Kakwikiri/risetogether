@@ -70,9 +70,9 @@ app.config["REALTIME_MEDIA_ENABLED"] = (
     os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
     in {"1", "true", "yes", "on"}
 )
-app.config["VAPID_PUBLIC_KEY"] = os.getenv("VAPID_PUBLIC_KEY", "").strip()
-app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-app.config["VAPID_SUBJECT"] = os.getenv("VAPID_SUBJECT", "mailto:admin@risetogether.local").strip()
+app.config["VAPID_PUBLIC_KEY"] = os.getenv("VAPID_PUBLIC_KEY", "").strip().strip("\"'")
+app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip().strip("\"'")
+app.config["VAPID_SUBJECT"] = (os.getenv("VAPID_SUBJECT") or "mailto:admin@risetogether.local").strip().strip("\"'")
 app.config["CSRF_ENABLED"] = os.getenv("CSRF_ENABLED", "true").strip().lower() in {
     "1", "true", "yes", "on"
 }

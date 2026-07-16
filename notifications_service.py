@@ -18,7 +18,7 @@ NOTIFICATION_CATEGORIES = {
 }
 
 CATEGORY_ALIASES = {
-    "family_chat": "message", "voice_note": "message", "video_note": "message", "call": "message",
+    "family_chat": "message", "voice_note": "message", "video_note": "message", "call": "message", "message_reaction": "message",
     "comment": "families", "comment_reply": "families", "mention": "families", "comment_reaction": "families", "reaction": "families",
     "follow": "friends", "friend_request": "friends", "friend_accept": "friends", "followed_post": "friends",
     "family_invitation": "families", "family_invite": "families", "family_poll": "families", "family_role": "families",
@@ -35,7 +35,7 @@ CATEGORY_ALIASES = {
 }
 
 IMPORTANT_EVENT_CATEGORIES = {
-    "message", "voice_note", "video_note", "friend_request", "family_invite",
+    "message", "voice_note", "video_note", "message_reaction", "friend_request", "family_invite",
     "encouragement_response", "checkin_support", "appreciation", "post_support", "listen_accepted",
     "return_checkin", "return_thanks", "challenge_approved", "challenge_approval",
     "family", "family_moderation", "points_reversed", "admin_warning",
@@ -148,3 +148,20 @@ def unread_private_message_count(user_id):
         or_(Message.expires_at == None, Message.expires_at > datetime.utcnow()),
         ~Message.deletions.any(MessageDeletion.user_id == user_id),
     ).count()
+
+
+def queue_device_push(notification_id):
+    """Deliver Web Push after the request/socket response is no longer blocked."""
+    from flask import current_app
+
+    app = current_app._get_current_object()
+
+    def deliver():
+        with app.app_context():
+            notification = db.session.get(Notification, notification_id)
+            if not notification:
+                return
+            send_device_push(notification)
+            db.session.commit()
+
+    socketio.start_background_task(deliver)

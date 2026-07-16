@@ -138,6 +138,89 @@
   .message-row { align-items: center; padding: 0.6rem; }
 }
 
+/* Fast chat feedback, readable unread state, and polished connection cards. */
+.inbox-notification-prompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.9rem;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--soft), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.inbox-notification-prompt > div { display: grid; gap: 0.15rem; }
+.inbox-notification-prompt > div span { color: var(--muted); font-size: 0.86rem; }
+.inbox-notification-prompt > [data-push-status] { grid-column: 1 / -1; }
+.message-row.is-unread {
+  background: color-mix(in srgb, var(--soft) 72%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  box-shadow: inset 4px 0 0 var(--brand);
+}
+.message-row.is-unread strong,
+.message-row.is-unread p { color: var(--ink); font-weight: 850; }
+.message-unread-count {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  padding-inline: 5px;
+  color: #fff;
+  background: var(--brand);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+.message-reactions button { transition: background 0.15s ease, transform 0.15s ease; }
+.message-reactions button:active { transform: scale(0.92); }
+.message-reactions small { min-width: 0.8em; text-align: center; }
+
+.profile-hero { justify-items: center; text-align: center; }
+.profile-identity-row,
+.profile-stats,
+.profile-hero-actions { justify-content: center; }
+.profile-bio { margin-inline: auto !important; }
+
+.friend-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.friend-identity-link { display: grid; gap: 0.12rem; color: var(--ink); text-decoration: none; }
+.friend-identity-link span { color: var(--muted); font-size: 0.84rem; }
+.friend-identity-link:hover strong { color: var(--brand-dark); }
+.person-card h3 a,
+.family-card h3 a { color: var(--ink); text-decoration: none; }
+.person-card h3 a:hover,
+.family-card h3 a:hover { color: var(--brand-dark); }
+.family-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.85rem; }
+.family-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-content: start;
+  gap: 0.25rem 0.8rem;
+  margin: 0;
+}
+.family-card-image { grid-row: 1 / span 4; width: 64px; height: 64px; float: none; margin: 0; }
+.family-card h3,
+.family-card p { margin: 0; }
+.family-card > span { color: var(--muted); font-size: 0.84rem; }
+
+.reaction-choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.reaction-button { min-width: 0; }
+.reaction-count { flex: 0 0 auto !important; }
+
+.toast { z-index: 90; }
+@media (max-width: 900px) {
+  .toast { bottom: calc(4.7rem + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 560px) {
+  .inbox-notification-prompt { grid-template-columns: 1fr; }
+  .inbox-notification-prompt > [data-push-status] { grid-column: 1; }
+  .family-list { grid-template-columns: 1fr; }
+  .reaction-button { overflow: hidden; }
+  .reaction-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
 /* Connection history, human support, and chat additions. */
 .connection-page { width: min(760px, 100%); margin: 0 auto; display: grid; gap: 1rem; }
 .memory-list, .impact-grid { display: grid; gap: .75rem; }
@@ -8045,4 +8128,28 @@ body.nav-menu-open {
     line-height: 1.15;
   }
   .reaction-label { overflow-wrap: anywhere; }
+}
+
+/* Final overrides for notification visibility and connection presentation. */
+.toast { z-index: 90; }
+.profile-hero { justify-items: center; text-align: center; }
+.profile-identity-row,
+.profile-stats,
+.profile-hero-actions { justify-content: center; }
+.profile-bio { margin-inline: auto !important; }
+.family-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.85rem; }
+.family-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-content: start; gap: 0.25rem 0.8rem; margin: 0; }
+.family-card-image { grid-row: 1 / span 4; width: 64px; height: 64px; float: none; margin: 0; }
+.family-card h3,
+.family-card p { margin: 0; }
+.reaction-choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.reaction-button { min-width: 0; }
+.reaction-count { flex: 0 0 auto !important; }
+@media (max-width: 900px) {
+  .toast { bottom: calc(4.7rem + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 560px) {
+  .family-list { grid-template-columns: 1fr; }
+  .reaction-button { overflow: hidden; }
+  .reaction-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }

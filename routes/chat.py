@@ -10,11 +10,12 @@ from extensions import db, socketio
 from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
-from notifications_service import smart_notify
+from notifications_service import queue_device_push, smart_notify
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
+open_chat_rooms = {}
 live_broadcasters = {}
 live_viewers = {}
 active_calls = {}
@@ -76,6 +77,10 @@ def user_is_online(user_id):
 
 def user_room(user_id):
     return f"user-{user_id}"
+
+
+def user_has_open_chat(user_id, room):
+    return any(open_chat_rooms.get(sid) == room for sid in connected_users.get(user_id, set()))
 
 
 def users_can_message(sender_id, recipient_id):
@@ -354,7 +359,13 @@ def inbox():
         seen_user_ids.add(other_id)
         other = User.query.get(other_id)
         if other:
-            conversations.append({"user": other, "message": message})
+            unread = Message.query.filter_by(
+                sender_id=other_id, recipient_id=current_user.id, read_at=None
+            ).filter(
+                (Message.expires_at == None) | (Message.expires_at > datetime.utcnow()),
+                ~Message.deletions.any(MessageDeletion.user_id == current_user.id),
+            ).count()
+            conversations.append({"user": other, "message": message, "unread": unread})
     families = [
         membership.family
         for membership in current_user.family_memberships
@@ -521,16 +532,28 @@ def upload_message_file():
         recipients = [recipient.id]
     else:
         return jsonify({"error": "Choose a chat first."}), 400
+    if not message.family_id and recipients and user_has_open_chat(recipients[0], room):
+        message.delivered = True
+        message.read_at = datetime.utcnow()
     db.session.add(message)
     db.session.commit()
+    payload = emit_chat_message(
+        message,
+        room,
+        "new_family_message" if message.family_id else "new_private_message",
+        [current_user.id, *recipients],
+    )
     if media_type == "audio":
         notification_message = f"{current_user.username} sent a voice note."
     elif media_type == "video":
         notification_message = f"{current_user.username} sent a video note."
     else:
         notification_message = f"{current_user.username} shared a file."
+    notification_ids = []
     for user_id in recipients:
-        smart_notify(
+        if user_has_open_chat(user_id, room):
+            continue
+        notification, _ = smart_notify(
             user_id=user_id, category="family_chat" if message.family_id else "message", message=notification_message,
             action_url=(
                 url_for("chat.family_chat", family_id=message.family_id)
@@ -539,14 +562,13 @@ def upload_message_file():
             ) + f"#message-{message.id}",
             group_key=f"message:{current_user.id}:{message.family_id or 'direct'}",
             dedupe_key=f"message-media:{message.id}:{user_id}",
+            push=False,
         )
+        if notification:
+            notification_ids.append(notification.id)
     db.session.commit()
-    payload = emit_chat_message(
-        message,
-        room,
-        "new_family_message" if message.family_id else "new_private_message",
-        [current_user.id, *recipients],
-    )
+    for notification_id in notification_ids:
+        queue_device_push(notification_id)
     return jsonify(payload)
 
 
@@ -594,7 +616,44 @@ def react_to_message(message_id):
         existing.reaction = reaction
     else:
         db.session.add(MessageReaction(message_id=message.id, user_id=current_user.id, reaction=reaction))
+    db.session.flush()
+    counts = {
+        key: MessageReaction.query.filter_by(message_id=message.id, reaction=key).count()
+        for key in ("heart", "support", "understand")
+    }
+    selected = MessageReaction.query.filter_by(message_id=message.id, user_id=current_user.id).first()
+    recipient_id = message.sender_id if message.sender_id != current_user.id else message.recipient_id
+    room = f"family-{message.family_id}" if message.family_id else room_for_private_chat(message.sender_id, message.recipient_id)
+    notification = None
+    if selected and recipient_id and recipient_id != current_user.id and not user_has_open_chat(recipient_id, room):
+        notification, _ = smart_notify(
+            user_id=recipient_id,
+            category="message_reaction",
+            message=f"{current_user.username} reacted to your message.",
+            action_url=(
+                url_for("chat.family_chat", family_id=message.family_id)
+                if message.family_id
+                else url_for("chat.direct_chat", user_id=current_user.id)
+            ) + f"#message-{message.id}",
+            group_key=f"message-reaction:{message.id}",
+            dedupe_key=f"message-reaction:{message.id}:{current_user.id}:{reaction}",
+            push=False,
+        )
     db.session.commit()
+    socketio.emit(
+        "message_reaction_updated",
+        {"message_id": message.id, "counts": counts},
+        room=room,
+    )
+    if notification:
+        queue_device_push(notification.id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({
+            "ok": True,
+            "message_id": message.id,
+            "counts": counts,
+            "selected_reaction": selected.reaction if selected else None,
+        })
     return redirect((request.referrer or url_for("chat.inbox")) + f"#message-{message.id}")
 
 
@@ -744,6 +803,7 @@ def on_connect():
 @socketio.on("disconnect")
 def on_disconnect(reason=None):
     if current_user.is_authenticated:
+        open_chat_rooms.pop(request.sid, None)
         log_socket_event("disconnect", reason=reason)
         stale_live_sessions = [
             session_id
@@ -821,6 +881,7 @@ def on_join_room(data):
         emit("room_join_denied", {"room": room}, room=request.sid)
         return
     join_room(room)
+    open_chat_rooms[request.sid] = room
     log_socket_event("join_room", room=room)
     emit("room_joined", {"room": room}, room=request.sid)
 
@@ -848,18 +909,26 @@ def private_message(data):
         content=content,
         reply_to_id=reply_to_id,
     )
+    recipient_is_reading = user_has_open_chat(recipient_id, room)
+    if recipient_is_reading:
+        message.delivered = True
+        message.read_at = datetime.utcnow()
     db.session.add(message)
     db.session.commit()
-    preview = " ".join(content.split())[:100]
-    smart_notify(
-        user_id=recipient_id, category="message",
-        message=f"{current_user.username}: ‘{preview}{'…' if len(content) > 100 else ''}’",
-        action_url=url_for("chat.direct_chat", user_id=current_user.id) + f"#message-{message.id}",
-        group_key=f"message:{current_user.id}:direct",
-        dedupe_key=f"message:{message.id}:{recipient_id}",
-    )
-    db.session.commit()
     emit_chat_message(message, room, "new_private_message", [current_user.id, recipient_id])
+    if not recipient_is_reading:
+        preview = " ".join(content.split())[:100]
+        notification, _ = smart_notify(
+            user_id=recipient_id, category="message",
+            message=f"{current_user.username}: ‘{preview}{'…' if len(content) > 100 else ''}’",
+            action_url=url_for("chat.direct_chat", user_id=current_user.id) + f"#message-{message.id}",
+            group_key=f"message:{current_user.id}:direct",
+            dedupe_key=f"message:{message.id}:{recipient_id}",
+            push=False,
+        )
+        db.session.commit()
+        if notification:
+            queue_device_push(notification.id)
 
 
 @socketio.on("mark_messages_delivered")
@@ -868,6 +937,14 @@ def mark_messages_delivered(data):
     if not sender_id:
         return
     mark_private_messages_delivered(sender_id, current_user.id)
+
+
+@socketio.on("mark_messages_read")
+def mark_messages_read(data):
+    sender_id = parse_user_id(data.get("sender_id"))
+    if not sender_id:
+        return
+    mark_private_messages_read(sender_id, current_user.id)
 
 
 @socketio.on("chat_typing")
@@ -916,17 +993,6 @@ def family_message(data):
     )
     db.session.add(message)
     db.session.commit()
-    for member in family.members:
-        if member.user_id != current_user.id:
-            preview = " ".join(content.split())[:100]
-            smart_notify(
-                user_id=member.user_id, category="family_chat",
-                message=f"{current_user.username} in {family.name}: ‘{preview}{'…' if len(content) > 100 else ''}’",
-                action_url=url_for("chat.family_chat", family_id=family.id) + f"#message-{message.id}",
-                group_key=f"message:{current_user.id}:family:{family.id}",
-                dedupe_key=f"family-message:{message.id}:{member.user_id}",
-            )
-    db.session.commit()
     room = f"family-{family.id}"
     emit_chat_message(
         message,
@@ -934,6 +1000,23 @@ def family_message(data):
         "new_family_message",
         [member.user_id for member in family.members],
     )
+    notification_ids = []
+    for member in family.members:
+        if member.user_id != current_user.id and not user_has_open_chat(member.user_id, room):
+            preview = " ".join(content.split())[:100]
+            notification, _ = smart_notify(
+                user_id=member.user_id, category="family_chat",
+                message=f"{current_user.username} in {family.name}: ‘{preview}{'…' if len(content) > 100 else ''}’",
+                action_url=url_for("chat.family_chat", family_id=family.id) + f"#message-{message.id}",
+                group_key=f"message:{current_user.id}:family:{family.id}",
+                dedupe_key=f"family-message:{message.id}:{member.user_id}",
+                push=False,
+            )
+            if notification:
+                notification_ids.append(notification.id)
+    db.session.commit()
+    for notification_id in notification_ids:
+        queue_device_push(notification_id)
 
 
 def webrtc_offer(data):

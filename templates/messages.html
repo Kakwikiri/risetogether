@@ -4,6 +4,11 @@
     <h2>Messages</h2>
     <a class="button secondary" href="{{ url_for('main.people') }}">New chat</a>
   </div>
+  <aside class="inbox-notification-prompt" data-push-prompt>
+    <div><strong>Keep conversations close</strong><span>Enable phone alerts for messages received while RiseTogether is closed.</span></div>
+    <button class="button secondary" type="button" data-push-enable>Enable alerts</button>
+    <span class="muted-meta" data-push-status role="status"></span>
+  </aside>
   <form
     class="people-search search-shell"
     method="get"
@@ -33,7 +38,7 @@
   <div class="message-list">
     {% for item in conversations %}
     <article
-      class="message-row message-row--interactive"
+      class="message-row message-row--interactive{% if item.unread %} is-unread{% endif %}"
       role="link"
       tabindex="0"
       data-conversation-url="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"
@@ -46,6 +51,7 @@
         <a class="message-conversation-link" href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"><p>{{ item.message.content }}</p></a>
       </div>
       <span>{{ item.message.created_at.strftime('%H:%M') }}</span>
+      {% if item.unread %}<span class="message-unread-count" aria-label="{{ item.unread }} unread {{ 'message' if item.unread == 1 else 'messages' }}">{{ '9+' if item.unread > 9 else item.unread }}</span>{% endif %}
     </article>
     {% else %}
     <p>No direct messages yet.</p>

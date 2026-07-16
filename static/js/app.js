@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260716-emotional-polish";
+  const APP_VERSION = "20260716-notification-chat";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -195,11 +195,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return outputArray;
   };
 
-  const pushEnable = document.querySelector("[data-push-enable]");
-  const pushDisable = document.querySelector("[data-push-disable]");
-  const pushStatus = document.querySelector("[data-push-status]");
+  const pushEnableButtons = [...document.querySelectorAll("[data-push-enable]")];
+  const pushDisableButtons = [...document.querySelectorAll("[data-push-disable]")];
+  const pushStatuses = [...document.querySelectorAll("[data-push-status]")];
   const setPushStatus = (message) => {
-    if (pushStatus) pushStatus.textContent = message;
+    pushStatuses.forEach((status) => { status.textContent = message; });
     if (message) showToast(message);
   };
 
@@ -207,7 +207,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) {
       throw new Error("Service workers are not supported on this browser.");
     }
-    return navigator.serviceWorker.register(`/service-worker.js?v=${APP_VERSION}`, { scope: "/" });
+    await navigator.serviceWorker.register(`/service-worker.js?v=${APP_VERSION}`, { scope: "/" });
+    return navigator.serviceWorker.ready;
   };
 
   const originalDocumentTitle = document.title.replace(/^\((?:\d+|9\+)\)\s*/, "");
@@ -291,7 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(() => {});
   }
 
-  if (pushEnable) {
+  pushEnableButtons.forEach((pushEnable) => {
     pushEnable.addEventListener("click", async () => {
       try {
         if (!("PushManager" in window) || !("Notification" in window)) {
@@ -299,9 +300,9 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         const keyResponse = await fetch("/api/push/public-key");
-        const keyData = await keyResponse.json();
-        if (!keyData.public_key) {
-          setPushStatus("Device notifications are not configured on the server yet.");
+        const keyData = await keyResponse.json().catch(() => ({}));
+        if (!keyResponse.ok || !keyData.public_key) {
+          setPushStatus(keyData.error || "Device notifications are not configured on the server yet.");
           return;
         }
         const permission = await Notification.requestPermission();
@@ -310,26 +311,42 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         const registration = await getServiceWorkerRegistration();
-        const subscription =
-          (await registration.pushManager.getSubscription()) ||
-          (await registration.pushManager.subscribe({
+        const applicationServerKey = urlBase64ToUint8Array(keyData.public_key);
+        let subscription = await registration.pushManager.getSubscription();
+        const existingKey = subscription?.options?.applicationServerKey
+          ? new Uint8Array(subscription.options.applicationServerKey)
+          : null;
+        const keyChanged = existingKey && (
+          existingKey.length !== applicationServerKey.length ||
+          existingKey.some((value, index) => value !== applicationServerKey[index])
+        );
+        if (subscription && keyChanged) {
+          await subscription.unsubscribe();
+          subscription = null;
+        }
+        if (!subscription) {
+          subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(keyData.public_key),
-          }));
+            applicationServerKey,
+          });
+        }
         const response = await fetch("/api/push/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(subscription),
         });
-        if (!response.ok) throw new Error("Subscription could not be saved.");
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Subscription could not be saved.");
+        }
         setPushStatus("Device notifications enabled.");
       } catch (error) {
         setPushStatus(error.message || "Device notifications could not be enabled.");
       }
     });
-  }
+  });
 
-  if (pushDisable) {
+  pushDisableButtons.forEach((pushDisable) => {
     pushDisable.addEventListener("click", async () => {
       try {
         const registration = await getServiceWorkerRegistration();
@@ -349,6 +366,15 @@ document.addEventListener("DOMContentLoaded", () => {
         setPushStatus(error.message || "Device notifications could not be disabled.");
       }
     });
+  });
+
+  if ("Notification" in window && Notification.permission === "granted" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then(async (registration) => {
+      const subscription = await registration.pushManager?.getSubscription();
+      if (subscription) {
+        document.querySelectorAll("[data-push-prompt]").forEach((prompt) => { prompt.hidden = true; });
+      }
+    }).catch(() => {});
   }
 
   document.querySelectorAll("[data-return-message-select]").forEach((select) => {

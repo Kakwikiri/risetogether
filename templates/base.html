@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260716-emotional-polish"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260716-notification-chat"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260716-emotional-polish"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260716-notification-chat"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260716-emotional-polish"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260716-notification-chat"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -223,10 +223,10 @@
       <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ '9+' if unread_notifications > 9 else unread_notifications }}</b>{% endif %}</a>
     </nav>
     {% endif %}
-    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat'] %}
+    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'auth.login', 'auth.signup'] and (request.endpoint != 'main.home' or current_user.is_authenticated) %}
     <footer class="footer">
       <p>
-        RiseTogether — a safe, supportive community for stories, hope, and
+        RiseTogether.. a safe, supportive community for stories, hope, and
         healing.
       </p>
       <p class="footer-legal"><a href="{{ url_for('main.privacy_policy') }}">Privacy</a><a href="{{ url_for('main.terms_of_use') }}">Terms</a>{% if current_user.is_authenticated %}<a href="{{ url_for('moderation.help_request') }}">Help</a>{% endif %}</p>

@@ -7,6 +7,47 @@ const socket = io({
 });
 
 let socketEngineLoggingAttached = false;
+let attentionSoundEnabled = false;
+let lastAttentionSoundAt = 0;
+
+const enableAttentionSound = () => { attentionSoundEnabled = true; };
+window.addEventListener("pointerdown", enableAttentionSound, { once: true, passive: true });
+window.addEventListener("keydown", enableAttentionSound, { once: true });
+
+const playAttentionSound = (kind = "message") => {
+  if (!attentionSoundEnabled || Date.now() - lastAttentionSoundAt < 700) return;
+  lastAttentionSoundAt = Date.now();
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = kind === "notification" ? 660 : 780;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.24);
+    oscillator.addEventListener("ended", () => context.close());
+  } catch (error) {
+    // The operating system still supplies sound for background Web Push.
+  }
+};
+
+const isOpenPrivateConversation = (data = {}) => (
+  typeof chatConfig !== "undefined" &&
+  !chatConfig.familyId &&
+  Number(data.sender_id) === Number(chatConfig.targetUserId) &&
+  Number(data.recipient_id) === Number(chatConfig.currentUserId)
+);
+
+const isOpenFamilyConversation = (data = {}) => (
+  typeof chatConfig !== "undefined" &&
+  Number(data.family_id) === Number(chatConfig.familyId)
+);
 
 const socketContext = (extra = {}) => ({
   socketId: socket.id,
@@ -303,6 +344,32 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   }
   if (downloadLink) message.appendChild(downloadLink);
   message.appendChild(time);
+  if (data.message_id) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    const reactions = document.createElement("form");
+    reactions.className = "message-reactions";
+    reactions.method = "post";
+    reactions.action = `/chat/message/${data.message_id}/react`;
+    reactions.dataset.messageReactionForm = "";
+    reactions.dataset.messageId = data.message_id;
+    reactions.innerHTML = `<input type="hidden" name="csrf_token" value="${csrfToken}">`;
+    [["heart", "♡"], ["support", "✦"], ["understand", "🤝"]].forEach(([key, symbol]) => {
+      const button = document.createElement("button");
+      button.type = "submit";
+      button.name = "reaction";
+      button.value = key;
+      button.dataset.messageReaction = key;
+      button.setAttribute("aria-label", `React with ${key}`);
+      button.setAttribute("aria-pressed", "false");
+      button.append(`${symbol} `);
+      const count = document.createElement("small");
+      count.dataset.messageReactionCount = "";
+      count.textContent = "0";
+      button.appendChild(count);
+      reactions.appendChild(button);
+    });
+    message.appendChild(reactions);
+  }
   chatLog.appendChild(message);
   chatLog.scrollTop = chatLog.scrollHeight;
 };
@@ -370,15 +437,17 @@ socket.on("user_status", (data) => {
 
 socket.on("new_private_message", (data) => {
   console.log("Private message", data);
-  if (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId) {
+  if (!isOpenPrivateConversation(data) && (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId)) {
     incrementBadge("[data-message-badge]", "/messages");
+    playAttentionSound("message");
   }
 });
 
 socket.on("new_family_message", (data) => {
   console.log("Family message", data);
-  if (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId) {
+  if (!isOpenFamilyConversation(data) && (typeof chatConfig === "undefined" || data.sender_id !== chatConfig.currentUserId)) {
     incrementBadge("[data-message-badge]", "/messages");
+    playAttentionSound("message");
   }
 });
 
@@ -414,7 +483,13 @@ const incrementBadge = (selector, linkHref) => {
 };
 
 socket.on("notification_received", (data) => {
+  const notificationTargetsOpenChat = typeof chatConfig !== "undefined" &&
+    data.category === "message" && data.action_url &&
+    (data.action_url.startsWith(`/chat/${chatConfig.targetUserId}`) ||
+      (chatConfig.familyId && data.action_url.startsWith(`/family/${chatConfig.familyId}/chat`)));
+  if (notificationTargetsOpenChat) return;
   incrementBadge("[data-notification-badge]", "/notifications");
+  playAttentionSound("notification");
   const toast = document.querySelector("[data-toast]");
   if (toast) {
     toast.textContent = data.message || "New notification";
@@ -570,6 +645,11 @@ if (typeof chatConfig !== "undefined") {
     const markOpenPrivateChatDelivered = () => {
       if (!chatConfig.targetUserId || chatConfig.familyId) return;
       socket.emit("mark_messages_delivered", { sender_id: chatConfig.targetUserId });
+    };
+
+    const markOpenPrivateChatRead = () => {
+      if (!chatConfig.targetUserId || chatConfig.familyId) return;
+      socket.emit("mark_messages_read", { sender_id: chatConfig.targetUserId });
     };
 
     const uploadChatFile = async (file, content = "", options = {}) => {
@@ -1170,7 +1250,15 @@ if (typeof chatConfig !== "undefined") {
       if (voicePanel) voicePanel.hidden = false;
       setVoiceStatus("Requesting microphone");
       try {
-        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        voiceStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1,
+            sampleRate: 48000,
+          },
+        });
       } catch (error) {
         setVoiceStatus("Permission denied");
         notifyChat("Microphone is blocked.");
@@ -1180,7 +1268,7 @@ if (typeof chatConfig !== "undefined") {
       try {
         voiceRecorder = new MediaRecorder(voiceStream, {
           ...(mimeType ? { mimeType } : {}),
-          audioBitsPerSecond: 48000,
+          audioBitsPerSecond: 96000,
         });
       } catch (error) {
         stopVoiceTracks();
@@ -1598,7 +1686,7 @@ socket.on("new_private_message", (data) => {
       if (belongsToChat) {
         appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
         if (data.sender_id === chatConfig.targetUserId) {
-          markOpenPrivateChatDelivered();
+          markOpenPrivateChatRead();
         }
   }
   window.dispatchEvent(new Event("risetogether:unread-changed"));
@@ -1636,6 +1724,45 @@ socket.on("new_private_message", (data) => {
     }
   });
 }
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-message-reaction-form]");
+  if (!form) return;
+  event.preventDefault();
+  const submitter = event.submitter;
+  if (!submitter) return;
+  submitter.disabled = true;
+  const formData = new FormData(form);
+  formData.set("reaction", submitter.value);
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      body: formData,
+      headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || "Reaction failed.");
+    Object.entries(payload.counts || {}).forEach(([key, count]) => {
+      const button = form.querySelector(`[data-message-reaction="${key}"]`);
+      const countNode = button?.querySelector("[data-message-reaction-count]");
+      if (countNode) countNode.textContent = count;
+      if (button) button.setAttribute("aria-pressed", payload.selected_reaction === key ? "true" : "false");
+    });
+  } catch (error) {
+    showRealtimeToast(error.message || "Reaction could not be saved.");
+  } finally {
+    submitter.disabled = false;
+  }
+});
+
+socket.on("message_reaction_updated", (data) => {
+  const message = document.querySelector(`.chat-message[data-message-id="${data.message_id}"]`);
+  if (!message) return;
+  Object.entries(data.counts || {}).forEach(([key, count]) => {
+    const countNode = message.querySelector(`[data-message-reaction="${key}"] [data-message-reaction-count]`);
+    if (countNode) countNode.textContent = count;
+  });
+});
 
 socket.on("incoming_call", (data) => {
   if (typeof callConfig !== "undefined") return;
@@ -1881,13 +2008,21 @@ if (typeof callConfig !== "undefined") {
       setCallState("preparing_media", wantsVideo ? "Preparing camera..." : "Preparing microphone...");
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
           video: wantsVideo,
         });
       } catch (error) {
         try {
           localStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
             video: false,
           });
         } catch (audioError) {

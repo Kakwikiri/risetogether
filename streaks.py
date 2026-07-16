@@ -150,7 +150,7 @@ def queue_expiring_streak_warning(user):
             label = STREAK_DEFINITIONS.get(streak.streak_type, ("Meaningful", ""))[0]
             db.session.add(Notification(
                 user_id=user.id, category="streak_reminder",
-                message=f"Your {label} streak is still within reach today—only if it feels supportive.",
+                message=f"Your {label} streak is still within reach today.. only if it feels supportive.",
                 action_url="/streaks",
             ))
             streak.last_warning_date = today

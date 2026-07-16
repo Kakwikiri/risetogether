@@ -1,4 +1,5 @@
 import os
+import base64
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -165,7 +166,29 @@ def search_families():
 @api_bp.route("/push/public-key")
 @login_required
 def push_public_key():
-    return jsonify({"public_key": current_app.config.get("VAPID_PUBLIC_KEY", "")})
+    public_key = current_app.config.get("VAPID_PUBLIC_KEY", "").strip().strip('"\'')
+    try:
+        padding = "=" * ((4 - len(public_key) % 4) % 4)
+        decoded = base64.urlsafe_b64decode(public_key + padding)
+        valid = len(decoded) == 65 and decoded[0] == 4
+    except (ValueError, TypeError):
+        valid = False
+    private_key = current_app.config.get("VAPID_PRIVATE_KEY", "").strip()
+    if private_key.startswith("-----BEGIN"):
+        private_valid = "PRIVATE KEY-----" in private_key
+    else:
+        try:
+            private_padding = "=" * ((4 - len(private_key) % 4) % 4)
+            private_valid = len(base64.urlsafe_b64decode(private_key + private_padding)) == 32
+        except (ValueError, TypeError):
+            private_valid = False
+    subject = current_app.config.get("VAPID_SUBJECT", "").strip()
+    if not valid or not private_valid or not subject.startswith(("mailto:", "https://")):
+        return jsonify({
+            "error": "Phone notifications are not configured correctly on the server.",
+            "configured": False,
+        }), 503
+    return jsonify({"public_key": public_key, "configured": True})
 
 
 @api_bp.route("/push/subscribe", methods=["POST"])
