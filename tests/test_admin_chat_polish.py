@@ -4,12 +4,27 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from models import RiseBadgeAssignment
+from routes.moderation import sync_admin_flag
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class AdminChatPolishTests(unittest.TestCase):
+    def test_member_demotion_clears_legacy_admin_flag(self):
+        class UserState:
+            admin_role = ""
+            is_admin = True
+
+        user = UserState()
+        sync_admin_flag(user)
+        self.assertFalse(user.is_admin)
+
+    def test_push_click_opens_existing_notification_route(self):
+        helpers = (ROOT / "helpers.py").read_text()
+        self.assertIn('"url": f"/notification/open/{notification.id}"', helpers)
+        self.assertNotIn('"url": f"/notifications/{notification.id}/open"', helpers)
+
     def test_expired_pins_are_cleared_before_chat_rendering(self):
         chat = (ROOT / "routes" / "chat.py").read_text()
         self.assertIn("def clear_expired_message_pins", chat)
@@ -37,6 +52,16 @@ class AdminChatPolishTests(unittest.TestCase):
         script = (ROOT / "static" / "js" / "app.js").read_text()
         self.assertIn("data-image-crop-modal", script)
         self.assertIn("new DataTransfer()", script)
+
+    def test_achievement_certificate_and_media_storage_are_compact(self):
+        components = (ROOT / "templates" / "components" / "ui.html").read_text()
+        styles = (ROOT / "static" / "css" / "styles.css").read_text()
+        helpers = (ROOT / "helpers.py").read_text()
+        self.assertIn("Certificate of meaningful progress", components)
+        self.assertIn("View completion evidence", components)
+        self.assertIn("3px double", styles)
+        self.assertIn('"-crf",\n                "28"', helpers)
+        self.assertIn("def delete_media_if_unreferenced", helpers)
 
     def test_changed_templates_compile(self):
         environment = Environment(loader=FileSystemLoader(ROOT / "templates"))

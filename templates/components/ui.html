@@ -174,6 +174,7 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
   </header>
   {% if post.challenge_completion %} {% set completion =
   post.challenge_completion %}
+  <p class="achievement-certificate-label">Presented to</p>
   <div class="achievement-person">
     <img
       class="user-avatar user-avatar--medium"
@@ -203,8 +204,9 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
     </div>
   </div>
   {% if completion.evidence_media_url %}
-  <div class="achievement-evidence">
-    <span class="status-chip">Evidence</span>{% set evidence_type =
+  <details class="achievement-evidence">
+    <summary>View completion evidence</summary>
+    <div class="achievement-evidence__content">{% set evidence_type =
     get_media_type(completion.evidence_media_url) %}{% if evidence_type ==
     'image' %}<img
       src="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"
@@ -221,9 +223,10 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
       href="{{ url_for('api.serve_upload', filename=completion.evidence_media_url) }}"
       target="_blank"
       rel="noopener"
-      >View completion evidence</a
+      >Open evidence</a
     >{% endif %}
-  </div>
+    </div>
+  </details>
   {% endif %} {% if completion.evidence_text %}
   <blockquote class="achievement-note">
     <span>Completion note</span>{{ completion.evidence_text }}
@@ -233,6 +236,7 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
     {{ post.encouraging_message or 'A meaningful step forward deserves to be
     celebrated.' }}
   </p>
+  <footer class="achievement-certificate-footer"><span>RiseTogether</span><small>Certificate of meaningful progress</small></footer>
 </section>
 {%- endmacro %}
 

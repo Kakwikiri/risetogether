@@ -10,6 +10,7 @@ from markupsafe import Markup, escape
 
 from extensions import db, socketio
 from helpers import (
+    delete_media_if_unreferenced,
     REACTION_LABELS,
     get_media_type,
     save_media,
@@ -1401,7 +1402,10 @@ def manage_post(post_id, action):
                     ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
                 )
             )
+        media_url = post.media_url
         db.session.delete(post)
+        db.session.flush()
+        delete_media_if_unreferenced(media_url)
         db.session.commit()
         flash("Post removed and recorded in the audit log." if not owns_post else "Post deleted.", "info")
         return redirect(url_for("main.home"))

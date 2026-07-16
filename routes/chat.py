@@ -9,7 +9,7 @@ from flask_socketio import emit, join_room, leave_room
 from extensions import db, socketio
 from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
-from helpers import get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
+from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, User
 
@@ -599,7 +599,10 @@ def delete_message(message_id):
     if scope == "everyone":
         if message.sender_id != current_user.id and not current_user.is_admin:
             return jsonify({"error": "Only the sender can delete this message for everyone."}), 403
+        media_url = message.media_url
         db.session.delete(message)
+        db.session.flush()
+        delete_media_if_unreferenced(media_url)
         db.session.commit()
         socketio.emit("message_deleted", {"message_id": message_id}, room=room)
         return jsonify({"ok": True, "scope": "everyone"})
@@ -681,7 +684,10 @@ def viewed_once_message(message_id):
             if message.family_id
             else f"private-{min(message.sender_id, message.recipient_id)}-{max(message.sender_id, message.recipient_id)}"
         )
+        media_url = message.media_url
         db.session.delete(message)
+        db.session.flush()
+        delete_media_if_unreferenced(media_url)
         db.session.commit()
         socketio.emit("message_deleted", {"message_id": message_id}, room=room)
     return jsonify({"ok": True})

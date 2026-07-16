@@ -59,7 +59,11 @@ def require_admin_role(minimum_role="moderator"):
 
 
 def sync_admin_flag(user):
-    user.is_admin = website_role(user) in {"super_admin", "admin", "moderator"}
+    # admin_role is the source of truth while changing roles. Reading the
+    # legacy flag here would turn an intended Member demotion back into Admin.
+    user.is_admin = (getattr(user, "admin_role", "") or "") in {
+        "super_admin", "admin", "moderator"
+    }
 
 
 def active_super_admin_count():

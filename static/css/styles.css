@@ -2141,16 +2141,17 @@ textarea:focus {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  margin: 0.8rem 0;
-  padding: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line));
-  border-radius: calc(var(--radius) + 4px);
+  width: min(100%, 620px);
+  margin: 0.65rem auto;
+  padding: 0.85rem;
+  border: 3px double color-mix(in srgb, var(--brand) 55%, var(--line));
+  border-radius: 14px;
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--soft) 82%, var(--surface)),
     var(--surface)
   );
-  box-shadow: 0 14px 38px rgba(16, 112, 92, 0.12);
+  box-shadow: 0 9px 24px rgba(16, 112, 92, 0.1);
 }
 .achievement-post-glow {
   position: absolute;
@@ -2175,20 +2176,29 @@ textarea:focus {
 .achievement-post-icon {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   background: var(--brand);
   color: white;
-  font-size: 1.5rem;
-  box-shadow: 0 8px 22px rgba(16, 112, 92, 0.24);
+  font-size: 1.2rem;
+  box-shadow: 0 5px 14px rgba(16, 112, 92, 0.2);
+}
+.achievement-certificate-label {
+  margin: 0.65rem 0 -0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .achievement-person {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  margin-top: 1rem;
+  margin-top: 0.55rem;
 }
+.achievement-person .user-avatar--medium { width: 40px; height: 40px; }
 .achievement-person > div {
   display: grid;
 }
@@ -2201,27 +2211,29 @@ textarea:focus {
 .achievement-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin-top: 0.9rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.65rem;
 }
 .achievement-details > div {
   display: grid;
   gap: 0.15rem;
-  padding: 0.65rem;
+  padding: 0.45rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 .achievement-evidence {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: 0.9rem;
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--line);
 }
+.achievement-evidence summary { padding: 0.5rem 0; color: var(--brand-dark); cursor: pointer; font-weight: 800; }
+.achievement-evidence__content { display: grid; gap: 0.45rem; }
 .achievement-evidence img,
 .achievement-evidence video {
   width: 100%;
-  max-height: 360px;
-  object-fit: cover;
+  max-height: 220px;
+  object-fit: contain;
   border-radius: var(--radius-sm);
 }
 .achievement-note {
@@ -2234,9 +2246,24 @@ textarea:focus {
   white-space: pre-wrap;
 }
 .achievement-encouragement {
-  margin: 0.9rem 0 0;
+  margin: 0.6rem 0 0;
   font-weight: 700;
   color: var(--brand-strong);
+}
+.achievement-certificate-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.achievement-certificate-footer span { color: var(--brand-dark); font-weight: 900; }
+@media (max-width: 560px) {
+  .achievement-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .achievement-certificate-footer { display: grid; }
 }
 .achievement-share-page {
   width: min(100%, 760px);
@@ -5843,10 +5870,10 @@ body.media-viewer-open {
   .share-destinations {
     grid-template-columns: 1fr;
   }
-  .achievement-details,
   .achievement-share-options {
     grid-template-columns: 1fr;
   }
+  .achievement-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .achievement-share-choice {
     min-height: 88px;
   }

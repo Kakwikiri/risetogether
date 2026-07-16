@@ -248,10 +248,7 @@ def video_duration_seconds(path):
 
 def convert_video_for_browser(path, filename):
     ffmpeg = get_ffmpeg_executable()
-    extension = filename.rsplit(".", 1)[1].lower()
     if not ffmpeg:
-        return filename
-    if extension == "mp4" and not video_needs_browser_conversion(path):
         return filename
 
     base, _original_extension = os.path.splitext(filename)
@@ -275,11 +272,13 @@ def convert_video_for_browser(path, filename):
                 "-preset",
                 "veryfast",
                 "-crf",
-                "23",
+                "28",
+                "-vf",
+                "scale='min(1280,iw)':-2",
                 "-c:a",
                 "aac",
                 "-b:a",
-                "128k",
+                "96k",
                 "-movflags",
                 "+faststart",
                 output_path,
@@ -292,6 +291,14 @@ def convert_video_for_browser(path, filename):
     except (OSError, subprocess.SubprocessError):
         if os.path.exists(output_path):
             os.remove(output_path)
+        return filename
+    # Re-encoding can occasionally enlarge an already efficient clip. Keep the
+    # smaller file so database persistence never grows because of optimization.
+    try:
+        if os.path.getsize(output_path) >= os.path.getsize(path):
+            os.remove(output_path)
+            return filename
+    except OSError:
         return filename
     return output_name
 
@@ -334,6 +341,40 @@ def persist_media_asset(filename):
     asset.data = data
     asset.size = len(data)
     db.session.add(asset)
+
+
+def delete_media_if_unreferenced(filename):
+    """Remove stored bytes only after every supported content reference is gone."""
+    if not filename:
+        return False
+    from extensions import db
+    from models import (
+        ChallengeCompletion, Family, FamilyGalleryItem, GoalProgress,
+        MediaAsset, Message, Post, Profile,
+    )
+
+    references = (
+        (Profile, Profile.avatar),
+        (Post, Post.media_url),
+        (Message, Message.media_url),
+        (Family, Family.profile_image),
+        (Family, Family.banner_image),
+        (FamilyGalleryItem, FamilyGalleryItem.media_url),
+        (ChallengeCompletion, ChallengeCompletion.evidence_media_url),
+        (GoalProgress, GoalProgress.evidence_url),
+    )
+    if any(model.query.filter(column == filename).first() for model, column in references):
+        return False
+    asset = MediaAsset.query.filter_by(filename=filename).first()
+    if asset:
+        db.session.delete(asset)
+    path = os.path.join(current_app.config["UPLOAD_FOLDER"], os.path.basename(filename))
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        current_app.logger.warning("orphan_media_file_delete_failed filename=%s", filename)
+    return bool(asset)
 
 
 def mimetype_for_filename(filename):
@@ -434,7 +475,7 @@ def send_device_push(notification, title="RiseTogether"):
             "body": device_push_body(notification),
             # Route push clicks through the existing notification opener so the
             # same record is marked read before its exact destination opens.
-            "url": f"/notifications/{notification.id}/open",
+            "url": f"/notification/open/{notification.id}",
             "tag": f"notification-{notification.id}",
             "notification_id": notification.id,
             "category": notification.category,
