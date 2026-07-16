@@ -149,8 +149,8 @@
         {{ purpose_support(content_post, csrf_token()) }}
         <div class="profile-post-actions">
           {{ reaction_bar(post, csrf_token(), content_post) }}
-          <a href="{{ url_for('main.post_detail', post_id=post.id) }}">💬 Comments {{ post.comments.count() }}</a>
-          <a href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share {{ post.shares.count() }}</a>
+          <a class="post-action-chip" href="{{ url_for('main.post_detail', post_id=post.id) }}#comments">💬 Comments <span>{{ post.comments.count() }}</span></a>
+          <a class="post-action-chip" href="{{ url_for('main.share_post', post_id=post.id) }}">↗ Share <span>{{ post.shares.count() }}</span></a>
         </div>
       </article>
       {% else %}

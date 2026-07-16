@@ -156,6 +156,7 @@ class RiseBadgeAssignment(db.Model):
     verification_note = db.Column(db.String(500), nullable=False)
     assigned_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)
     revoked_at = db.Column(db.DateTime, nullable=True)
     user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("rise_badge_assignments", lazy="dynamic", cascade="all, delete-orphan"))
     family = db.relationship("Family", foreign_keys=[family_id], backref=db.backref("rise_badge_assignments", lazy="dynamic", cascade="all, delete-orphan"))

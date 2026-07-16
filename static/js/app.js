@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-owner-family";
+  const APP_VERSION = "20260717-admin-chat-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -737,6 +737,82 @@ document.addEventListener("DOMContentLoaded", () => {
         preview.hidden = false;
       }
     });
+  });
+
+  const cropDialog = document.querySelector("[data-image-crop-modal]");
+  const cropPreview = cropDialog?.querySelector("[data-image-crop-preview]");
+  const cropZoom = cropDialog?.querySelector("[data-image-crop-zoom]");
+  let cropInput = null;
+  let cropFile = null;
+  let cropObjectUrl = "";
+  const releaseCropUrl = () => {
+    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    cropObjectUrl = "";
+  };
+  const finishCropSelection = (file) => {
+    if (!cropInput) return;
+    const input = cropInput;
+    if (file) {
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+    }
+    input.dataset.cropReady = "1";
+    cropDialog?.close();
+    releaseCropUrl();
+    cropInput = null;
+    cropFile = null;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  document.addEventListener("change", (event) => {
+    const input = event.target.closest?.("[data-media-input], [data-profile-avatar-input], [data-family-image-input], #chat-file");
+    if (!input || !cropDialog || !cropPreview || !cropZoom) return;
+    if (input.dataset.cropReady === "1") {
+      delete input.dataset.cropReady;
+      return;
+    }
+    const files = input.files ? Array.from(input.files) : [];
+    const file = files.length === 1 ? files[0] : null;
+    if (!file?.type.startsWith("image/") || file.type === "image/gif") return;
+    event.stopImmediatePropagation();
+    cropInput = input;
+    cropFile = file;
+    cropZoom.value = "1";
+    releaseCropUrl();
+    cropObjectUrl = URL.createObjectURL(file);
+    cropPreview.src = cropObjectUrl;
+    cropPreview.style.transform = "scale(1)";
+    cropDialog.showModal();
+  }, true);
+  cropZoom?.addEventListener("input", () => {
+    if (cropPreview) cropPreview.style.transform = `scale(${cropZoom.value})`;
+  });
+  cropDialog?.querySelector("[data-image-crop-original]")?.addEventListener("click", () => finishCropSelection(cropFile));
+  cropDialog?.querySelector("[data-image-crop-cancel]")?.addEventListener("click", () => {
+    if (cropInput) cropInput.value = "";
+    cropDialog.close();
+    releaseCropUrl();
+    cropInput = null;
+    cropFile = null;
+  });
+  cropDialog?.querySelector("[data-image-crop-apply]")?.addEventListener("click", () => {
+    if (!cropFile || !cropPreview?.naturalWidth || !cropPreview.naturalHeight) return;
+    const zoom = Math.max(1, Number(cropZoom?.value) || 1);
+    const sourceSize = Math.min(cropPreview.naturalWidth, cropPreview.naturalHeight) / zoom;
+    const sourceX = (cropPreview.naturalWidth - sourceSize) / 2;
+    const sourceY = (cropPreview.naturalHeight - sourceSize) / 2;
+    const outputSize = Math.min(1200, Math.max(320, Math.round(sourceSize)));
+    const canvas = document.createElement("canvas");
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+    canvas.getContext("2d").drawImage(cropPreview, sourceX, sourceY, sourceSize, sourceSize, 0, 0, outputSize, outputSize);
+    const outputType = cropFile.type === "image/png" ? "image/png" : "image/jpeg";
+    canvas.toBlob((blob) => {
+      if (!blob) return finishCropSelection(cropFile);
+      const extension = outputType === "image/png" ? ".png" : ".jpg";
+      const baseName = cropFile.name.replace(/\.[^.]+$/, "") || "photo";
+      finishCropSelection(new File([blob], `${baseName}-cropped${extension}`, { type: outputType, lastModified: Date.now() }));
+    }, outputType, 0.9);
   });
 
   document.querySelectorAll("[data-family-image-form]").forEach((form) => {

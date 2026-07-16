@@ -8191,6 +8191,41 @@ body.nav-menu-open {
 .reaction-form button { min-height: 36px; font-size: 0.82rem; }
 .reaction-button { padding: 0.28rem 0.38rem; }
 .reaction-count { min-width: 1.65rem; padding: 0.28rem 0.34rem; }
+.post-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 36px;
+  padding: 0.28rem 0.45rem;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.post-action-chip span { color: var(--muted); }
+.post-action-chip:hover,
+.post-action-chip:focus-visible { color: var(--brand-dark); background: var(--soft); }
+.image-crop-modal .ui-modal__card { width: min(92vw, 460px); }
+.image-crop-preview {
+  width: min(76vw, 340px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  overflow: hidden;
+  background: #101817;
+  border-radius: 14px;
+}
+.image-crop-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 120ms ease;
+}
+.image-crop-modal input[type="range"] { width: 100%; }
 
 .family-tabbar { overflow: visible; }
 .family-nav-more { position: relative; flex: 0 0 auto; }
@@ -8229,6 +8264,14 @@ body.nav-menu-open {
 }
 .family-nav-more__menu a:hover,
 .family-nav-more__menu a:focus-visible { background: var(--soft); }
+.family-nav-more__label {
+  padding: 0.45rem 0.75rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
 @media (max-width: 560px) {
   .profile-avatar-editor { grid-template-columns: 1fr; justify-items: center; text-align: center; }

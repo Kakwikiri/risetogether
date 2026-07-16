@@ -40,6 +40,16 @@ def visible_message_filter(query):
     )
 
 
+def clear_expired_message_pins(messages):
+    """Keep the message, but remove a pin as soon as its 24-hour window ends."""
+    now = datetime.utcnow()
+    expired = [message for message in messages if message.pinned_until and message.pinned_until <= now]
+    for message in expired:
+        message.pinned_until = None
+    if expired:
+        db.session.commit()
+
+
 def can_access_message(message):
     if message.sender_id == current_user.id or message.recipient_id == current_user.id:
         return True
@@ -400,6 +410,7 @@ def direct_chat(user_id):
         .order_by(Message.created_at.asc())
         .all()
     )
+    clear_expired_message_pins(messages)
     mark_private_messages_delivered(other.id, current_user.id)
     mark_private_messages_read(other.id, current_user.id)
     Notification.query.filter(
@@ -436,6 +447,7 @@ def family_chat(family_id):
         .order_by(Message.created_at.asc())
         .all()
     )
+    clear_expired_message_pins(messages)
     Notification.query.filter(
         Notification.user_id == current_user.id,
         Notification.category.in_(["message", "family_chat"]),

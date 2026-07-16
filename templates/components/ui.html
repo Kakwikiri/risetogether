@@ -102,7 +102,8 @@ feature_enabled('verification_badges') and badges %}{% set badge = badges|first 
   ></span
 >{% endif %}{%- endmacro %} {% macro reaction_bar(post, csrf, purpose_post=none) -%}
 {% set emotional_post = purpose_post or post %}
-{% if emotional_post.purpose == 'celebrating' %}{% set choices = [('support', '🎉', 'Celebrate'), ('understand', '😊', 'So happy for you'), ('keep-going', '👏', 'Proud of you'), ('inspire', '✨', 'You inspire me')] %}
+{% if emotional_post.post_type == 'achievement' %}{% set choices = [('support', '🎉', 'Celebrate'), ('understand', '👏', 'Proud of you'), ('keep-going', '🌱', 'Keep growing'), ('inspire', '✨', 'Inspired')] %}
+{% elif emotional_post.purpose == 'celebrating' %}{% set choices = [('support', '🎉', 'Celebrate'), ('understand', '😊', 'So happy for you'), ('keep-going', '👏', 'Proud of you'), ('inspire', '✨', 'You inspire me')] %}
 {% elif emotional_post.purpose == 'feeling' %}{% set choices = [('support', '♡', 'I hear you'), ('understand', '🤝', 'I relate'), ('keep-going', '🌿', 'Sending care'), ('inspire', '✨', 'Thank you for sharing')] %}
 {% elif emotional_post.purpose == 'humour' %}{% set choices = [('support', '😊', 'Made me smile'), ('understand', '😂', 'That was funny'), ('keep-going', '🙌', 'So relatable'), ('inspire', '✨', 'Share more')] %}
 {% elif emotional_post.purpose == 'listen' %}{% set choices = [('support', '♡', 'Here with you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌿', 'Take your time'), ('inspire', '☀', 'You matter')] %}

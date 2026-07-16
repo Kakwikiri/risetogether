@@ -51,6 +51,10 @@
             <button class="button danger" type="submit">Delete account</button>
           </form>
           {% endif %}
+          {% if is_platform_owner_view %}<form action="{{ url_for('moderation.manage_report', report_id=report.id, action='delete_report') }}" method="post" data-confirm="Delete only this report record? The reported content will stay unchanged.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button class="button danger" type="submit">Delete report</button>
+          </form>{% endif %}
         </td>
       </tr>
       {% endfor %}

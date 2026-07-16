@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-owner-family"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-admin-chat-polish"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-owner-family"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-admin-chat-polish"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260716-notification-chat"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-admin-chat-polish"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -182,6 +182,15 @@
       <div class="ui-modal__card">
         <div class="reaction-people-header"><h2 id="reaction-people-title" data-reaction-modal-title>People who reacted</h2><button class="icon-button" type="button" data-reaction-modal-close aria-label="Close reaction list">×</button></div>
         <div class="reaction-people-list" data-reaction-people role="list"></div>
+      </div>
+    </dialog>
+    <dialog class="ui-modal image-crop-modal" data-image-crop-modal aria-labelledby="image-crop-title">
+      <div class="ui-modal__card">
+        <div class="reaction-people-header"><h2 id="image-crop-title">Adjust photo</h2><button class="icon-button" type="button" data-image-crop-cancel aria-label="Cancel photo adjustment">×</button></div>
+        <div class="image-crop-preview"><img alt="Photo crop preview" data-image-crop-preview /></div>
+        <label>Zoom <input type="range" min="1" max="3" step="0.05" value="1" data-image-crop-zoom /></label>
+        <p class="muted-meta">The square preview shows the centered crop. You can also keep the original photo.</p>
+        <div class="ui-modal__actions"><button class="button secondary" type="button" data-image-crop-original>Use original</button><button class="button" type="button" data-image-crop-apply>Crop photo</button></div>
       </div>
     </dialog>
     <div class="install-panel" data-install-panel hidden>

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from models import FamilyMember, RiseBadgeAssignment
 
@@ -58,6 +59,8 @@ def user_badges(user, family=None):
     assignments = RiseBadgeAssignment.query.filter_by(
         user_id=user.id, status="active"
     ).all()
+    now = datetime.utcnow()
+    assignments = [assignment for assignment in assignments if not assignment.expires_at or assignment.expires_at > now]
     assigned_types = {assignment.badge_type for assignment in assignments}
     owner_username = (
         os.getenv("PLATFORM_SUPER_ADMIN_USERNAME", "Kakwikiri").strip().lower()
@@ -90,4 +93,6 @@ def family_badges(family):
     trusted = RiseBadgeAssignment.query.filter_by(
         family_id=family.id, badge_type="trusted_family", status="active"
     ).first()
+    if trusted and trusted.expires_at and trusted.expires_at <= datetime.utcnow():
+        trusted = None
     return [_badge_payload("trusted_family")] if trusted else []

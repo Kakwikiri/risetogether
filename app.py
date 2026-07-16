@@ -72,7 +72,7 @@ app.config["REALTIME_MEDIA_ENABLED"] = (
     in {"1", "true", "yes", "on"}
 )
 app.config["VAPID_PUBLIC_KEY"] = os.getenv("VAPID_PUBLIC_KEY", "").strip().strip("\"'")
-app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip().strip("\"'")
+app.config["VAPID_PRIVATE_KEY"] = os.getenv("VAPID_PRIVATE_KEY", "").strip().strip("\"'").replace("\\n", "\n")
 app.config["VAPID_SUBJECT"] = (os.getenv("VAPID_SUBJECT") or "mailto:admin@risetogether.local").strip().strip("\"'")
 app.config["CSRF_ENABLED"] = os.getenv("CSRF_ENABLED", "true").strip().lower() in {
     "1", "true", "yes", "on"
@@ -320,6 +320,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_until TIMESTAMP",
+        "ALTER TABLE rise_badge_assignments ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
+        "CREATE INDEX IF NOT EXISTS ix_rise_badge_assignments_expires_at ON rise_badge_assignments (expires_at)",
         "ALTER TABLE post_shares ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
         "DELETE FROM reactions r USING reactions newer WHERE r.post_id = newer.post_id AND r.user_id = newer.user_id AND r.id < newer.id",
         "ALTER TABLE reactions DROP CONSTRAINT IF EXISTS uq_reaction_user_type",

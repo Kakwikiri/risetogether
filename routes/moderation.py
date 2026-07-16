@@ -210,7 +210,7 @@ def admin_reports():
     if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     reports = Report.query.order_by(Report.created_at.desc()).all()
-    return render_template("admin_reports.html", reports=reports)
+    return render_template("admin_reports.html", reports=reports, is_platform_owner_view=is_platform_owner(current_user))
 
 
 @mod_bp.route("/admin/encouragement-reports")
@@ -221,7 +221,7 @@ def admin_encouragement_reports():
     reports = EncouragementRequestReport.query.order_by(
         EncouragementRequestReport.status.asc(), EncouragementRequestReport.created_at.desc()
     ).limit(200).all()
-    return render_template("admin_encouragement_reports.html", reports=reports)
+    return render_template("admin_encouragement_reports.html", reports=reports, is_platform_owner_view=is_platform_owner(current_user))
 
 
 @mod_bp.route("/admin/encouragement-reports/<int:report_id>/<action>", methods=["POST"])
@@ -230,6 +230,19 @@ def review_encouragement_report(report_id, action):
     if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     report = EncouragementRequestReport.query.get_or_404(report_id)
+    if action == "delete":
+        if not is_platform_owner(current_user):
+            flash("Only the platform owner can permanently delete a report record.", "danger")
+            return redirect(url_for("moderation.admin_encouragement_reports"))
+        record_admin_audit(
+            "encouragement_report_deleted", target_user=report.request.requester,
+            target_family=report.request.family, target_content_id=report.request_id,
+            reason=report.reason,
+        )
+        db.session.delete(report)
+        db.session.commit()
+        flash("Report record deleted. The original request was not changed.", "success")
+        return redirect(url_for("moderation.admin_encouragement_reports"))
     if action == "remove":
         report.request.status = "removed"
         report.status = "removed"
@@ -362,9 +375,15 @@ def set_family_badge(family_id):
     family = Family.query.get_or_404(family_id)
     badge_action = request.form.get("badge_action", "").strip()
     note = request.form.get("verification_note", "").strip()
-    if badge_action not in {"assign", "revoke"} or len(note) < 10 or len(note) > 500:
-        flash("Choose a badge action and record a verification reason of 10–500 characters.", "warning")
+    duration_days = request.form.get("verification_duration", "365").strip()
+    if badge_action not in {"assign", "revoke"} or duration_days not in {"30", "180", "365"}:
+        flash("Choose a valid badge action and verification period.", "warning")
         return redirect(url_for("moderation.admin_families"))
+    if badge_action == "assign" and (len(note) < 10 or len(note) > 500):
+        flash("Record the verification evidence in 10–500 characters.", "warning")
+        return redirect(url_for("moderation.admin_families"))
+    if badge_action == "revoke" and not note:
+        note = "Revoked by the platform owner."
     assignment = RiseBadgeAssignment.query.filter_by(
         family_id=family.id, badge_type="trusted_family"
     ).with_for_update().first()
@@ -376,6 +395,7 @@ def set_family_badge(family_id):
         assignment.verification_note = note
         assignment.assigned_by_id = current_user.id
         assignment.assigned_at = datetime.utcnow()
+        assignment.expires_at = datetime.utcnow() + timedelta(days=int(duration_days))
         assignment.revoked_at = None
     elif assignment:
         assignment.status = "revoked"
@@ -494,7 +514,7 @@ def admin_help_requests():
     if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).all()
-    return render_template("admin_help.html", requests=requests)
+    return render_template("admin_help.html", requests=requests, is_platform_owner_view=is_platform_owner(current_user))
 
 
 @mod_bp.route("/admin/help/<int:request_id>/<action>", methods=["POST"])
@@ -503,6 +523,18 @@ def manage_help_request(request_id, action):
     if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     help_request = HelpRequest.query.get_or_404(request_id)
+    if action == "delete":
+        if not is_platform_owner(current_user):
+            flash("Only the platform owner can permanently delete a help request.", "danger")
+            return redirect(url_for("moderation.admin_help_requests"))
+        record_admin_audit(
+            "help_request_deleted", target_user=help_request.user,
+            target_content_id=help_request.id, reason=help_request.subject,
+        )
+        db.session.delete(help_request)
+        db.session.commit()
+        flash("Help request deleted.", "success")
+        return redirect(url_for("moderation.admin_help_requests"))
     if action in {"open", "reviewed", "closed"}:
         help_request.status = action
         db.session.commit()
@@ -694,12 +726,18 @@ def set_user_badge(user_id):
     user = User.query.get_or_404(user_id)
     badge_type = request.form.get("badge_type", "").strip()
     note = request.form.get("verification_note", "").strip()
+    duration_days = request.form.get("verification_duration", "365").strip()
     if badge_type not in {"", "verified_person", "official_organization"}:
         flash("Choose a valid RiseTogether verification badge.", "warning")
         return redirect(url_for("moderation.admin_users"))
-    if len(note) < 10 or len(note) > 500:
-        flash("Record the verification or revocation reason in 10–500 characters.", "warning")
+    if duration_days not in {"30", "180", "365"}:
+        flash("Choose a verification period of 1, 6, or 12 months.", "warning")
         return redirect(url_for("moderation.admin_users"))
+    if badge_type and (len(note) < 10 or len(note) > 500):
+        flash("Record the verification evidence in 10–500 characters.", "warning")
+        return redirect(url_for("moderation.admin_users"))
+    if not badge_type and not note:
+        note = "Verification removed by the platform owner."
     assignments = RiseBadgeAssignment.query.filter(
         RiseBadgeAssignment.user_id == user.id,
         RiseBadgeAssignment.badge_type.in_(["verified_person", "official_organization"]),
@@ -717,6 +755,7 @@ def set_user_badge(user_id):
         assignment.verification_note = note
         assignment.assigned_by_id = current_user.id
         assignment.assigned_at = datetime.utcnow()
+        assignment.expires_at = datetime.utcnow() + timedelta(days=int(duration_days))
         assignment.revoked_at = None
     user.is_verified = bool(badge_type)
     record_admin_audit("rise_badge_user_update", target_user=user, reason=note, metadata_text=badge_type or "revoked")
@@ -836,10 +875,22 @@ def admin_delete_user(user_id):
 @mod_bp.route("/admin/reports/<int:report_id>/<action>", methods=["POST"])
 @login_required
 def manage_report(report_id, action):
-    minimum_role = "admin" if action in {"ban_user", "delete_user"} else "moderator"
+    minimum_role = "admin" if action in {"ban_user", "delete_user", "delete_report"} else "moderator"
     if not require_admin_role(minimum_role):
         return redirect(url_for("main.home"))
     report = Report.query.get_or_404(report_id)
+    if action == "delete_report":
+        if not is_platform_owner(current_user):
+            flash("Only the platform owner can permanently delete a report record.", "danger")
+            return redirect(url_for("moderation.admin_reports"))
+        record_admin_audit(
+            "report_record_deleted", target_user=report.reported_user,
+            target_content_id=report.post_id or report.id, reason=report.reason,
+        )
+        db.session.delete(report)
+        db.session.commit()
+        flash("Report record deleted. Its reported content was not changed.", "success")
+        return redirect(url_for("moderation.admin_reports"))
     if action == "reviewed":
         report.status = "reviewed"
         record_admin_audit("report_reviewed", target_user=report.reported_user, target_content_id=report.post_id)

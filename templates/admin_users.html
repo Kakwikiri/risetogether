@@ -103,7 +103,8 @@
           {% if feature_enabled('verification_badges') and is_platform_owner_view %}<form action="{{ url_for('moderation.set_user_badge', user_id=user.id) }}" method="post" class="badge-admin-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="badge_type"><option value="">Remove verification</option><option value="verified_person">Verified Person</option><option value="official_organization">Official Organization</option></select>
-            <input name="verification_note" minlength="10" maxlength="500" required placeholder="Verification evidence or revocation reason" />
+            <select name="verification_duration" aria-label="Verification period"><option value="30">1 month</option><option value="180">6 months</option><option value="365" selected>12 months</option></select>
+            <input name="verification_note" maxlength="500" placeholder="Evidence for verification; optional when removing" />
             <button class="button secondary" type="submit">Update badge</button>
           </form>{% endif %}
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='hide_directory') }}" method="post">

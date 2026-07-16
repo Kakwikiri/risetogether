@@ -45,6 +45,13 @@
     <details class="family-nav-more">
       <summary aria-label="More Family actions">More</summary>
       <div class="family-nav-more__menu">
+        <span class="family-nav-more__label">Family activity</span>
+        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='all') }}#family-activity">All</a>
+        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='challenges') }}#family-activity">Challenges</a>
+        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='goals') }}#family-activity">Goals</a>
+        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='members') }}#family-activity">Member activity</a>
+        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='upgrades') }}#family-activity">Upgrade activity</a>
+        <span class="family-nav-more__label">Manage</span>
         <a href="#family-members" data-family-tab>Members</a>
         {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
         {% if member and feature_enabled('family_upgrades') %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Upgrades</a>{% endif %}
@@ -130,11 +137,7 @@
   <section id="family-activity" class="family-section family-activity-section" data-family-panel data-family-panel-group="home">
     <div class="split-header"><div><p class="eyebrow">Growing together</p><h3>Family activity</h3></div><span class="muted-meta">Meaningful moments, without the noise</span></div>
     {% if family_activity_visible %}
-    <nav class="activity-filters" aria-label="Filter Family activity">
-      {% for key, label in [('all', 'All'), ('challenges', 'Challenges'), ('goals', 'Goals'), ('members', 'Members'), ('upgrades', 'Upgrades')] %}
-      <a href="{{ url_for('family.family_detail', family_id=family.id, activity=key) }}#family-activity" class="status-chip{% if family_activity_filter == key %} is-active{% endif %}" {% if family_activity_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
-      {% endfor %}
-    </nav>
+    {% if family_activity_filter != 'all' %}<p class="muted-meta">Showing {{ family_activity_filter|replace('_', ' ') }} activity · <a href="{{ url_for('family.family_detail', family_id=family.id, activity='all') }}#family-activity">Show all</a></p>{% endif %}
     <div class="family-timeline">
       {% for event in family_activity_events %}
       <article class="family-timeline-event{% if event.major %} is-major{% endif %}">

@@ -23,6 +23,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="button secondary" type="submit">Reopen</button>
         </form>
+        {% if is_platform_owner_view %}<form action="{{ url_for('moderation.manage_help_request', request_id=item.id, action='delete') }}" method="post" data-confirm="Permanently delete this help request?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="button danger" type="submit">Delete request</button>
+        </form>{% endif %}
       </div>
     </article>
     {% else %}

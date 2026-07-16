@@ -184,9 +184,17 @@ def push_public_key():
             private_valid = False
     subject = current_app.config.get("VAPID_SUBJECT", "").strip()
     if not valid or not private_valid or not subject.startswith(("mailto:", "https://")):
+        invalid_fields = []
+        if not valid:
+            invalid_fields.append("VAPID_PUBLIC_KEY")
+        if not private_valid:
+            invalid_fields.append("VAPID_PRIVATE_KEY")
+        if not subject.startswith(("mailto:", "https://")):
+            invalid_fields.append("VAPID_SUBJECT")
         return jsonify({
-            "error": "Phone notifications are not configured correctly on the server.",
+            "error": "Phone notifications are not configured correctly. Device alerts need valid Render settings: " + ", ".join(invalid_fields) + ". This affects both phones and computers.",
             "configured": False,
+            "invalid_fields": invalid_fields,
         }), 503
     return jsonify({"public_key": public_key, "configured": True})
 
