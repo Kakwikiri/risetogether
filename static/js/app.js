@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260714-family-polish";
+  const APP_VERSION = "20260716-emotional-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -64,6 +64,17 @@ document.addEventListener("DOMContentLoaded", () => {
       toast.hidden = true;
     }, 5200);
   };
+
+  document.querySelectorAll("[data-flash-alert]").forEach((alert) => {
+    const dismiss = () => {
+      if (!alert.isConnected || alert.classList.contains("is-leaving")) return;
+      alert.classList.add("is-leaving");
+      window.setTimeout(() => alert.remove(), 220);
+    };
+    alert.querySelector("[data-flash-close]")?.addEventListener("click", dismiss);
+    const important = alert.classList.contains("alert-danger") || alert.classList.contains("alert-warning");
+    window.setTimeout(dismiss, important ? 8000 : 5200);
+  });
 
   const confirmationModal = document.querySelector("[data-confirmation-modal]");
   const confirmationMessage = document.querySelector("[data-confirmation-message]");
@@ -158,6 +169,19 @@ document.addEventListener("DOMContentLoaded", () => {
   avatarModal?.addEventListener("cancel", (event) => {
     event.preventDefault();
     closeAvatarModal();
+  });
+
+  document.querySelectorAll("[data-conversation-url]").forEach((row) => {
+    const openConversation = (event) => {
+      if (event.target.closest("a, button, input, select, textarea")) return;
+      window.location.assign(row.dataset.conversationUrl);
+    };
+    row.addEventListener("click", openConversation);
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      window.location.assign(row.dataset.conversationUrl);
+    });
   });
 
   const urlBase64ToUint8Array = (base64String) => {
@@ -412,6 +436,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     window.addEventListener("resize", () => {
       if (window.innerWidth > 900) closeNavigation();
+    });
+  }
+
+  const desktopNavMore = document.querySelector(".desktop-nav-more");
+  if (desktopNavMore) {
+    desktopNavMore.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => desktopNavMore.removeAttribute("open"));
+    });
+    document.addEventListener("click", (event) => {
+      if (!desktopNavMore.contains(event.target)) desktopNavMore.removeAttribute("open");
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && desktopNavMore.open) {
+        desktopNavMore.removeAttribute("open");
+        desktopNavMore.querySelector("summary")?.focus();
+      }
     });
   }
 

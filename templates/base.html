@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260714-family-polish"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260716-emotional-polish"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260714-family-polish"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260716-emotional-polish"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260714-family-polish"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260716-emotional-polish"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -106,6 +106,9 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
+        <details class="desktop-nav-more">
+          <summary data-icon="＋">More</summary>
+          <div class="desktop-nav-more-panel">
         <a href="{{ url_for('main.settings') }}" data-icon="⚙"><span>Settings</span></a>
         {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
         {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗"><span>Streaks</span></a>{% endif %}
@@ -133,13 +136,18 @@
         {% endif %}
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" data-icon="⇥" data-logout><span>Logout</span></a>
-        {% else %}
-        <a href="{{ url_for('auth.login') }}">Login</a>
-        <a href="{{ url_for('auth.signup') }}">Signup</a>
-        {% endif %}
         <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
         <button class="install-button" type="button" hidden>Install</button>
+          </div>
+        </details>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}">Login</a>
+        <a href="{{ url_for('auth.signup') }}">Signup</a>
+        <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
+        <button class="share-app-button" type="button" data-share-app>Share app</button>
+        <button class="install-button" type="button" hidden>Install</button>
+        {% endif %}
       </nav>
     </header>
     <button class="nav-scrim" type="button" data-nav-scrim aria-label="Close menu" tabindex="-1" hidden></button>
@@ -199,9 +207,9 @@
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %}
-      <section class="flash-container">
+      <section class="flash-container" aria-live="polite" aria-atomic="true">
         {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
+        <div class="alert alert-{{ category }}" data-flash-alert role="{{ 'alert' if category in ['danger', 'warning'] else 'status' }}">{{ message }}<button class="flash-close" type="button" data-flash-close aria-label="Dismiss message">×</button></div>
         {% endfor %}
       </section>
       {% endif %} {% endwith %} {% block content %}{% endblock %}

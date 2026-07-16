@@ -1,21 +1,23 @@
 {% extends 'base.html' %} {% block content %}
 <section class="hero">
   <div>
-    <h1>RiseTogether</h1>
+    <p class="eyebrow">RiseTogether</p>
+    <h1>You matter here.</h1>
     <p>
-      A supportive community for stories, motivation, and safe conversations.
+      A warm community for honest stories, encouragement, growth, and safe conversations with people who remember what matters.
     </p>
     <div class="cta-buttons">
       <a class="button" href="{{ url_for('auth.signup') }}">Join Free</a>
       <a class="button secondary" href="{{ url_for('auth.login') }}">Login</a>
     </div>
+    <p class="auth-legal-links"><a href="{{ url_for('main.privacy_policy') }}">Privacy</a><a href="{{ url_for('main.terms_of_use') }}">Terms</a></p>
   </div>
   <div class="hero-notes">
     <ul>
-      <li>Emotional support</li>
-      <li>Community families</li>
-      <li>Real-time chats</li>
-      <li>Safe storytelling</li>
+      <li>Be heard without judgment</li>
+      <li>Grow with a supportive Family</li>
+      <li>Remember meaningful moments</li>
+      <li>Offer encouragement that counts</li>
     </ul>
   </div>
 </section>

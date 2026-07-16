@@ -62,6 +62,8 @@ main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
 POST_PURPOSES = {
     "normal": "Normal",
+    "feeling": "Sharing how I feel",
+    "humour": "A little humour",
     "encouragement": "I need encouragement",
     "advice": "I need advice",
     "listen": "I need someone to listen",
@@ -339,8 +341,8 @@ def grouped_reaction_message(post):
         Reaction.user_id != post.user_id,
     ).count()
     if reactor_count == 1:
-        return "Someone supported your post."
-    return f"{reactor_count} people supported your post."
+        return "Someone reacted to your post."
+    return f"{reactor_count} people reacted to your post."
 
 
 def notify_post_author_about_reactions(post, allow_create=True):
@@ -669,6 +671,13 @@ def respond_to_checkin(checkin_id):
             checkin.user_id, "checkin_support",
             f"{current_user.username} sent support for your check-in.",
             url_for("main.daily_checkins"),
+        )
+        supported_name = checkin.user.profile.display_name if checkin.user.profile else checkin.user.username
+        add_notification(
+            current_user.id, "checkin_support",
+            f"You encouraged {supported_name} today.",
+            url_for("main.impact"),
+            important=False,
         )
     db.session.commit()
     flash("Your support was shared gently.", "success")
@@ -1568,10 +1577,18 @@ def impact():
         response.request.user_id for response in current_user.encouragement_responses
         if response.request and response.request.user_id != current_user.id
     }
+    encouraged_user_ids.update(
+        response.checkin.user_id for response in current_user.checkin_responses
+        if response.checkin and response.checkin.user_id != current_user.id
+    )
     family_ids_helped = {
         response.request.family_id for response in current_user.encouragement_responses
         if response.request
     }
+    family_ids_helped.update(
+        response.checkin.family_id for response in current_user.checkin_responses
+        if response.checkin and response.checkin.family_id
+    )
     impact_rows = [
         ("People encouraged", len(encouraged_user_ids)),
         ("Advice shared", EncouragementResponse.query.join(EncouragementRequest).filter(EncouragementResponse.user_id == current_user.id, EncouragementResponse.comment != "", EncouragementRequest.category == "advice").count()),

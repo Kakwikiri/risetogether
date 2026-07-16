@@ -103,11 +103,13 @@ feature_enabled('verification_badges') and badges %}{% set badge = badges|first 
 >{% endif %}{%- endmacro %} {% macro reaction_bar(post, csrf, purpose_post=none) -%}
 {% set emotional_post = purpose_post or post %}
 {% if emotional_post.purpose == 'celebrating' %}{% set choices = [('support', '🎉', 'Celebrate'), ('understand', '😊', 'So happy for you'), ('keep-going', '👏', 'Proud of you'), ('inspire', '✨', 'You inspire me')] %}
+{% elif emotional_post.purpose == 'feeling' %}{% set choices = [('support', '♡', 'I hear you'), ('understand', '🤝', 'I relate'), ('keep-going', '🌿', 'Sending care'), ('inspire', '✨', 'Thank you for sharing')] %}
+{% elif emotional_post.purpose == 'humour' %}{% set choices = [('support', '😊', 'Made me smile'), ('understand', '😂', 'That was funny'), ('keep-going', '🙌', 'So relatable'), ('inspire', '✨', 'Share more')] %}
 {% elif emotional_post.purpose == 'listen' %}{% set choices = [('support', '♡', 'Here with you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌿', 'Take your time'), ('inspire', '☀', 'You matter')] %}
-{% elif emotional_post.purpose == 'advice' %}{% set choices = [('support', '♡', 'I hear you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '💡', 'Thinking with you')] %}
-{% elif emotional_post.purpose == 'practical_help' %}{% set choices = [('support', '♡', 'Support'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '💡', 'Thinking with you')] %}
-{% elif emotional_post.purpose == 'encouragement' %}{% set choices = [('support', '♡', 'You matter'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '☀', 'Proud of you')] %}
-{% else %}{% set choices = [('support', '❤️', 'Support'), ('understand', '🤝', 'I Understand'), ('keep-going', '🔥', 'Keep Going'), ('inspire', '💪', 'You Inspire Me')] %}{% endif %} {%
+{% elif emotional_post.purpose == 'advice' %}{% set choices = [('support', '♡', 'Listening'), ('understand', '🤝', 'I relate'), ('keep-going', '💭', 'Thinking with you'), ('inspire', '🌱', "You've got this")] %}
+{% elif emotional_post.purpose == 'practical_help' %}{% set choices = [('support', '♡', 'I care'), ('understand', '🤝', 'I understand'), ('keep-going', '🌿', 'Hoping help comes'), ('inspire', '💡', 'Thinking of options')] %}
+{% elif emotional_post.purpose == 'encouragement' %}{% set choices = [('support', '♡', 'Here for you'), ('understand', '🤝', 'I understand'), ('keep-going', '🌱', 'Keep going'), ('inspire', '☀', 'Sending strength')] %}
+{% else %}{% set choices = [('support', '♡', 'Appreciate'), ('understand', '🤝', 'Relatable'), ('keep-going', '😊', 'Made me smile'), ('inspire', '✨', 'Inspiring')] %}{% endif %} {%
 set selected = post.reactions.filter_by(user_id=current_user.id).first() if
 current_user.is_authenticated else none %}
 <form
@@ -234,7 +236,7 @@ achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
 {%- endmacro %}
 
 {% macro purpose_support(post, csrf) -%}
-{% set purpose_labels = {'encouragement': 'I need encouragement', 'advice': 'I need advice', 'listen': 'I need someone to listen', 'practical_help': 'I need practical help', 'celebrating': "I’m celebrating"} %}
+{% set purpose_labels = {'feeling': 'Sharing how I feel', 'humour': 'A little humour', 'encouragement': 'I need encouragement', 'advice': 'I need advice', 'listen': 'I need someone to listen', 'practical_help': 'I need practical help', 'celebrating': "I’m celebrating"} %}
 {% if post.purpose and post.purpose != 'normal' %}<section class="post-purpose-support"><strong class="post-purpose-label">{{ purpose_labels.get(post.purpose, post.purpose|replace('_', ' ')|title) }}</strong>
 {% if current_user.is_authenticated and post.user_id != current_user.id %}
   {% if post.purpose == 'advice' %}<details><summary>I have an idea</summary><form action="{{ url_for('main.support_post', post_id=post.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="idea"><textarea name="explanation" maxlength="1000" required placeholder="Explain the idea that may help"></textarea><select name="visibility" aria-label="Who can see this idea"><option value="private">Send privately</option><option value="public">Share publicly</option></select><button class="button secondary" type="submit">Share idea</button></form></details>{% endif %}
