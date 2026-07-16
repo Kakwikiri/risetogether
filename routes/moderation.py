@@ -18,6 +18,7 @@ from models import (
     PointSecurityEvent, PointTransaction, Post, Report, RiseBadgeAssignment, SiteSetting, User,
 )
 from points import reverse_completion_rewards_for_user, reverse_reward_group
+from ownership import is_platform_owner, platform_owner_username
 
 mod_bp = Blueprint("moderation", __name__)
 
@@ -70,9 +71,14 @@ def active_super_admin_count():
 
 
 def can_act_on(target, action="manage"):
+    if is_platform_owner(target):
+        flash("The platform owner account is protected from role, ban, and deletion actions.", "warning")
+        return False
     if target.id == current_user.id and action in {"temp_ban", "perm_ban", "delete", "demote", "role"}:
         flash("You cannot perform that action on your own account.", "warning")
         return False
+    if is_platform_owner(current_user):
+        return True
     if role_rank(target) and role_rank(current_user) <= role_rank(target):
         flash("You cannot manage an account with an equal or higher website role.", "danger")
         return False
@@ -275,6 +281,8 @@ def admin_users():
         query_text=query_text,
         role_labels=ADMIN_ROLE_LABELS,
         current_admin_role=website_role(current_user),
+        is_platform_owner_view=is_platform_owner(current_user),
+        platform_owner_name=platform_owner_username(),
     )
 
 
@@ -320,6 +328,8 @@ def admin_families():
         query_text=query_text,
         status=status,
         current_admin_role=website_role(current_user),
+        is_platform_owner_view=is_platform_owner(current_user),
+        platform_owner_name=platform_owner_username(),
     )
 
 
@@ -346,7 +356,8 @@ def admin_family_action(family_id, action):
 @mod_bp.route("/admin/families/<int:family_id>/badge", methods=["POST"])
 @fresh_login_required
 def set_family_badge(family_id):
-    if not require_admin_role("super_admin"):
+    if not is_platform_owner(current_user):
+        flash("Only the platform owner can verify a Family.", "danger")
         return redirect(url_for("main.home"))
     family = Family.query.get_or_404(family_id)
     badge_action = request.form.get("badge_action", "").strip()
@@ -605,7 +616,8 @@ def admin_feature_flags():
 @mod_bp.route("/admin/users/<int:user_id>/toggle-admin", methods=["POST"])
 @fresh_login_required
 def toggle_admin(user_id):
-    if not require_admin_role("super_admin"):
+    if not is_platform_owner(current_user):
+        flash("Only the platform owner can change website roles.", "danger")
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
     if not can_act_on(user, "role"):
@@ -626,19 +638,17 @@ def toggle_admin(user_id):
 @mod_bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
 @fresh_login_required
 def set_website_role(user_id):
-    if not require_admin_role("super_admin"):
+    if not is_platform_owner(current_user):
+        flash("Only the platform owner can promote or demote website roles.", "danger")
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
     new_role = request.form.get("admin_role", "").strip()
-    if new_role not in ADMIN_ROLE_RANK:
+    if new_role not in {"", "moderator", "admin"}:
         flash("Choose a valid website role.", "warning")
         return redirect(url_for("moderation.admin_users"))
     old_role = website_role(user)
     if user.id == current_user.id and new_role != old_role:
         flash("You cannot change your own website role here.", "warning")
-        return redirect(url_for("moderation.admin_users"))
-    if old_role == "super_admin" and new_role != "super_admin" and active_super_admin_count() <= 1:
-        flash("You cannot remove the last active Super Admin.", "warning")
         return redirect(url_for("moderation.admin_users"))
     if not can_act_on(user, "role") and old_role:
         return redirect(url_for("moderation.admin_users"))
@@ -678,7 +688,8 @@ def set_website_role(user_id):
 @mod_bp.route("/admin/users/<int:user_id>/badge", methods=["POST"])
 @fresh_login_required
 def set_user_badge(user_id):
-    if not require_admin_role("super_admin"):
+    if not is_platform_owner(current_user):
+        flash("Only the platform owner can update verification badges.", "danger")
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
     badge_type = request.form.get("badge_type", "").strip()
@@ -805,6 +816,9 @@ def admin_delete_user(user_id):
     if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
     user = User.query.get_or_404(user_id)
+    if is_platform_owner(user):
+        flash("The platform owner account cannot be deleted.", "warning")
+        return redirect(request.referrer or url_for("moderation.admin_users"))
     if website_role(user) == "super_admin" and active_super_admin_count() <= 1:
         flash("You cannot delete the last active Super Admin.", "warning")
         return redirect(request.referrer or url_for("moderation.admin_users"))
@@ -852,6 +866,9 @@ def manage_report(report_id, action):
     elif action == "delete_user" and report.reported_user:
         if not require_admin_role("super_admin"):
             return redirect(url_for("main.home"))
+        if is_platform_owner(report.reported_user):
+            flash("The platform owner account cannot be deleted.", "warning")
+            return redirect(url_for("moderation.admin_reports"))
         if website_role(report.reported_user) == "super_admin" and active_super_admin_count() <= 1:
             flash("You cannot delete the last active Super Admin.", "warning")
             return redirect(url_for("moderation.admin_reports"))

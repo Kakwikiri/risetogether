@@ -11,11 +11,13 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     {% set avatar_url = user_avatar_url(current_user) %}
     <section class="settings-panel profile-avatar-editor">
-      <img class="avatar-large" src="{{ avatar_url }}" alt="Profile picture preview" data-profile-avatar-preview />
-      <div>
-        <label>Avatar image</label>
-        <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif" data-profile-avatar-input />
-        <div class="family-image-actions">
+      <div class="profile-avatar-preview"><img class="avatar-large" src="{{ avatar_url }}" alt="Profile picture preview" data-profile-avatar-preview /></div>
+      <div class="profile-avatar-controls">
+        <strong>Profile picture</strong>
+        <p class="muted-meta">Choose a JPG, PNG or GIF and preview it before saving.</p>
+        <input class="visually-hidden" id="profile-avatar-input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif" data-profile-avatar-input />
+        <div class="family-image-actions profile-avatar-actions">
+          <label class="button secondary profile-avatar-choose" for="profile-avatar-input">Choose photo</label>
           <button class="button secondary" type="button" data-profile-avatar-cancel hidden>Cancel</button>
         </div>
         <p class="form-status" data-profile-avatar-status hidden></p>

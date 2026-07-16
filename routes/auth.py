@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
 from models import PasswordResetToken, Profile, SiteSetting, User
+from ownership import is_platform_owner_username
 
 auth_bp = Blueprint("auth", __name__)
 SAFE_USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{2,80}$")
@@ -200,6 +201,9 @@ def signup():
         if not SAFE_USERNAME_RE.fullmatch(username):
             flash("Usernames may use only letters, numbers, and underscores. Badge-like symbols are not allowed.", "warning")
             return render_signup()
+        if is_platform_owner_username(username) and not should_make_admin(email):
+            flash("That username is reserved for the RiseTogether platform owner.", "danger")
+            return render_signup()
         if country not in COUNTRIES:
             country = "Other"
         if len(password) < 8:
@@ -213,9 +217,9 @@ def signup():
             return render_signup()
         user = User(username=username, email=email, country=country)
         user.set_password(password)
-        if should_make_admin(email):
+        if should_make_admin(email) and is_platform_owner_username(username):
             user.is_admin = True
-            user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
+            user.admin_role = "super_admin"
         db.session.add(user)
         db.session.commit()
         profile = Profile(user_id=user.id, display_name=username)
@@ -489,11 +493,13 @@ def google_callback():
         while User.query.filter_by(username=username).first():
             counter += 1
             username = f"{base_username}{counter}"
+        if is_platform_owner_username(username) and not should_make_admin(email):
+            username = f"{username}_member"
         user = User(username=username, email=email, country="Other")
         user.set_password(secrets.token_urlsafe(24))
-        if should_make_admin(email):
+        if should_make_admin(email) and is_platform_owner_username(username):
             user.is_admin = True
-            user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
+            user.admin_role = "super_admin"
         db.session.add(user)
         db.session.commit()
         db.session.add(Profile(user_id=user.id, display_name=info.get("name") or username))

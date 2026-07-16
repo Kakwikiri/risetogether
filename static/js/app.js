@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260716-notification-chat";
+  const APP_VERSION = "20260717-owner-family";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1064,6 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!href.startsWith("#")) return;
         event.preventDefault();
         showFamilyPanel(href.slice(1));
+        tab.closest("details")?.removeAttribute("open");
       });
     });
     const initialId = window.location.hash ? window.location.hash.slice(1) : "family-home";

@@ -1,6 +1,7 @@
 {% extends 'base.html' %} {% block content %}
 <section class="card panel">
   <h2>Admin - Users</h2>
+  {% if is_platform_owner_view %}<div class="alert alert-info"><strong>Owner controls</strong> Only your protected @{{ platform_owner_name }} account can promote or demote website roles. Other administrators cannot change roles.</div>{% endif %}
   {% if temp_password %}
   <div class="alert alert-info">
     Temporary password for {{ temp_user }}:
@@ -53,7 +54,7 @@
         <td>{{ user.username }}</td>
         <td>{{ user.email }}</td>
         <td>{{ user.country or 'Unknown' }}</td>
-        <td>{{ role_labels.get(user.admin_role or ('admin' if user.is_admin else ''), 'Member') }}</td>
+        <td>{{ role_labels.get(user.admin_role or ('admin' if user.is_admin else ''), 'Member') }}{% if user.username|lower == platform_owner_name %}<br><span class="status-chip status-chip--success">Protected owner</span>{% endif %}</td>
         <td>{% set badges = rise_user_badges(user) %}{{ badges|map(attribute='label')|join(', ') if badges else 'None' }}</td>
         <td>
           {% if user.is_banned %}
@@ -65,25 +66,16 @@
         <td>{{ user.warning_count }}</td>
         <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
         <td class="admin-actions">
-          {% if user.id != current_user.id %}
-          {% if current_admin_role == 'super_admin' %}
+          {% if user.id != current_user.id and user.username|lower != platform_owner_name %}
+          {% if is_platform_owner_view %}
           <form action="{{ url_for('moderation.set_website_role', user_id=user.id) }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="admin_role">
               <option value="" {% if not user.admin_role and not user.is_admin %}selected{% endif %}>Member</option>
               <option value="moderator" {% if user.admin_role == 'moderator' %}selected{% endif %}>Moderator</option>
               <option value="admin" {% if user.admin_role == 'admin' or (user.is_admin and not user.admin_role) %}selected{% endif %}>Admin</option>
-              <option value="super_admin" {% if user.admin_role == 'super_admin' %}selected{% endif %}>Super Admin</option>
             </select>
             <button class="button secondary" type="submit">Set role</button>
-          </form>
-          {% endif %}
-          {% if current_admin_role == 'super_admin' %}
-          <form action="{{ url_for('moderation.toggle_admin', user_id=user.id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="button secondary" type="submit">
-              {{ 'Remove admin' if user.is_admin else 'Make admin' }}
-            </button>
           </form>
           {% endif %}
           <form action="{{ url_for('moderation.toggle_ban_user', user_id=user.id) }}" method="post">
@@ -108,7 +100,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Unban</button>
           </form>
-          {% if feature_enabled('verification_badges') and current_admin_role == 'super_admin' %}<form action="{{ url_for('moderation.set_user_badge', user_id=user.id) }}" method="post" class="badge-admin-form">
+          {% if feature_enabled('verification_badges') and is_platform_owner_view %}<form action="{{ url_for('moderation.set_user_badge', user_id=user.id) }}" method="post" class="badge-admin-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="badge_type"><option value="">Remove verification</option><option value="verified_person">Verified Person</option><option value="official_organization">Official Organization</option></select>
             <input name="verification_note" minlength="10" maxlength="500" required placeholder="Verification evidence or revocation reason" />
@@ -118,7 +110,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">{{ 'Show in users' if user.is_hidden_from_directory else 'Hide from users' }}</button>
           </form>
-          {% if current_admin_role == 'super_admin' %}
+          {% if is_platform_owner_view %}
           <form action="{{ url_for('moderation.admin_user_action', user_id=user.id, action='reset_password') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="button secondary" type="submit">Generate password</button>

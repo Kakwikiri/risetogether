@@ -16,6 +16,7 @@ from family_upgrades import (
     purchased_upgrade_keys, upgrade_is_available,
 )
 from helpers import get_media_type, get_upload_limit, save_media, validate_upload
+from ownership import is_platform_owner
 from models import (
     Appreciation,
     ChallengeCompletion,
@@ -1262,7 +1263,7 @@ def family_detail(family_id):
     member = FamilyMember.query.filter_by(
         family_id=family.id, user_id=current_user.id
     ).first()
-    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    is_super_admin = is_platform_owner(current_user)
     if family.privacy != "public" and not member and not is_super_admin:
         flash("This Family is private. Join through an invitation to enter.", "warning")
         return redirect(url_for("family.families"))
@@ -1323,7 +1324,7 @@ def family_detail(family_id):
 def family_memories(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    is_super_admin = is_platform_owner(current_user)
     if not member and not is_super_admin:
         abort(403)
 
@@ -1388,7 +1389,7 @@ def ensure_weekly_report_ready(family):
 def latest_weekly_family_report(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    is_super_admin = is_platform_owner(current_user)
     if not member and not is_super_admin:
         flash("Weekly reports are private to Family members.", "warning")
         return redirect(url_for("family.families"))
@@ -1405,7 +1406,7 @@ def latest_weekly_family_report(family_id):
 def weekly_family_report(family_id, report_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
-    is_super_admin = current_user.is_admin and current_user.admin_role == "super_admin"
+    is_super_admin = is_platform_owner(current_user)
     if not member and not is_super_admin:
         flash("Weekly reports are private to Family members.", "warning")
         return redirect(url_for("family.families"))
@@ -2951,9 +2952,7 @@ def review_challenge_completion(family_id, completion_id, action):
         if completion.verification_status != "completed":
             flash("Only an approved completion can be invalidated.", "info")
             return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
-        if completion.user_id == current_user.id and not (
-            current_user.is_admin and current_user.admin_role == "super_admin"
-        ):
+        if completion.user_id == current_user.id and not is_platform_owner(current_user):
             flash("You cannot invalidate your own completion.", "warning")
             return redirect(url_for("family.family_detail", family_id=family.id) + "#family-challenges")
         reason = request.form.get("reason", "").strip()

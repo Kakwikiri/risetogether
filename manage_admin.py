@@ -4,6 +4,7 @@ import sys
 from app import app
 from extensions import db
 from models import Profile, User
+from ownership import is_platform_owner_username, platform_owner_username
 
 
 def main():
@@ -16,6 +17,9 @@ def main():
         print(f"No details provided. Creating/updating default admin: {username} ({email})")
     password = getpass.getpass("Admin password: ")
     reset_phrase = getpass.getpass("Reset word: ")
+    if not is_platform_owner_username(username):
+        print(f"This recovery command can only create or update {platform_owner_username()}.")
+        return 1
     if len(password) < 8:
         print("Password must be at least 8 characters.")
         return 1

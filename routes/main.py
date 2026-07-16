@@ -56,6 +56,7 @@ from notifications_service import (
     NOTIFICATION_CATEGORIES, notification_allowed, preference_map,
     save_notification_preferences, smart_notify,
 )
+from ownership import is_platform_owner
 from streaks import STREAK_DEFINITIONS, local_activity_date, queue_expiring_streak_warning, record_streak_activity
 
 main_bp = Blueprint("main", __name__)
@@ -2059,6 +2060,9 @@ def streak_dashboard():
 @main_bp.route("/account/delete", methods=["POST"])
 @fresh_login_required
 def delete_account():
+    if is_platform_owner(current_user):
+        flash("The platform owner account is protected and cannot be deleted.", "warning")
+        return redirect(url_for("main.settings"))
     if request.form.get("confirm") == "DELETE":
         user = current_user
         reverse_completion_rewards_for_user(user.id, reversed_by_id=user.id)

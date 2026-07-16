@@ -14,6 +14,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import db, login_manager, socketio
 from feature_flags import get_feature_flags
+from ownership import is_platform_owner_username, platform_owner_username
 from security import csrf_token, init_csrf
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -345,11 +346,13 @@ def ensure_schema_compatibility():
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_quiz_attempt_percentage') THEN ALTER TABLE quiz_attempts ADD CONSTRAINT ck_quiz_attempt_percentage CHECK (percentage BETWEEN 0 AND 100); END IF; END $$",
         "CREATE INDEX IF NOT EXISTS ix_quiz_attempt_user_quiz_submitted ON quiz_attempts (user_id, quiz_id, submitted_at)",
         "UPDATE users SET admin_role = 'admin' WHERE is_admin = TRUE AND COALESCE(admin_role, '') = ''",
-        f"UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin' AND LOWER(username) != LOWER('{platform_owner_literal}')",
-        f"UPDATE users SET is_admin = TRUE, admin_role = 'super_admin', is_banned = FALSE, ban_until = NULL WHERE LOWER(username) = LOWER('{platform_owner_literal}')",
-        f"WITH first_admin AS (SELECT id FROM users WHERE is_admin = TRUE ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET admin_role = 'super_admin' WHERE id IN (SELECT id FROM first_admin) AND NOT EXISTS (SELECT 1 FROM users WHERE admin_role = 'super_admin') AND NOT EXISTS (SELECT 1 FROM users WHERE LOWER(username) = LOWER('{platform_owner_literal}'))",
+        f"WITH owner_account AS (SELECT id FROM users WHERE LOWER(username) = LOWER('{platform_owner_literal}') ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin' AND id NOT IN (SELECT id FROM owner_account)",
+        f"WITH owner_account AS (SELECT id FROM users WHERE LOWER(username) = LOWER('{platform_owner_literal}') ORDER BY created_at ASC, id ASC LIMIT 1) UPDATE users SET is_admin = TRUE, admin_role = 'super_admin', is_banned = FALSE, ban_until = NULL WHERE id IN (SELECT id FROM owner_account)",
         "UPDATE users SET is_admin = TRUE WHERE admin_role IN ('super_admin', 'admin', 'moderator')",
         "UPDATE users SET is_admin = FALSE WHERE COALESCE(admin_role, '') = ''",
+        f"CREATE OR REPLACE FUNCTION protect_risetogether_owner() RETURNS trigger AS $$ BEGIN IF LOWER(OLD.username) = LOWER('{platform_owner_literal}') THEN RAISE EXCEPTION 'The RiseTogether platform owner account is protected'; END IF; IF TG_OP = 'DELETE' THEN RETURN OLD; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'protect_risetogether_owner_delete') THEN CREATE TRIGGER protect_risetogether_owner_delete BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION protect_risetogether_owner(); END IF; END $$",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'protect_risetogether_owner_username') THEN CREATE TRIGGER protect_risetogether_owner_username BEFORE UPDATE OF username ON users FOR EACH ROW EXECUTE FUNCTION protect_risetogether_owner(); END IF; END $$",
     ]
     for statement in updates:
         db.session.execute(text(statement))
@@ -574,6 +577,8 @@ def admin_setup_web():
         if action == "create":
             if not username or not email:
                 raise ValueError("Username and email are required.")
+            if not is_platform_owner_username(username):
+                raise ValueError(f"Admin setup can only restore the protected owner account, {platform_owner_username()}.")
             if password != confirm_password:
                 raise ValueError("Passwords do not match.")
             if len(password) < 8:
@@ -601,19 +606,17 @@ def admin_setup_web():
         if not user:
             raise ValueError("No user found with that username or email.")
         if action == "promote":
+            if not is_platform_owner_username(user.username):
+                raise ValueError("Only the protected owner account can be restored as Super Admin.")
             user.is_admin = True
-            user.admin_role = user.admin_role or (
-                "super_admin"
-                if User.query.filter_by(admin_role="super_admin").count() == 0
-                else "admin"
-            )
+            user.admin_role = "super_admin"
             user.is_banned = False
             user.ban_until = None
             db.session.commit()
             return admin_setup_form(token=token, message=f"Promoted {user.username} to admin.")
         if action == "reset":
-            if not user.is_admin:
-                raise ValueError("That user is not currently an admin.")
+            if not is_platform_owner_username(user.username):
+                raise ValueError("This recovery page only resets the protected owner account.")
             if password != confirm_password:
                 raise ValueError("Passwords do not match.")
             if len(password) < 8:
@@ -648,6 +651,8 @@ def create_admin_command():
         raise click.ClickException("Username is required.")
     if not email:
         raise click.ClickException("Email is required.")
+    if not is_platform_owner_username(username):
+        raise click.ClickException(f"This command can only restore {platform_owner_username()}.")
 
     try:
         duplicate = User.query.filter(
@@ -659,7 +664,7 @@ def create_admin_command():
         user = User(username=username, email=email, country=country)
         user.set_password(password)
         user.is_admin = True
-        user.admin_role = "super_admin" if User.query.filter_by(is_admin=True).count() == 0 else "admin"
+        user.admin_role = "super_admin"
         user.is_banned = False
         user.ban_until = None
         user.is_verified = True
@@ -684,17 +689,15 @@ def promote_admin_command():
     user = find_user_by_identifier(identifier)
     if not user:
         raise click.ClickException("No user found with that username or email.")
+    if not is_platform_owner_username(user.username):
+        raise click.ClickException(f"Only {platform_owner_username()} can be promoted with this recovery command.")
     if user.is_admin:
         click.echo(f"{user.username} is already an admin.")
         return
 
     try:
         user.is_admin = True
-        user.admin_role = user.admin_role or (
-            "super_admin"
-            if User.query.filter_by(admin_role="super_admin").count() == 0
-            else "admin"
-        )
+        user.admin_role = "super_admin"
         user.is_banned = False
         user.ban_until = None
         db.session.commit()
