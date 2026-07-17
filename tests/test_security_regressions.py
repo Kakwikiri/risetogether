@@ -481,7 +481,7 @@ class SecurityRegressionTests(unittest.TestCase):
             "anonymous_support_posts",
             "media_autoplay",
             "family_leaderboards",
-            "family_xp", "point_transfers", "contribution_campaigns",
+            "family_xp", "point_transfers", "referral_rewards", "contribution_campaigns",
             "premium_membership", "premium_families", "premium_profiles",
             "premium_storage", "premium_upload_limits", "premium_themes",
             "premium_analytics", "premium_challenges",

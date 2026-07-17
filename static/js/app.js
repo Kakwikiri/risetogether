@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-privacy-view-once";
+  const APP_VERSION = "20260717-referrals-levels";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -134,6 +134,17 @@ document.addEventListener("DOMContentLoaded", () => {
       openDialog(celebrationModal);
     },
   };
+
+  document.querySelectorAll("[data-copy-value]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyValue || "");
+        showToast("Invitation link copied.");
+      } catch (_error) {
+        showToast("Select and copy the invitation link.", "warning");
+      }
+    });
+  });
 
   if (pageBack) {
     pageBack.addEventListener("click", () => {

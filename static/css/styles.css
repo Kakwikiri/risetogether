@@ -2935,6 +2935,10 @@ body.media-viewer-open {
   flex-wrap: wrap;
   margin-top: 0.7rem;
 }
+.family-image-controls { display: grid; gap: 0.45rem; min-width: min(100%, 260px); }
+.family-image-controls h3,
+.family-image-controls p { margin: 0; }
+.family-image-choose { cursor: pointer; }
 
 .form-status {
   margin: 0.55rem 0 0;
@@ -8163,6 +8167,12 @@ body.nav-menu-open {
   margin: 0 auto 0.75rem;
 }
 .chat-history-nav .button { min-height: 36px; padding: 0.4rem 0.7rem; font-size: 0.8rem; }
+.referral-link-card,
+.referral-family-list { display: grid; gap: 0.75rem; }
+.referral-family-list article { display: grid; gap: 0.4rem; padding: 0.7rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.referral-link-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.55rem; }
+.referral-link-row input { min-width: 0; }
+@media (max-width: 560px) { .referral-link-row { grid-template-columns: 1fr; } }
 
 @media (min-width: 901px) {
   .topbar { min-height: 64px; padding-block: 0.5rem; }
@@ -8476,6 +8486,12 @@ body.nav-menu-open {
 }
 
 @media (max-width: 560px) {
+  .profile-identity-row { display: grid; justify-items: center; width: 100%; gap: 0.6rem; }
+  .profile-title-block { width: 100%; text-align: center; }
+  .profile-title-block h1 { overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+  .family-identity-row { display: grid; justify-items: center; width: 100%; gap: 0.6rem; text-align: center; }
+  .family-title-block { width: 100%; min-width: 0; text-align: center; }
+  .family-title-block h2 { overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
   .profile-avatar-editor { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .profile-avatar-controls { justify-items: center; }
   .profile-avatar-actions { justify-content: center; }

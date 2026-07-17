@@ -1750,13 +1750,15 @@ def family_upgrades(family_id):
     }
     current_capacity = effective_family_member_limit(family)
     next_capacity = next_capacity_target(current_capacity)
+    current_family_level = family_level_summary(family)["level"]
     catalog = []
     catalog_source = configured_upgrade_catalog()
     for key, definition in catalog_source.items():
         item = {"key": key, **definition}
         capacity = definition.get("capacity")
         item["unlocked"] = family_has_upgrade(family.id, key) or bool(capacity and current_capacity >= capacity)
-        item["available"] = not item["unlocked"] and (
+        item["level_ready"] = current_family_level >= definition.get("required_level", 1)
+        item["available"] = not item["unlocked"] and item["level_ready"] and (
             capacity is None or capacity == next_capacity
         ) and definition.get("implemented", True)
         if definition.get("implemented", True) and (family_points_enabled or item["unlocked"]):
@@ -1810,6 +1812,7 @@ def family_upgrades(family_id):
         family_points_enabled=family_points_enabled,
         premium_active=premium_active,
         certificate_styles=CERTIFICATE_STYLES,
+        current_family_level=current_family_level,
     )
 
 
@@ -1836,6 +1839,13 @@ def purchase_family_upgrade(family_id):
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     if FamilyContributionCampaign.query.filter_by(family_id=family.id, active_slot=True).first():
         flash("Finish or cancel the active contribution campaign before purchasing directly.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    current_level = family_level_summary(family)["level"]
+    if current_level < definition.get("required_level", 1):
+        flash(
+            f"Reach Family Level {definition.get('required_level', 1)} before unlocking this upgrade.",
+            "warning",
+        )
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     capacity = definition.get("capacity")
     if capacity:

@@ -190,6 +190,9 @@ def latest_active_reset(user):
 def signup():
     if current_user.is_authenticated:
         return redirect(url_for("main.home"))
+    referral_token = (request.values.get("referral_token") or request.args.get("ref") or session.get("referral_token") or "").strip()
+    if referral_token:
+        session["referral_token"] = referral_token
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip().lower()
@@ -224,11 +227,14 @@ def signup():
         db.session.commit()
         profile = Profile(user_id=user.id, display_name=username)
         db.session.add(profile)
+        from referrals import register_referral_signup
+        register_referral_signup(user, referral_token)
         db.session.commit()
+        session.pop("referral_token", None)
         login_user(user)
         flash("Welcome to RiseTogether! Your safe community starts here.", "success")
         return redirect(url_for("main.home"))
-    return render_signup()
+    return render_signup(referral_token=referral_token)
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -486,6 +492,7 @@ def google_callback():
         flash("Please verify your Google email before using Google login.", "warning")
         return redirect(url_for("auth.login"))
     user = User.query.filter_by(email=email).first()
+    created_user = user is None
     if not user:
         username = re.sub(r"[^A-Za-z0-9_]", "_", email.split("@")[0])[:80].strip("_") or "member"
         base_username = username
@@ -503,6 +510,8 @@ def google_callback():
         db.session.add(user)
         db.session.commit()
         db.session.add(Profile(user_id=user.id, display_name=info.get("name") or username))
+        from referrals import register_referral_signup
+        register_referral_signup(user, session.get("referral_token", ""))
         db.session.commit()
     elif not user.profile:
         db.session.add(Profile(user_id=user.id, display_name=info.get("name") or user.username))
@@ -511,6 +520,8 @@ def google_callback():
         flash("This account has been banned. Please contact an admin.", "danger")
         return redirect(url_for("auth.login"))
     login_user(user)
+    if created_user:
+        session.pop("referral_token", None)
     flash("Logged in with Google.", "success")
     return redirect(url_for("main.home"))
 

@@ -9,16 +9,16 @@
   </header>
   {% set family_image_url = family_avatar_url(family) %}
   {% if can_change_family_image %}
-  <form class="family-image-form" action="{{ url_for('family.update_family_image', family_id=family.id) }}" method="post" enctype="multipart/form-data" data-family-image-form>
+  <form class="family-image-form settings-panel" action="{{ url_for('family.update_family_image', family_id=family.id) }}" method="post" enctype="multipart/form-data" data-family-image-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="family-image-editor">
       <img class="family-image-preview" src="{{ family_image_url }}" alt="{{ family.name }} picture" data-family-image-preview />
-      <div>
-        <label>
-          Family picture
-          <input type="file" name="profile_image" accept="image/png,image/jpeg,image/gif" data-family-image-input />
-        </label>
+      <div class="family-image-controls">
+        <h3>Family picture</h3>
+        <p class="muted-meta">Choose a square JPG, PNG or GIF. Regular images can be cropped before uploading.</p>
+        <input class="visually-hidden" id="family-profile-image-input" type="file" name="profile_image" accept="image/png,image/jpeg,image/gif" data-family-image-input />
         <div class="family-image-actions">
+          <label class="button secondary family-image-choose" for="family-profile-image-input">Choose picture</label>
           <button class="button" type="submit" data-family-image-save disabled>Save picture</button>
           <button class="button secondary" type="button" data-family-image-cancel hidden>Cancel</button>
         </div>

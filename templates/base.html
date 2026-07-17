@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-privacy-view-once"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-referrals-levels"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-privacy-view-once"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-referrals-levels"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-privacy-view-once"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-referrals-levels"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -119,10 +119,12 @@
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}
         {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇"><span>Premium</span></a>{% endif %}
+        {% if feature_enabled('referral_rewards') %}<a href="{{ url_for('main.referral_invites') }}" data-icon="↗"><span>Invite & earn</span></a>{% endif %}
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('moderation.admin_dashboard') }}" data-icon="▣"><span>{{ 'Super Admin' if current_user.admin_role == 'super_admin' else 'Admin' }}</span></a>
         <a href="{{ url_for('moderation.admin_reports') }}" data-icon="!"><span>Reports</span></a>
+        <a href="{{ url_for('moderation.admin_referrals') }}" data-icon="↗"><span>Referrals</span></a>
         {% if feature_enabled('anonymous_support_posts') %}<a href="{{ url_for('moderation.admin_encouragement_reports') }}" data-icon="♡"><span>Support reports</span></a>{% endif %}
         {% if current_user.admin_role in ['super_admin', 'admin'] %}
         <a href="{{ url_for('moderation.admin_users') }}" data-icon="⚙"><span>Users</span></a>

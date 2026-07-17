@@ -15,7 +15,8 @@ from feature_flags import (
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
     AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, HelpRequest, Notification,
-    PointSecurityEvent, PointTransaction, Post, PremiumSubscription, Report, RiseBadgeAssignment, SiteSetting, User, VerificationApplication,
+    PointSecurityEvent, PointTransaction, Post, PremiumSubscription, ReferralConversion,
+    Report, RiseBadgeAssignment, SiteSetting, User, UserActivityDay, VerificationApplication,
 )
 from notifications_service import smart_notify
 from points import reverse_completion_rewards_for_user, reverse_reward_group
@@ -39,7 +40,7 @@ ADMIN_ROLE_RANK = {
 
 ECONOMY_FEATURE_FLAGS = (
     "personal_points", "family_points", "family_xp", "family_levels", "family_upgrades",
-    "point_transfers", "contribution_campaigns", "premium_membership", "premium_families",
+    "point_transfers", "referral_rewards", "contribution_campaigns", "premium_membership", "premium_families",
     "premium_profiles", "premium_storage", "premium_upload_limits", "premium_themes",
     "premium_analytics", "premium_challenges", "premium_verification_applications",
     "premium_beta_testing",
@@ -171,6 +172,32 @@ def admin_dashboard():
     )
 
 
+@mod_bp.route("/admin/referrals")
+@fresh_login_required
+def admin_referrals():
+    if not require_admin_role("moderator"):
+        return redirect(url_for("main.home"))
+    conversions = ReferralConversion.query.order_by(
+        ReferralConversion.joined_at.desc()
+    ).limit(200).all()
+    user_ids = [conversion.referred_user_id for conversion in conversions]
+    activity_counts = {}
+    if user_ids:
+        rows = db.session.query(
+            UserActivityDay.user_id, db.func.count(UserActivityDay.id)
+        ).filter(UserActivityDay.user_id.in_(user_ids)).group_by(
+            UserActivityDay.user_id
+        ).all()
+        activity_counts = dict(rows)
+    return render_template(
+        "admin_referrals.html",
+        conversions=conversions,
+        activity_counts=activity_counts,
+        qualified_count=sum(bool(row.qualified_at) for row in conversions),
+        rewarded_count=sum(bool(row.rewarded_at) for row in conversions),
+    )
+
+
 @mod_bp.route("/admin/economy", methods=["GET", "POST"])
 @fresh_login_required
 def admin_economy():
@@ -209,6 +236,19 @@ def admin_economy():
             )
             setting.value = str(cost)
             db.session.add(setting)
+            try:
+                required_level = int(request.form.get(f"upgrade_level_{upgrade_key}", "1"))
+            except (TypeError, ValueError):
+                flash("Every upgrade level must be a whole number.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            if required_level < 1 or required_level > 100:
+                flash("Upgrade levels must be between 1 and 100.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            level_setting = SiteSetting.query.get(
+                f"economy.upgrade_level.{upgrade_key}"
+            ) or SiteSetting(key=f"economy.upgrade_level.{upgrade_key}")
+            level_setting.value = str(required_level)
+            db.session.add(level_setting)
         for tier in ("small", "easy", "medium", "hard", "major"):
             try:
                 reward = int(request.form.get(f"challenge_reward_{tier}", ""))

@@ -16,6 +16,7 @@ FEATURE_FLAG_DEFINITIONS = {
     "family_levels": ("Family levels", False),
     "family_upgrades": ("Family upgrades", True),
     "point_transfers": ("Point transfers", True),
+    "referral_rewards": ("Referral rewards", True),
     "contribution_campaigns": ("Contribution campaigns", True),
     "premium_membership": ("Premium membership", True),
     "premium_families": ("Premium Families", True),

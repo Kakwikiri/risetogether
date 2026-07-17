@@ -11,6 +11,8 @@ ECONOMY_DEFAULTS = {
     "point_transfer_daily_limit": 10,
     "personal_reward_daily_limit": 100,
     "contribution_hourly_limit": 20,
+    "referral_reward_points": 20,
+    "referral_required_active_days": 3,
     "free_family_capacity": 50,
     "free_image_upload_mb": 5,
     "free_video_upload_mb": 25,

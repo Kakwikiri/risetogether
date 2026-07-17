@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Referral activity · RiseTogether{% endblock %}
+{% block content %}
+<section class="page-shell">
+  <header class="page-heading">
+    <p class="eyebrow">Moderation</p>
+    <h1>Referral activity</h1>
+    <p>Real sign-ups and distinct active days are shown here. Rewards are calculated only by the server.</p>
+  </header>
+  <section class="summary-grid" aria-label="Referral summary">
+    <article class="card"><strong>{{ conversions|length }}</strong><span>Tracked sign-ups</span></article>
+    <article class="card"><strong>{{ qualified_count }}</strong><span>Qualified</span></article>
+    <article class="card"><strong>{{ rewarded_count }}</strong><span>Rewarded</span></article>
+  </section>
+  <section class="card table-scroll">
+    <table class="admin-table">
+      <thead><tr><th>Inviter</th><th>New member</th><th>Family</th><th>Active days</th><th>Status</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for conversion in conversions %}
+        <tr>
+          <td>{{ conversion.referral_code.inviter.username }}</td>
+          <td>{{ conversion.referred_user.username }}</td>
+          <td>{{ conversion.referral_code.family.name if conversion.referral_code.family else 'Personal invite' }}</td>
+          <td>{{ activity_counts.get(conversion.referred_user_id, 0) }}</td>
+          <td><span class="status-chip {{ 'status-chip--success' if conversion.rewarded_at else 'status-chip--neutral' }}">{{ 'Rewarded' if conversion.rewarded_at else ('Qualified' if conversion.qualified_at else 'Building activity') }}</span></td>
+          <td>{{ conversion.joined_at.strftime('%b %d, %Y') }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6">No referral sign-ups have been recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+</section>
+{% endblock %}

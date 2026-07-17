@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Invitations · RiseTogether{% endblock %}
+{% block content %}
+<section class="page-shell referral-page">
+  <header class="page-heading"><p class="eyebrow">Grow through real connections</p><h1>Invite someone</h1><p>When someone joins through your link and returns on {{ required_days }} different active days, you receive {{ reward_points }} Personal Points. No reward is given for duplicate or inactive accounts.</p></header>
+  <section class="card referral-link-card"><h2>Your personal invitation</h2><div class="referral-link-row"><input value="{{ personal_link }}" readonly aria-label="Personal invitation link"><button class="button secondary" type="button" data-copy-value="{{ personal_link }}">Copy link</button></div></section>
+  {% if family_rows %}<section class="card"><h2>Family invitations</h2><p class="muted-meta">A qualifying person joins the selected Family when capacity allows. The Family also earns {{ reward_points }} Family Points after {{ required_days }} active days.</p><div class="referral-family-list">{% for row in family_rows %}<article><strong>{{ row.family.name }}</strong><div class="referral-link-row"><input value="{{ row.link }}" readonly aria-label="{{ row.family.name }} invitation link"><button class="button secondary" type="button" data-copy-value="{{ row.link }}">Copy</button></div></article>{% endfor %}</div></section>{% endif %}
+  <section class="card"><h2>Your invitation history</h2><div class="point-history-list">{% for conversion in conversions %}<article class="point-history-row"><div><strong>{{ conversion.referred_user.username }}</strong><span>Joined {{ conversion.joined_at.strftime('%b %d, %Y') }}</span></div><span class="status-chip {{ 'status-chip--success' if conversion.rewarded_at else 'status-chip--neutral' }}">{{ 'Qualified' if conversion.rewarded_at else 'Building activity' }}</span></article>{% else %}<p>No one has joined through your link yet.</p>{% endfor %}</div></section>
+</section>
+{% endblock %}

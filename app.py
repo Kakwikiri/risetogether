@@ -175,6 +175,9 @@ def ensure_schema_compatibility():
         PointTransaction,
         PointSecurityEvent,
         PremiumSubscription,
+        ReferralCode,
+        ReferralConversion,
+        UserActivityDay,
         VerificationApplication,
         NotificationPreference,
         NotificationDeliveryKey,
@@ -211,6 +214,9 @@ def ensure_schema_compatibility():
     PointTransaction.__table__.create(db.engine, checkfirst=True)
     PointSecurityEvent.__table__.create(db.engine, checkfirst=True)
     PremiumSubscription.__table__.create(db.engine, checkfirst=True)
+    ReferralCode.__table__.create(db.engine, checkfirst=True)
+    ReferralConversion.__table__.create(db.engine, checkfirst=True)
+    UserActivityDay.__table__.create(db.engine, checkfirst=True)
     VerificationApplication.__table__.create(db.engine, checkfirst=True)
     NotificationPreference.__table__.create(db.engine, checkfirst=True)
     NotificationDeliveryKey.__table__.create(db.engine, checkfirst=True)
@@ -429,7 +435,26 @@ def record_real_user_activity():
     ):
         current_user.return_summary_since = previous
         current_user.return_summary_dismissed_at = None
-    if previous is None or now - previous >= timedelta(minutes=15):
+    should_record_day = (
+        request.method == "GET"
+        and request.blueprint not in {"api"}
+        and request.endpoint not in {"auth.logout"}
+    )
+    recorded_activity_day = False
+    if should_record_day:
+        from models import UserActivityDay
+        activity_day = now.date()
+        if not UserActivityDay.query.filter_by(
+            user_id=current_user.id, activity_date=activity_day
+        ).first():
+            db.session.add(UserActivityDay(
+                user_id=current_user.id, activity_date=activity_day
+            ))
+            db.session.flush()
+            recorded_activity_day = True
+            from referrals import process_referral_qualification
+            process_referral_qualification(current_user.id)
+    if previous is None or now - previous >= timedelta(minutes=15) or recorded_activity_day:
         current_user.last_active_at = now
         db.session.commit()
 

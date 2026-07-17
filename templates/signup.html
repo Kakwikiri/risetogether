@@ -8,6 +8,7 @@
     </div>
     <form action="" method="post" class="stacked-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      {% if referral_token %}<input type="hidden" name="referral_token" value="{{ referral_token }}" /><div class="alert info">You are joining through a RiseTogether invitation. Rewards are recorded only after three real active days.</div>{% endif %}
       <label for="username">Username</label>
       <input id="username" type="text" name="username" required autocomplete="username" />
       <label for="email">Email address</label>

@@ -46,6 +46,8 @@ from models import (
     PostShare,
     Profile,
     Reaction,
+    ReferralCode,
+    ReferralConversion,
     ReturnCheckIn,
     ReturnSuggestionDismissal,
     StreakMilestone,
@@ -1968,6 +1970,38 @@ def dismiss_welcome_back():
     current_user.return_summary_since = None
     db.session.commit()
     return redirect(url_for("main.home"))
+
+
+@main_bp.route("/invites")
+@login_required
+def referral_invites():
+    if not is_feature_enabled("referral_rewards"):
+        abort(404)
+    from referrals import get_or_create_referral_code
+    from premium import economy_setting_int
+
+    personal_code = get_or_create_referral_code(current_user.id)
+    family_rows = []
+    for membership in current_user.family_memberships.filter(
+        FamilyMember.role.in_(["owner", "admin"]),
+    ).all():
+        code = get_or_create_referral_code(current_user.id, membership.family_id)
+        family_rows.append({"family": membership.family, "code": code})
+    db.session.commit()
+    conversions = ReferralConversion.query.join(ReferralCode).filter(
+        ReferralCode.inviter_id == current_user.id
+    ).order_by(ReferralConversion.joined_at.desc()).limit(100).all()
+    return render_template(
+        "invites.html",
+        personal_link=url_for("auth.signup", ref=personal_code.token, _external=True),
+        family_rows=[{
+            **row,
+            "link": url_for("auth.signup", ref=row["code"].token, _external=True),
+        } for row in family_rows],
+        conversions=conversions,
+        reward_points=economy_setting_int("referral_reward_points", 20, minimum=1, maximum=100),
+        required_days=economy_setting_int("referral_required_active_days", 3, minimum=1, maximum=30),
+    )
 
 
 @main_bp.route("/points")

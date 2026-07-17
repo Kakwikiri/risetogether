@@ -409,6 +409,40 @@ class PremiumSubscription(db.Model):
     granted_by = db.relationship("User", foreign_keys=[granted_by_id])
 
 
+class ReferralCode(db.Model):
+    __tablename__ = "referral_codes"
+    id = db.Column(db.Integer, primary_key=True)
+    inviter_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True)
+    token = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    inviter = db.relationship("User", backref=db.backref("referral_codes", lazy="dynamic", cascade="all, delete-orphan"))
+    family = db.relationship("Family", backref=db.backref("referral_codes", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class ReferralConversion(db.Model):
+    __tablename__ = "referral_conversions"
+    id = db.Column(db.Integer, primary_key=True)
+    referral_code_id = db.Column(db.Integer, db.ForeignKey("referral_codes.id", ondelete="CASCADE"), nullable=False, index=True)
+    referred_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    qualified_at = db.Column(db.DateTime, nullable=True)
+    rewarded_at = db.Column(db.DateTime, nullable=True)
+    referral_code = db.relationship("ReferralCode", backref=db.backref("conversions", lazy="dynamic", cascade="all, delete-orphan"))
+    referred_user = db.relationship("User", backref=db.backref("referral_conversion", uselist=False))
+
+
+class UserActivityDay(db.Model):
+    __tablename__ = "user_activity_days"
+    __table_args__ = (db.UniqueConstraint("user_id", "activity_date", name="uq_user_activity_day"),)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    activity_date = db.Column(db.Date, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("activity_days", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class VerificationApplication(db.Model):
     __tablename__ = "verification_applications"
     __table_args__ = (
