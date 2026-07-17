@@ -511,7 +511,8 @@
   </section>
 
   <section id="family-quizzes" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
-    <h3>Quizzes</h3>
+    <div class="split-header"><h3>Quizzes</h3><span class="status-pill">{{ quiz_slot_count }} / {{ quiz_slot_limit }} open slots</span></div>
+    {% if member and feature_enabled('family_upgrades') %}<p class="muted-meta">Families begin with 2 open quiz slots. <a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Unlock 5 open quiz slots with Family Points.</a></p>{% endif %}
     {% if not supports_quizzes %}
     <p class="muted-meta">This Family category does not use quizzes by default.</p>
     {% endif %}

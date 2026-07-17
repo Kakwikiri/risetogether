@@ -585,6 +585,31 @@ if (typeof chatConfig !== "undefined") {
     let typingTimer = null;
     const selectedMessages = new Map();
 
+    const activeDateLabel = chatLog?.querySelector("[data-chat-active-date]");
+    const updateActiveDateLabel = () => {
+      if (!chatLog || !activeDateLabel) return;
+      const separators = Array.from(chatLog.querySelectorAll(".chat-date-separator"));
+      if (!separators.length) {
+        activeDateLabel.hidden = true;
+        return;
+      }
+      const threshold = chatLog.scrollTop + activeDateLabel.offsetHeight + 18;
+      let activeSeparator = separators[0];
+      separators.forEach((separator) => {
+        if (separator.offsetTop <= threshold) activeSeparator = separator;
+      });
+      separators.forEach((separator) => {
+        separator.classList.toggle("is-active-date-source", separator === activeSeparator);
+      });
+      activeDateLabel.textContent = activeSeparator.textContent;
+      activeDateLabel.hidden = false;
+    };
+    if (chatLog && activeDateLabel) {
+      chatLog.addEventListener("scroll", updateActiveDateLabel, { passive: true });
+      new MutationObserver(updateActiveDateLabel).observe(chatLog, { childList: true });
+      window.requestAnimationFrame(updateActiveDateLabel);
+    }
+
     const emitTyping = (isTyping) => socket.emit("chat_typing", {
       recipient_id: chatConfig.targetUserId,
       family_id: chatConfig.familyId,

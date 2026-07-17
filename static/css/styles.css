@@ -5030,7 +5030,8 @@ body.media-viewer-open {
   box-shadow: 0 2px 10px rgba(21, 33, 31, 0.06);
 }
 
-.chat-date-separator {
+.chat-date-separator,
+.chat-active-date {
   position: relative;
   top: auto;
   z-index: 4;
@@ -5049,9 +5050,19 @@ body.media-viewer-open {
   backdrop-filter: blur(10px);
 }
 
-:root[data-theme="dark"] .chat-date-separator {
+:root[data-theme="dark"] .chat-date-separator,
+:root[data-theme="dark"] .chat-active-date {
   background: rgba(23, 33, 30, 0.94);
 }
+
+.chat-active-date {
+  position: sticky;
+  top: 0.45rem;
+  z-index: 6;
+  min-width: 88px;
+  pointer-events: none;
+}
+.chat-date-separator.is-active-date-source { visibility: hidden; }
 
 .chat-message:has(.voice-note-player) {
   width: min(86%, 640px);
@@ -8472,22 +8483,9 @@ body.nav-menu-open {
 }
 
 .chat-log .chat-message:has(.media-frame img) {
-  width: min(78%, 340px);
-  max-width: min(78%, 340px);
-  padding: 2px;
-}
-.chat-log .chat-message:has(.media-frame img) .media-frame {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-}
-.chat-log .chat-message:has(.media-frame img) .media-frame img {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  max-height: min(58vh, 420px);
-  margin: 0;
-  object-fit: contain;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

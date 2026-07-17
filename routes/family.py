@@ -847,6 +847,8 @@ def challenge_dashboard(family, members, current_member):
 def quiz_dashboard(family, members, current_member):
     quizzes = family.quizzes.order_by(Quiz.created_at.desc()).all()
     open_quizzes = [quiz for quiz in quizzes if quiz_is_open(quiz)]
+    quiz_slot_count = sum(1 for quiz in quizzes if quiz.status == "open")
+    quiz_slot_limit = open_quiz_limit(family.id) if is_feature_enabled("family_upgrades") else 2
     attempts = QuizAttempt.query.join(Quiz).filter(
         Quiz.family_id == family.id,
         QuizAttempt.submitted_at != None,
@@ -875,6 +877,8 @@ def quiz_dashboard(family, members, current_member):
     return {
         "quizzes": quizzes,
         "open_quizzes": open_quizzes,
+        "quiz_slot_count": quiz_slot_count,
+        "quiz_slot_limit": quiz_slot_limit,
         "quiz_history": quiz_history[:5],
         "quiz_leaderboard": leaderboard[:10],
         "supports_quizzes": family_supports_quizzes(family),
