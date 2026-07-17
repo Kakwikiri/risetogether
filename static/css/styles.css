@@ -3617,12 +3617,16 @@ body.media-viewer-open {
 }
 
 .goal-back-link {
-  display: inline-flex;
+  position: fixed;
+  top: 4.8rem;
+  left: 0.7rem;
+  z-index: 31;
+  display: grid;
+  place-items: center;
   align-items: center;
-  justify-self: start;
-  gap: 0.4rem;
-  min-height: 42px;
-  padding: 0.55rem 0.8rem;
+  width: 42px;
+  height: 42px;
+  padding: 0;
   color: var(--brand-dark);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -3630,7 +3634,9 @@ body.media-viewer-open {
   box-shadow: var(--shadow-sm);
   text-decoration: none;
   font-weight: 850;
+  font-size: 1.25rem;
 }
+.goal-back-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .goal-back-link:hover,
 .goal-back-link:focus-visible { background: var(--soft); }
 .goal-file-picker {
@@ -5025,8 +5031,8 @@ body.media-viewer-open {
 }
 
 .chat-date-separator {
-  position: sticky;
-  top: 0.45rem;
+  position: relative;
+  top: auto;
   z-index: 4;
   width: fit-content;
   max-width: calc(100% - 2rem);
@@ -8455,6 +8461,49 @@ body.nav-menu-open {
   width: 64px;
   height: 64px;
   border-radius: 16px;
+}
+
+@media (min-width: 901px) {
+  .panel.panel-feed > .post-card {
+    width: min(100%, 540px);
+    margin-inline: auto;
+    padding: 0.75rem;
+  }
+}
+
+.chat-log .chat-message:has(.media-frame img) {
+  width: min(78%, 340px);
+  max-width: min(78%, 340px);
+  padding: 2px;
+}
+.chat-log .chat-message:has(.media-frame img) .media-frame {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+.chat-log .chat-message:has(.media-frame img) .media-frame img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: min(58vh, 420px);
+  margin: 0;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel-feed .post-card,
+  .chat-message { animation: rise-content-in 220ms ease-out both; }
+  .family-growth-menu[open] .family-growth-menu__items { animation: rise-menu-in 150ms ease-out both; }
+  .panel-feed .post-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .panel-feed .post-card:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); box-shadow: 0 10px 26px rgba(8, 45, 38, 0.1); }
+}
+@keyframes rise-content-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes rise-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @media (max-width: 900px) {

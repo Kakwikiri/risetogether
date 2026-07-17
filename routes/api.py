@@ -35,6 +35,12 @@ def serve_upload(filename):
         response.headers["Cache-Control"] = "no-store, private, max-age=0"
     else:
         response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+    if request.args.get("download") == "1" and not is_view_once:
+        response.headers.set(
+            "Content-Disposition",
+            "attachment",
+            filename=f"RiseTogether-{os.path.basename(filename)}",
+        )
     return response
 
 

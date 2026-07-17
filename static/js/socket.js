@@ -106,7 +106,7 @@ const createVoiceNoteElement = (url, options = {}) => {
   if (!options.viewOnce) {
     const download = document.createElement("a");
     download.className = "chat-file voice-download";
-    download.href = url;
+    download.href = `${url}${url.includes("?") ? "&" : "?"}download=1`;
     download.download = "";
     download.textContent = "↓";
     download.setAttribute("aria-label", "Download audio");
@@ -299,7 +299,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
     } else {
       media = document.createElement("a");
       media.className = "chat-file";
-      media.href = data.media_url;
+      media.href = `${data.media_url}${data.media_url.includes("?") ? "&" : "?"}download=1`;
       media.target = "_blank";
       media.rel = "noopener";
       media.download = "";
@@ -308,7 +308,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
     if (data.media_type !== "file" && !data.view_once) {
       downloadLink = document.createElement("a");
       downloadLink.className = "media-download";
-      downloadLink.href = data.media_url;
+      downloadLink.href = `${data.media_url}${data.media_url.includes("?") ? "&" : "?"}download=1`;
       downloadLink.download = "";
       downloadLink.textContent = "↓";
       downloadLink.setAttribute("aria-label", `Download ${data.media_type}`);

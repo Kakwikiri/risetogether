@@ -130,7 +130,7 @@
           src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
           alt="Post media"
         />
-        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download image">↓</a>
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download image">↓</a>
       </div>
       {% elif content_post.media_type == 'video' %}
       <div class="media-frame">
@@ -141,16 +141,16 @@
           />
           Your browser cannot play this video.
         </video>
-        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download aria-label="Download video">↓</a>
+        <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download video">↓</a>
       </div>
       {% elif content_post.media_type == 'audio' %}
       <audio
         controls
         src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
       ></audio>
-      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" download>Download audio</a>
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download>Download audio</a>
       {% elif content_post.media_type == 'file' %}
-      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" target="_blank" rel="noopener" download>
+      <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" target="_blank" rel="noopener" download>
         Download attachment
       </a>
       {% endif %} {% endif %}
