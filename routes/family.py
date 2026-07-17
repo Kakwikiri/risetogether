@@ -11,7 +11,7 @@ from extensions import db
 from feature_flags import feature_required, is_feature_enabled
 from family_levels import family_level_summary
 from family_upgrades import (
-    active_challenge_limit, campaign_contributed_points, configured_upgrade_catalog,
+    CERTIFICATE_STYLES, active_challenge_limit, campaign_contributed_points, configured_upgrade_catalog,
     family_has_upgrade, next_capacity_target, open_quiz_limit,
     purchased_upgrade_keys, upgrade_definition, upgrade_is_available,
 )
@@ -1809,6 +1809,7 @@ def family_upgrades(family_id):
         personal_balance=personal_point_balance(current_user.id),
         family_points_enabled=family_points_enabled,
         premium_active=premium_active,
+        certificate_styles=CERTIFICATE_STYLES,
     )
 
 
@@ -2220,6 +2221,27 @@ def update_family_theme(family_id):
     db.session.commit()
     flash("Family theme updated.", "success")
     return redirect(url_for("family.family_detail", family_id=family.id))
+
+
+@family_bp.route("/family/<int:family_id>/certificate-style", methods=["POST"])
+@login_required
+def update_family_certificate_style(family_id):
+    if not is_feature_enabled("family_upgrades"):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family_id))
+    family = Family.query.get_or_404(family_id)
+    member = family_member_for_current_user(family)
+    style = request.form.get("certificate_style", "").strip()
+    definition = CERTIFICATE_STYLES.get(style)
+    if not family_has_permission(member, "activate_upgrade"):
+        flash("Only Family owners and admins can select a certificate style.", "danger")
+    elif not definition or not family_has_upgrade(family.id, definition[0]):
+        flash("Unlock that certificate with Family Points before selecting it.", "warning")
+    else:
+        family.certificate_style = style
+        db.session.commit()
+        flash(f"{definition[1].split(' · ', 1)[0]} certificate selected.", "success")
+    return redirect(url_for("family.family_upgrades", family_id=family.id))
 
 
 @family_bp.route("/family/<int:family_id>/gallery", methods=["POST"])

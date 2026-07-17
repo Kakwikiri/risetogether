@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-demotion-push-storage";
+  const APP_VERSION = "20260717-friends-certificates";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -209,6 +209,13 @@ document.addEventListener("DOMContentLoaded", () => {
       button.setAttribute("aria-pressed", "true");
     });
   };
+  const markPushDisabled = () => {
+    pushEnableButtons.forEach((button) => {
+      button.textContent = "Enable on this device";
+      button.disabled = false;
+      button.setAttribute("aria-pressed", "false");
+    });
+  };
 
   const getServiceWorkerRegistration = async () => {
     if (!("serviceWorker" in navigator)) {
@@ -372,6 +379,7 @@ document.addEventListener("DOMContentLoaded", () => {
           });
           if (!response.ok) throw new Error("This device could not be disabled.");
         }
+        markPushDisabled();
         setPushStatus("Device notifications disabled.");
       } catch (error) {
         setPushStatus(error.message || "Device notifications could not be disabled.");

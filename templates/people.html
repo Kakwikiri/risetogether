@@ -50,13 +50,13 @@
         </div>
         <div class="person-actions">
           {% if friendship_states.get(user.id) == 'friend' %}
-          <span class="status-pill" aria-label="Already friends">Friend</span>
+          <form action="{{ url_for('main.remove_friend', user_id=user.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary connection-button" type="submit" data-confirm="Remove {{ user.profile.display_name if user.profile else user.username }} from your friends?">Remove friend</button></form>
           {% elif friendship_states.get(user.id) == 'pending' %}
-          <span class="status-pill" aria-label="Friend request pending">Pending</span>
+          <button class="button secondary connection-button" type="button" disabled aria-label="Friend request pending">Pending</button>
           {% else %}
           <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="button secondary" type="submit">Add friend</button>
+            <button class="button secondary connection-button" type="submit">Add friend</button>
           </form>
           {% endif %}
           <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=user.id) }}"
@@ -111,9 +111,7 @@
       <article class="friend-row">
         <img class="avatar" src="{{ user_avatar_url(friend) }}" alt="" />
         <a class="friend-identity-link" href="{{ url_for('main.profile', username=friend.username) }}"><strong>{{ friend.profile.display_name if friend.profile else friend.username }}</strong><span>@{{ friend.username }}</span></a>
-        <span>
-          <a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a>
-        </span>
+        <div class="friend-row-actions"><a class="button secondary" href="{{ url_for('chat.direct_chat', user_id=friend.id) }}">Chat</a><form action="{{ url_for('main.remove_friend', user_id=friend.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary connection-button" type="submit" data-confirm="Remove {{ friend.profile.display_name if friend.profile else friend.username }} from your friends?">Remove</button></form></div>
       </article>
       {% else %}
       <p>No friends yet. Search for someone to connect with.</p>

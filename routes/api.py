@@ -10,7 +10,7 @@ from werkzeug.utils import safe_join
 
 from extensions import db
 from helpers import user_avatar_url
-from models import Family, FamilyMember, MediaAsset, Message, Profile, PushSubscription, User
+from models import Family, FamilyMember, MediaAsset, Message, Notification, Profile, PushSubscription, User
 from notifications_service import important_unread_count, unread_private_message_count
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -227,6 +227,10 @@ def push_subscribe():
     subscription.active = True
     subscription.last_used_at = datetime.utcnow()
     current_user.profile.notifications_enabled = True
+    Notification.query.filter_by(
+        user_id=current_user.id,
+        dedupe_key=f"device-notifications:{current_user.id}",
+    ).update({"seen": True})
     db.session.add(subscription)
     db.session.commit()
     return jsonify({"ok": True})

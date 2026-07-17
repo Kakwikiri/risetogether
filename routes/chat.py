@@ -11,7 +11,7 @@ from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
-from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, User
+from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, PushSubscription, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -357,6 +357,19 @@ def emit_notification(user_id, notification):
 @chat_bp.route("/messages")
 @login_required
 def inbox():
+    if not PushSubscription.query.filter_by(user_id=current_user.id, active=True).first():
+        _notification, created = smart_notify(
+            user_id=current_user.id,
+            category="reminders",
+            message="Turn on device notifications so important messages can reach you while RiseTogether is closed.",
+            action_url=url_for("main.settings") + "#device-notifications",
+            dedupe_key=f"device-notifications:{current_user.id}",
+            reminder=True,
+            push=False,
+            important=False,
+        )
+        if created:
+            db.session.commit()
     direct_messages = visible_message_filter(Message.query.filter(
         (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id)
     )).order_by(Message.created_at.desc()).all()

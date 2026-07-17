@@ -160,9 +160,11 @@ current_user.is_authenticated else none %}
 'weekly_family_milestone': ('☀', 'Weekly Family milestone') } %} {% set
 achievement = labels.get(post.achievement_type, ('✦', 'Achievement')) %}
 {% set certificate_completion = post.challenge_completion if post.challenge_completion else none %}
-{% set decorated_certificate = certificate_completion and feature_enabled('family_upgrades') and family_has_upgrade(certificate_completion.challenge.family_id, 'celebration_certificates') %}
+{% set certificate_style = certificate_completion.challenge.family.certificate_style if certificate_completion else 'growth' %}
+{% set certificate_upgrades = {'growth': 'celebration_certificates', 'sunrise': 'certificate_sunrise', 'unity': 'certificate_unity', 'excellence': 'certificate_excellence', 'legacy': 'certificate_legacy'} %}
+{% set decorated_certificate = certificate_completion and feature_enabled('family_upgrades') and family_has_upgrade(certificate_completion.challenge.family_id, certificate_upgrades.get(certificate_style, 'celebration_certificates')) %}
 <section
-  class="achievement-post-card achievement-post-card--{{ post.achievement_type }}{% if decorated_certificate %} achievement-post-card--decorated{% endif %}"
+  class="achievement-post-card achievement-post-card--{{ post.achievement_type }}{% if decorated_certificate %} achievement-post-card--decorated certificate-style--{{ certificate_style }}{% endif %}"
 >
   <div class="achievement-post-glow" aria-hidden="true"></div>
   <header>

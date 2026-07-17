@@ -2307,6 +2307,50 @@ textarea:focus {
   text-align: center;
   text-transform: uppercase;
 }
+.certificate-style--growth {
+  border-color: color-mix(in srgb, var(--brand) 65%, #d4a72c);
+}
+.certificate-style--sunrise {
+  border-color: #df7a35;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(255, 184, 92, 0.26), transparent 28%),
+    linear-gradient(145deg, rgba(255, 239, 218, 0.72), var(--panel) 58%);
+}
+.certificate-style--sunrise .achievement-post-icon { background: #c85f2d; }
+.certificate-style--sunrise::after { content: "A hopeful new beginning"; color: #9a461f; }
+.certificate-style--unity {
+  border-color: #338879;
+  background:
+    linear-gradient(45deg, rgba(49, 150, 130, 0.10) 25%, transparent 25% 75%, rgba(49, 150, 130, 0.10) 75%),
+    var(--panel);
+  background-size: 28px 28px;
+}
+.certificate-style--unity::after { content: "Stronger together"; }
+.certificate-style--excellence {
+  border-color: #7252a3;
+  background:
+    radial-gradient(circle at top right, rgba(132, 91, 181, 0.18), transparent 34%),
+    var(--panel);
+}
+.certificate-style--excellence .achievement-post-icon { background: #7252a3; }
+.certificate-style--excellence::after { content: "Excellence through growth"; color: #65458f; }
+.certificate-style--legacy {
+  border-color: #b68a2d;
+  background:
+    linear-gradient(135deg, rgba(18, 45, 42, 0.98), rgba(32, 62, 57, 0.96));
+  color: #fff8e5;
+}
+.certificate-style--legacy .eyebrow,
+.certificate-style--legacy .achievement-person span,
+.certificate-style--legacy .achievement-details span,
+.certificate-style--legacy .achievement-certificate-label,
+.certificate-style--legacy .achievement-certificate-footer { color: #e2d2a4; }
+.certificate-style--legacy .achievement-details > div,
+.certificate-style--legacy .achievement-note { background: rgba(255, 255, 255, 0.07); border-color: rgba(231, 203, 129, 0.34); }
+.certificate-style--legacy .achievement-encouragement,
+.certificate-style--legacy .achievement-certificate-footer span,
+.certificate-style--legacy::after { color: #f1cf75; }
+.certificate-style--legacy::after { content: "A milestone that leaves a legacy"; }
 .point-gift-card { display: grid; gap: 0.85rem; }
 .point-gift-card h2, .point-gift-card p { margin: 0.2rem 0; }
 .point-gift-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 0.75rem; align-items: end; }
@@ -4254,6 +4298,10 @@ body.media-viewer-open {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.person-actions form,
+.friend-row-actions form { margin: 0; }
+.connection-button { min-width: 112px; justify-content: center; }
+.friend-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; }
 
 .friend-row {
   grid-template-columns: minmax(0, 1fr) auto;

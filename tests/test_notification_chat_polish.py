@@ -47,9 +47,12 @@ class NotificationChatPolishTests(unittest.TestCase):
         messages = (ROOT / "templates/messages.html").read_text()
         settings = (ROOT / "templates/settings.html").read_text()
         app_js = (ROOT / "static/js/app.js").read_text()
-        self.assertIn("data-push-redirect", messages)
+        chat_routes = (ROOT / "routes/chat.py").read_text()
+        self.assertNotIn("data-push-enable", messages)
         self.assertIn('id="device-notifications"', settings)
         self.assertIn('button.textContent = "Enabled"', app_js)
+        self.assertIn('dedupe_key=f"device-notifications:', chat_routes)
+        self.assertIn('url_for("main.settings") + "#device-notifications"', chat_routes)
 
     def test_friend_point_gifts_and_family_certificate_upgrade_are_connected(self):
         main = (ROOT / "routes/main.py").read_text()
@@ -62,7 +65,17 @@ class NotificationChatPolishTests(unittest.TestCase):
         self.assertIn('source_type="friend_point_gift_received"', main)
         self.assertIn("Share points with a friend", points)
         self.assertIn('"celebration_certificates"', upgrades)
+        for style in ("certificate_sunrise", "certificate_unity", "certificate_excellence", "certificate_legacy"):
+            self.assertIn(style, upgrades)
         self.assertIn("achievement-post-card--decorated", certificate)
+
+    def test_people_can_remove_an_accepted_friend_with_matching_controls(self):
+        main = (ROOT / "routes/main.py").read_text()
+        people = (ROOT / "templates/people.html").read_text()
+        self.assertIn('def remove_friend(user_id):', main)
+        self.assertIn('FriendRequest.status == "accepted"', main)
+        self.assertIn("Remove friend", people)
+        self.assertIn("connection-button", people)
 
     def test_inbox_unread_state_and_audio_quality_controls_are_present(self):
         messages = (ROOT / "templates/messages.html").read_text()

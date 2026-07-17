@@ -123,7 +123,8 @@ class SecurityRegressionTests(unittest.TestCase):
         expected = {
             "custom_banner", "pinned_announcements", "challenge_slots", "family_gallery",
             "quiz_slots", "extra_themes", "advanced_statistics", "custom_badge_frame",
-            "celebration_certificates",
+            "celebration_certificates", "certificate_sunrise", "certificate_unity",
+            "certificate_excellence", "certificate_legacy",
             "extra_admins", "extra_moderators", "family_calendar", "resource_library",
             "capacity_75", "capacity_100", "capacity_150", "capacity_250", "capacity_500",
         }

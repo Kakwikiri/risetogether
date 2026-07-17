@@ -322,6 +322,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS profile_image_public_id VARCHAR(255) DEFAULT ''",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS banner_image VARCHAR(255) NOT NULL DEFAULT ''",
         "ALTER TABLE families ADD COLUMN IF NOT EXISTS theme VARCHAR(32) NOT NULL DEFAULT 'classic'",
+        "ALTER TABLE families ADD COLUMN IF NOT EXISTS certificate_style VARCHAR(32) NOT NULL DEFAULT 'growth'",
         f"UPDATE families SET member_limit = {default_family_member_limit} WHERE member_limit IS NULL",
         f"ALTER TABLE families ALTER COLUMN member_limit SET DEFAULT {default_family_member_limit}",
         "ALTER TABLE families ALTER COLUMN member_limit SET NOT NULL",

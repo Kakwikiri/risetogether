@@ -10,7 +10,11 @@ UPGRADE_CATALOG = {
     "extra_themes": {"name": "Extra family themes", "cost": 450, "description": "Unlock sunrise, ocean, and forest Family themes."},
     "advanced_statistics": {"name": "Advanced family statistics", "cost": 800, "description": "See deeper participation and completion insights."},
     "custom_badge_frame": {"name": "Custom family badge frame", "cost": 500, "description": "Give the Family avatar a distinctive growth frame."},
-    "celebration_certificates": {"name": "Celebration certificates", "cost": 550, "description": "Add a warm decorative frame to certificates earned through this Family's challenges."},
+    "celebration_certificates": {"name": "Growth certificate", "cost": 300, "description": "A calm teal-and-gold certificate for Family challenge achievements."},
+    "certificate_sunrise": {"name": "Sunrise certificate", "cost": 450, "description": "A hopeful orange certificate celebrating a new beginning."},
+    "certificate_unity": {"name": "Unity certificate", "cost": 600, "description": "A warm joined-hands certificate for teamwork and shared progress."},
+    "certificate_excellence": {"name": "Excellence certificate", "cost": 800, "description": "A polished purple certificate for outstanding achievement."},
+    "certificate_legacy": {"name": "Legacy certificate", "cost": 1000, "description": "A distinguished dark-and-gold certificate for major milestones."},
     "extra_admins": {"name": "More Family admins", "cost": 700, "description": "Add two more Family admin places."},
     "extra_moderators": {"name": "More Family moderators", "cost": 600, "description": "Add five more Family moderator places."},
     "family_calendar": {"name": "Family calendar", "cost": 750, "description": "Shared planning calendar.", "implemented": False},
@@ -20,6 +24,14 @@ UPGRADE_CATALOG = {
     "capacity_150": {"name": "Capacity: 150 members", "cost": 3000, "description": "Increase member capacity from 100 to 150.", "capacity": 150},
     "capacity_250": {"name": "Capacity: 250 members", "cost": 5000, "description": "Increase member capacity from 150 to 250.", "capacity": 250},
     "capacity_500": {"name": "Capacity: 500 members", "cost": 8000, "description": "Increase member capacity from 250 to 500.", "capacity": 500},
+}
+
+CERTIFICATE_STYLES = {
+    "growth": ("celebration_certificates", "Growth · teal and gold"),
+    "sunrise": ("certificate_sunrise", "Sunrise · hopeful orange"),
+    "unity": ("certificate_unity", "Unity · warm community"),
+    "excellence": ("certificate_excellence", "Excellence · polished purple"),
+    "legacy": ("certificate_legacy", "Legacy · dark and gold"),
 }
 
 PREMIUM_FAMILY_UPGRADES = frozenset(UPGRADE_CATALOG)

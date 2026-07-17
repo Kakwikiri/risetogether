@@ -1823,6 +1823,23 @@ def respond_friend_request(request_id, action):
     return redirect(url_for("main.people"))
 
 
+@main_bp.route("/friend/remove/<int:user_id>", methods=["POST"])
+@login_required
+def remove_friend(user_id):
+    friend = User.query.get_or_404(user_id)
+    friendship = FriendRequest.query.filter(
+        FriendRequest.status == "accepted",
+        or_(
+            (FriendRequest.sender_id == current_user.id) & (FriendRequest.receiver_id == friend.id),
+            (FriendRequest.sender_id == friend.id) & (FriendRequest.receiver_id == current_user.id),
+        ),
+    ).first_or_404()
+    db.session.delete(friendship)
+    db.session.commit()
+    flash(f"{friend.username} was removed from your friends.", "success")
+    return redirect(request.referrer or url_for("main.people"))
+
+
 @main_bp.route("/notifications")
 @login_required
 def notifications():
