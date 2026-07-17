@@ -12,7 +12,7 @@ from feature_flags import feature_required, is_feature_enabled
 from family_levels import family_level_summary
 from family_upgrades import (
     CERTIFICATE_STYLES, active_challenge_limit, campaign_contributed_points, configured_upgrade_catalog,
-    family_has_upgrade, next_capacity_target, open_quiz_limit,
+    family_has_upgrade, next_capacity_target, open_quiz_limit, upgrade_can_be_targeted,
     purchased_upgrade_keys, upgrade_definition, upgrade_is_available,
 )
 from helpers import get_media_type, get_upload_limit, save_media, validate_upload
@@ -1769,6 +1769,7 @@ def family_upgrades(family_id):
         capacity = definition.get("capacity")
         item["unlocked"] = family_has_upgrade(family.id, key) or bool(capacity and current_capacity >= capacity)
         item["level_ready"] = current_family_level >= definition.get("required_level", 1)
+        item["campaign_available"] = not item["unlocked"] and upgrade_can_be_targeted(family, key)
         item["available"] = not item["unlocked"] and item["level_ready"] and (
             capacity is None or capacity == next_capacity
         ) and definition.get("implemented", True)
@@ -1804,6 +1805,8 @@ def family_upgrades(family_id):
             "history": active_campaign.contributions.filter_by(refunded=False).order_by(
                 FamilyCampaignContribution.created_at.desc()
             ).limit(50).all(),
+            "required_level": (upgrade_definition(active_campaign.upgrade_key) or {}).get("required_level", 1),
+            "level_ready": current_family_level >= (upgrade_definition(active_campaign.upgrade_key) or {}).get("required_level", 1),
         }
     return render_template(
         "family_upgrades.html",
@@ -1942,8 +1945,8 @@ def create_upgrade_campaign(family_id):
         flash("This Family already has an active contribution campaign.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     upgrade_key = request.form.get("upgrade_key", "").strip()
-    if not upgrade_is_available(family, upgrade_key):
-        flash("Choose an available upgrade. Capacity upgrades must stay in order.", "warning")
+    if not upgrade_can_be_targeted(family, upgrade_key):
+        flash("Choose an available upgrade goal. Capacity upgrades must stay in order.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     deadline_raw = request.form.get("deadline", "").strip()
     deadline = parse_family_date(deadline_raw) if deadline_raw else None
@@ -2159,10 +2162,20 @@ def activate_upgrade_campaign(family_id, campaign_id):
     if campaign.status not in {"active", "reached"} or campaign.active_slot is not True:
         flash("This campaign cannot be activated.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
+    definition = upgrade_definition(campaign.upgrade_key)
+    if not definition:
+        flash("This campaign references an upgrade that is no longer available.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    current_level = family_level_summary(family)["level"]
+    if current_level < definition.get("required_level", 1):
+        flash(
+            f"The points are safe. Reach Family Level {definition.get('required_level', 1)} before activating this upgrade.",
+            "warning",
+        )
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
     if not upgrade_is_available(family, campaign.upgrade_key):
         flash("This upgrade is no longer available or was already activated.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
-    definition = upgrade_definition(campaign.upgrade_key)
     contributed = campaign_contributed_points(campaign)
     family_available = family_point_balance(family.id)
     if family_available + contributed < campaign.points_required:

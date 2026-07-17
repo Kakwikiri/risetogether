@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import Flask
 
 from extensions import db
-from family_upgrades import family_has_upgrade
+from family_upgrades import family_has_upgrade, upgrade_can_be_targeted, upgrade_is_available
 from feature_flags import feature_flag_key
 from models import (
     Family, FamilyUpgradePurchase, PointTransaction, PremiumSubscription,
@@ -98,6 +98,27 @@ class EconomyPremiumTests(unittest.TestCase):
             db.session.commit()
             self.assertTrue(family_has_upgrade(family.id, "challenge_slots"))
             self.assertEqual(PointTransaction.query.count(), 0)
+
+    def test_family_can_save_for_an_upgrade_before_reaching_its_level(self):
+        app = self.make_app()
+        with app.app_context():
+            self.create_economy_tables()
+            family = Family(name="Growing Together", member_limit=50)
+            db.session.add(family)
+            db.session.commit()
+            self.assertTrue(upgrade_can_be_targeted(family, "custom_banner"))
+            self.assertFalse(upgrade_is_available(family, "custom_banner"))
+            db.session.add(PointTransaction(
+                family_id=family.id,
+                amount=100,
+                reason="Verified Family progress",
+                source_type="test_progress",
+                source_id=family.id,
+                transaction_kind="award",
+                unique_reward_key=f"test-family-level:{family.id}",
+            ))
+            db.session.commit()
+            self.assertTrue(upgrade_is_available(family, "custom_banner"))
 
     def test_subscription_and_verification_constraints_are_auditable(self):
         subscription_constraints = {item.name for item in PremiumSubscription.__table__.constraints}

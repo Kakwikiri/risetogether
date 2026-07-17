@@ -110,16 +110,23 @@ def next_capacity_target(current_capacity):
     return next((value for value in (75, 100, 150, 250, 500) if value > current_capacity), None)
 
 
-def upgrade_is_available(family, upgrade_key):
+def upgrade_can_be_targeted(family, upgrade_key):
     definition = upgrade_definition(upgrade_key)
     if not definition or not definition.get("implemented", True) or family_has_upgrade(family.id, upgrade_key):
+        return False
+    capacity = definition.get("capacity")
+    return capacity is None or capacity == next_capacity_target(family.member_limit or 50)
+
+
+def upgrade_is_available(family, upgrade_key):
+    definition = upgrade_definition(upgrade_key)
+    if not upgrade_can_be_targeted(family, upgrade_key):
         return False
     from family_levels import family_level_for_xp
     from points import family_lifetime_xp
     if family_level_for_xp(family_lifetime_xp(family.id))["level"] < definition.get("required_level", 1):
         return False
-    capacity = definition.get("capacity")
-    return capacity is None or capacity == next_capacity_target(family.member_limit or 50)
+    return True
 
 
 def campaign_contributed_points(campaign):
