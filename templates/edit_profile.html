@@ -26,7 +26,7 @@
     <section class="settings-panel">
       <h3>Growth privacy</h3>
       <p class="muted-meta">Choose what appears on your profile. Your private records remain available only to you.</p>
-      <div class="privacy-toggle-list">
+      <div class="privacy-toggle-list" data-profile-privacy-list data-save-url="{{ url_for('main.update_profile_privacy') }}">
         <label><input type="checkbox" name="show_point_balance" value="1" {% if profile.show_point_balance %}checked{% endif %} /> Show my Personal Point balance</label>
         <label><input type="checkbox" name="show_streaks" value="1" {% if profile.show_streaks %}checked{% endif %} /> Show my current streaks</label>
         <label><input type="checkbox" name="show_achievements" value="1" {% if profile.show_achievements %}checked{% endif %} /> Show achievements and milestones</label>
@@ -34,6 +34,7 @@
         <label><input type="checkbox" name="show_checkins" value="1" {% if profile.show_checkins %}checked{% endif %} /> Show check-ins I explicitly shared publicly</label>
         <label><input type="checkbox" name="show_goal_progress" value="1" {% if profile.show_goal_progress %}checked{% endif %} /> Show eligible goal progress</label>
       </div>
+      <p class="muted-meta" data-profile-privacy-status role="status">Changes here save automatically.</p>
       <p class="muted-meta">Private and invite-only Families are shown only to people who already share that Family with you.</p>
     </section>
     <section class="settings-panel">

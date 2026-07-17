@@ -41,8 +41,9 @@ class OwnerFamilyControlsTests(unittest.TestCase):
             environment.get_template(template_name)
 
         family_template = (ROOT / "templates" / "family_detail.html").read_text()
-        self.assertIn('class="family-nav-more"', family_template)
-        self.assertIn("Verify Family", family_template)
+        self.assertIn('class="family-tabbar-secondary"', family_template)
+        self.assertNotIn('class="family-nav-more"', family_template)
+        self.assertIn(">Verify</a>", family_template)
         self.assertIn("Trusted Family verification", (ROOT / "templates" / "admin_families.html").read_text())
 
 

@@ -42,23 +42,14 @@
     <a href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}>Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
     <a href="#family-challenges" data-family-tab>Goals</a>
-    <details class="family-nav-more">
-      <summary aria-label="More Family actions">More</summary>
-      <div class="family-nav-more__menu">
-        <span class="family-nav-more__label">Family activity</span>
-        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='all') }}#family-activity">All</a>
-        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='challenges') }}#family-activity">Challenges</a>
-        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='goals') }}#family-activity">Goals</a>
-        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='members') }}#family-activity">Member activity</a>
-        <a href="{{ url_for('family.family_detail', family_id=family.id, activity='upgrades') }}#family-activity">Upgrade activity</a>
-        <span class="family-nav-more__label">Manage</span>
-        <a href="#family-members" data-family-tab>Members</a>
-        {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
-        {% if member and feature_enabled('family_upgrades') %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Upgrades</a>{% endif %}
-        {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit Family</a>{% endif %}
-        {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify Family</a>{% endif %}
-      </div>
-    </details>
+  </nav>
+  <nav class="family-tabbar-secondary" aria-label="Family activity and management">
+    <a href="#family-activity" data-family-tab>Activity</a>
+    <a href="#family-members" data-family-tab>Members</a>
+    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
+    {% if member and feature_enabled('family_upgrades') %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Upgrades</a>{% endif %}
+    {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit</a>{% endif %}
+    {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}
   </nav>
 
   {% if not member %}<section id="family-chat-locked" class="family-section family-empty-panel" data-family-panel data-family-panel-group="chat" hidden><h3>Family chat</h3><p>No chat is shown here because Family conversations are private to members.</p><form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" {% if family_is_full or not family.is_active %}disabled{% endif %}>Join family to chat</button></form></section>{% endif %}

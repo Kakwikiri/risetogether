@@ -1063,8 +1063,12 @@ if (typeof chatConfig !== "undefined") {
         frame.classList.add("revealed");
         viewButton.remove();
         if (messageId) {
-          window.setTimeout(() => {
-            fetch(`/chat/message/${messageId}/viewed`, { method: "POST" });
+          window.setTimeout(async () => {
+            const response = await fetch(`/chat/message/${messageId}/viewed`, { method: "POST" });
+            if (response.ok) {
+              const openedMessage = frame.closest(".chat-message");
+              if (openedMessage) openedMessage.remove();
+            }
           }, 8000);
         }
       });

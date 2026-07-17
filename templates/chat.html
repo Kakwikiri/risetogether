@@ -39,6 +39,7 @@
   {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Voice rooms are not available yet. Family messages remain ready below.</small></div></aside>{% endif %}
   <div class="chat-typing" data-chat-typing role="status" aria-live="polite" hidden>Typing…</div>
   <div id="chat-log" class="chat-log">
+    {% if older_before_id or viewing_older %}<nav class="chat-history-nav" aria-label="Message history">{% if older_before_id %}<a class="button secondary" href="?before={{ older_before_id }}">View older messages</a>{% endif %}{% if viewing_older %}<a class="button secondary" href="{{ request.path }}">Back to newest messages</a>{% endif %}</nav>{% endif %}
     {% set date_state = namespace(last_day='') %}
     {% for message in messages %}
     {% set message_day = message.created_at.strftime('%Y-%m-%d') %}
@@ -82,7 +83,7 @@
       {% if message.media_url %}
         {% if message.media_type == 'image' %}
         <div class="media-frame {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
-          <img src="{{ url_for('api.serve_upload', filename=message.media_url) }}" alt="Shared image" />
+          <img src="{{ url_for('api.serve_upload', filename=message.media_url) }}" alt="Shared image" loading="lazy" decoding="async" />
           {% if not message.view_once %}
           <a class="media-download" href="{{ url_for('api.serve_upload', filename=message.media_url) }}" download aria-label="Download image">↓</a>
           {% endif %}

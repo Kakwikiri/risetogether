@@ -71,6 +71,10 @@ from streaks import STREAK_DEFINITIONS, local_activity_date, queue_expiring_stre
 
 main_bp = Blueprint("main", __name__)
 POST_AUDIENCES = {"public", "friends", "family", "private"}
+PROFILE_VISIBILITY_FIELDS = {
+    "show_point_balance", "show_streaks", "show_achievements",
+    "show_family_memberships", "show_checkins", "show_goal_progress",
+}
 POST_PURPOSES = {
     "normal": "Normal",
     "feeling": "Sharing how I feel",
@@ -884,6 +888,19 @@ def edit_profile():
         flash("Your profile is updated.", "success")
         return redirect(url_for("main.profile", username=current_user.username))
     return render_template("edit_profile.html", profile=profile)
+
+
+@main_bp.route("/profile/privacy", methods=["POST"])
+@login_required
+def update_profile_privacy():
+    data = request.get_json(silent=True) or request.form
+    field = str(data.get("field", "")).strip()
+    if field not in PROFILE_VISIBILITY_FIELDS:
+        return jsonify({"error": "Unknown profile privacy setting."}), 400
+    visible = data.get("visible") in {True, 1, "1", "true", "on"}
+    setattr(current_user.profile, field, visible)
+    db.session.commit()
+    return jsonify({"ok": True, "field": field, "visible": visible})
 
 
 @main_bp.route("/post/create", methods=["POST"])
@@ -2104,7 +2121,7 @@ def premium_plans():
         abort(404)
     from premium import (
         active_family_subscription, active_user_subscription, economy_setting_int,
-        subscription_is_active,
+        economy_setting_text, subscription_is_active,
     )
 
     personal_subscription = None
@@ -2124,6 +2141,7 @@ def premium_plans():
     return render_template(
         "premium.html", prices=prices, personal_subscription=personal_subscription,
         family_rows=family_rows, subscription_is_active=subscription_is_active,
+        payment_currency=economy_setting_text("payment_currency", "USD"),
     )
 
 
@@ -2134,7 +2152,7 @@ def premium_checkout(plan, period):
         abort(404)
     if plan not in {"personal", "family"} or period not in {"monthly", "yearly"}:
         abort(404)
-    from premium import economy_setting_int
+    from premium import economy_setting_int, economy_setting_text
 
     price_key = (
         f"premium_family_{period}_price" if plan == "family"
@@ -2143,6 +2161,7 @@ def premium_checkout(plan, period):
     return render_template(
         "premium_checkout.html", plan=plan, period=period,
         price=economy_setting_int(price_key, 0),
+        payment_currency=economy_setting_text("payment_currency", "USD"),
     )
 
 

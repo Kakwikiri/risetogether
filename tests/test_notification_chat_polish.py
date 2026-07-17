@@ -86,6 +86,21 @@ class NotificationChatPolishTests(unittest.TestCase):
             self.assertIn(setting, socket_js)
         self.assertIn("audioBitsPerSecond: 96000", socket_js)
 
+    def test_profile_privacy_saves_immediately_and_view_once_is_per_recipient(self):
+        main = (ROOT / "routes/main.py").read_text()
+        edit_profile = (ROOT / "templates/edit_profile.html").read_text()
+        app_js = (ROOT / "static/js/app.js").read_text()
+        chat = (ROOT / "routes/chat.py").read_text()
+        socket_js = (ROOT / "static/js/socket.js").read_text()
+        self.assertIn('def update_profile_privacy():', main)
+        self.assertIn("data-profile-privacy-list", edit_profile)
+        self.assertIn("Saving privacy choice", app_js)
+        viewed_route = chat[chat.index("def viewed_once_message"):chat.index("def forward_message")]
+        self.assertIn("MessageDeletion", viewed_route)
+        self.assertNotIn("db.session.delete(message)", viewed_route)
+        self.assertIn('frame.closest(".chat-message")', socket_js)
+        self.assertIn("def paged_chat_messages", chat)
+
 
 if __name__ == "__main__":
     unittest.main()

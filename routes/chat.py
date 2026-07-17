@@ -40,6 +40,18 @@ def visible_message_filter(query):
     )
 
 
+def paged_chat_messages(query, per_page=150):
+    """Load one bounded history page so large chats stay responsive without losing access."""
+    before_id = request.args.get("before", type=int)
+    if before_id:
+        query = query.filter(Message.id < before_id)
+    rows = query.order_by(Message.created_at.desc(), Message.id.desc()).limit(per_page + 1).all()
+    has_older = len(rows) > per_page
+    rows = rows[:per_page]
+    rows.reverse()
+    return rows, (rows[0].id if has_older and rows else None), bool(before_id)
+
+
 def clear_expired_message_pins(messages):
     """Keep the message, but remove a pin as soon as its 24-hour window ends."""
     now = datetime.utcnow()
@@ -407,8 +419,7 @@ def direct_chat(user_id):
     if not users_can_message(current_user.id, other.id):
         flash("Messaging is not available with this account.", "warning")
         return redirect(url_for("main.profile", username=other.username))
-    messages = (
-        visible_message_filter(
+    message_query = visible_message_filter(
             Message.query.filter(
             (
                 (Message.sender_id == current_user.id)
@@ -418,11 +429,8 @@ def direct_chat(user_id):
                 (Message.sender_id == other.id)
                 & (Message.recipient_id == current_user.id)
             )
-        )
-        )
-        .order_by(Message.created_at.asc())
-        .all()
-    )
+        ))
+    messages, older_before_id, viewing_older = paged_chat_messages(message_query)
     clear_expired_message_pins(messages)
     mark_private_messages_delivered(other.id, current_user.id)
     mark_private_messages_read(other.id, current_user.id)
@@ -439,6 +447,8 @@ def direct_chat(user_id):
         messages=messages,
         family=None,
         is_other_online=user_is_online(other.id),
+        older_before_id=older_before_id,
+        viewing_older=viewing_older,
     )
 
 
@@ -455,10 +465,8 @@ def family_chat(family_id):
         else:
             flash("Join the family before opening the group chat.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    messages = (
+    messages, older_before_id, viewing_older = paged_chat_messages(
         visible_message_filter(Message.query.filter_by(family_id=family.id))
-        .order_by(Message.created_at.asc())
-        .all()
     )
     clear_expired_message_pins(messages)
     Notification.query.filter(
@@ -468,7 +476,10 @@ def family_chat(family_id):
         Notification.seen == False,
     ).update({"seen": True})
     db.session.commit()
-    return render_template("chat.html", other=None, messages=messages, family=family)
+    return render_template(
+        "chat.html", other=None, messages=messages, family=family,
+        older_before_id=older_before_id, viewing_older=viewing_older,
+    )
 
 
 @login_required
@@ -694,17 +705,12 @@ def viewed_once_message(message_id):
     if not can_access_message(message):
         return jsonify({"error": "Not allowed."}), 403
     if message.view_once and message.sender_id != current_user.id:
-        room = (
-            f"family-{message.family_id}"
-            if message.family_id
-            else f"private-{min(message.sender_id, message.recipient_id)}-{max(message.sender_id, message.recipient_id)}"
-        )
-        media_url = message.media_url
-        db.session.delete(message)
-        db.session.flush()
-        delete_media_if_unreferenced(media_url)
-        db.session.commit()
-        socketio.emit("message_deleted", {"message_id": message_id}, room=room)
+        viewed = MessageDeletion.query.filter_by(
+            message_id=message.id, user_id=current_user.id
+        ).first()
+        if not viewed:
+            db.session.add(MessageDeletion(message_id=message.id, user_id=current_user.id))
+            db.session.commit()
     return jsonify({"ok": True})
 
 

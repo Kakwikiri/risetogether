@@ -1872,6 +1872,27 @@ def purchase_family_upgrade(family_id):
             "family_upgrade_purchased",
             reason=f"{definition['name']} unlocked for {definition['cost']} Family Points.",
         )
+        reviewer_ids = {
+            row.user_id for row in FamilyMember.query.filter(
+                FamilyMember.family_id == family.id,
+                FamilyMember.role.in_(["owner", "admin", "moderator"]),
+            ).all()
+        }
+        reviewer_ids.update(
+            row.id for row in User.query.filter(
+                User.admin_role.in_(["super_admin", "admin", "moderator"])
+            ).all()
+        )
+        for reviewer_id in reviewer_ids - {current_user.id}:
+            smart_notify(
+                user_id=reviewer_id,
+                category="family_upgrade",
+                message=f"{family.name} automatically verified its point balance and unlocked {definition['name']}.",
+                action_url=url_for("family.family_upgrades", family_id=family.id),
+                dedupe_key=f"family-upgrade-verified:{purchase.id}:{reviewer_id}",
+                push=False,
+                important=False,
+            )
         db.session.commit()
     except PointLimitExceeded as exc:
         db.session.rollback()

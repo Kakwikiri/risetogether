@@ -44,6 +44,15 @@ def economy_setting_int(key, default=None, minimum=0, maximum=10_000_000):
     return max(minimum, min(maximum, value))
 
 
+def economy_setting_text(key, default="", allowed=None):
+    try:
+        setting = SiteSetting.query.get(f"economy.{key}")
+        value = (setting.value if setting else default).strip()
+    except (SQLAlchemyError, AttributeError):
+        value = default
+    return value if not allowed or value in allowed else default
+
+
 def subscription_is_active(subscription, now=None):
     if not subscription or subscription.status != "active":
         return False

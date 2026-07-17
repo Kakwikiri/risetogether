@@ -45,6 +45,12 @@ ECONOMY_FEATURE_FLAGS = (
     "premium_beta_testing",
     "weekly_reports", "daily_checkins", "achievement_posts",
 )
+PAYMENT_PROVIDER_OPTIONS = {
+    "mobile_money": "Mobile Money",
+    "card": "Debit or credit card",
+    "paypal": "PayPal",
+    "bank_transfer": "Bank transfer",
+}
 
 
 def website_role(user):
@@ -217,6 +223,23 @@ def admin_economy():
             )
             setting.value = str(reward)
             db.session.add(setting)
+        currency = request.form.get("payment_currency", "USD").strip().upper()
+        if currency not in {"UGX", "USD", "KES", "EUR", "GBP"}:
+            flash("Choose a supported display currency.", "warning")
+            return redirect(url_for("moderation.admin_economy"))
+        currency_setting = SiteSetting.query.get("economy.payment_currency") or SiteSetting(
+            key="economy.payment_currency"
+        )
+        currency_setting.value = currency
+        db.session.add(currency_setting)
+        for provider_key in PAYMENT_PROVIDER_OPTIONS:
+            provider_setting = SiteSetting.query.get(
+                f"economy.payment_provider.{provider_key}"
+            ) or SiteSetting(key=f"economy.payment_provider.{provider_key}")
+            provider_setting.value = "true" if request.form.get(
+                f"payment_provider_{provider_key}"
+            ) == "1" else "false"
+            db.session.add(provider_setting)
         record_admin_audit(
             "economy_settings_change",
             reason="Updated RiseTogether economy controls",
@@ -230,6 +253,14 @@ def admin_economy():
 
     flags = get_feature_flags()
     settings = {key: economy_setting_int(key) for key in ECONOMY_DEFAULTS}
+    from premium import economy_setting_text
+    payment_currency = economy_setting_text(
+        "payment_currency", "USD", {"UGX", "USD", "KES", "EUR", "GBP"}
+    )
+    payment_providers = {
+        key: economy_setting_text(f"payment_provider.{key}", "false") == "true"
+        for key in PAYMENT_PROVIDER_OPTIONS
+    }
     subscriptions = PremiumSubscription.query.order_by(
         PremiumSubscription.purchased_at.desc()
     ).limit(100).all()
@@ -243,6 +274,9 @@ def admin_economy():
         challenge_rewards=challenge_reward_values(),
         verification_applications=verification_applications,
         subscription_is_active=subscription_is_active,
+        payment_currency=payment_currency,
+        payment_provider_options=PAYMENT_PROVIDER_OPTIONS,
+        payment_providers=payment_providers,
     )
 
 

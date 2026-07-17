@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-friends-certificates";
+  const APP_VERSION = "20260717-privacy-view-once";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -939,6 +939,31 @@ document.addEventListener("DOMContentLoaded", () => {
     form.addEventListener("submit", () => {
       status.textContent = "Saving profile...";
       status.hidden = false;
+    });
+  });
+
+  document.querySelectorAll("[data-profile-privacy-list]").forEach((list) => {
+    const status = list.parentElement.querySelector("[data-profile-privacy-status]");
+    list.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.addEventListener("change", async () => {
+        const previous = !input.checked;
+        input.disabled = true;
+        if (status) status.textContent = "Saving privacy choice...";
+        try {
+          const response = await fetch(list.dataset.saveUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field: input.name, visible: input.checked }),
+          });
+          if (!response.ok) throw new Error("Privacy choice could not be saved.");
+          if (status) status.textContent = "Saved. Other people will see only what you allowed.";
+        } catch (error) {
+          input.checked = previous;
+          if (status) status.textContent = error.message;
+        } finally {
+          input.disabled = false;
+        }
+      });
     });
   });
 
