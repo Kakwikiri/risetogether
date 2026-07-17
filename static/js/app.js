@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-family-growth-menu";
+  const APP_VERSION = "20260717-public-family-quizzes";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1245,6 +1245,52 @@ document.addEventListener("DOMContentLoaded", () => {
       const output = document.querySelector(`[data-file-name-for="${input.id}"]`);
       if (output) output.textContent = input.files?.[0]?.name || "No file chosen";
     });
+  });
+
+  document.querySelectorAll(".quiz-form").forEach((form) => {
+    const container = form.querySelector("[data-quiz-questions]");
+    const template = form.querySelector("[data-quiz-question-template]");
+    const addButton = form.querySelector("[data-add-quiz-question]");
+    if (!container || !template || !addButton) return;
+
+    const builders = () => Array.from(container.querySelectorAll("[data-quiz-question]"));
+    const refreshQuestionNumbers = () => {
+      const questions = builders();
+      questions.forEach((question, index) => {
+        const legend = question.querySelector("legend");
+        const removeButton = question.querySelector("[data-remove-quiz-question]");
+        if (legend) legend.textContent = `Question ${index + 1}`;
+        if (removeButton) removeButton.disabled = questions.length === 1;
+      });
+      addButton.disabled = questions.length >= 50;
+    };
+
+    addButton.addEventListener("click", () => {
+      if (builders().length >= 50) return;
+      const usedIndexes = new Set(
+        Array.from(container.querySelectorAll('input[name^="question_"]'))
+          .map((input) => input.name.match(/^question_(\d+)$/)?.[1])
+          .filter(Boolean)
+          .map(Number),
+      );
+      let fieldIndex = 1;
+      while (usedIndexes.has(fieldIndex) && fieldIndex <= 50) fieldIndex += 1;
+      if (fieldIndex > 50) return;
+      const markup = template.innerHTML
+        .replaceAll("__INDEX__", String(fieldIndex))
+        .replaceAll("__NUMBER__", String(builders().length + 1));
+      container.insertAdjacentHTML("beforeend", markup);
+      refreshQuestionNumbers();
+      builders().at(-1)?.querySelector('input[type="text"]')?.focus();
+    });
+
+    container.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-remove-quiz-question]");
+      if (!removeButton || builders().length === 1) return;
+      removeButton.closest("[data-quiz-question]")?.remove();
+      refreshQuestionNumbers();
+    });
+    refreshQuestionNumbers();
   });
 
   const certificateImageButton = document.querySelector("[data-certificate-image]");

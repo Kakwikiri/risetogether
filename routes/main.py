@@ -565,6 +565,8 @@ def can_view_post(post):
     if post.audience == "friends":
         return users_are_friends(current_user.id, post.user_id)
     if post.audience == "family":
+        if post.family and post.family.privacy == "public":
+            return True
         return bool(
             post.family_id and post.family_id in set(user_family_ids(current_user))
         )

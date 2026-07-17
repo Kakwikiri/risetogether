@@ -766,10 +766,22 @@ class SecurityRegressionTests(unittest.TestCase):
         routes = (ROOT / "routes" / "main.py").read_text()
         self.assertIn("posts = [post for post in posts if can_view_post(post)]", routes)
 
-    def test_non_members_are_not_given_broken_family_post_links(self):
+    def test_public_family_posts_are_readable_without_exposing_private_families(self):
         template = (ROOT / "templates" / "family_detail.html").read_text()
-        self.assertIn("Posts are for Family members", template)
-        self.assertIn("{% if member %}\n    {% for post in posts %}", template)
+        routes = (ROOT / "routes" / "main.py").read_text()
+        self.assertIn("Public Family posts", template)
+        self.assertIn("{% if member or family.privacy == 'public' %}", template)
+        self.assertIn('post.family.privacy == "public"', routes)
+        self.assertIn('if family.privacy != "public" and not member', (ROOT / "routes" / "family.py").read_text())
+
+    def test_quiz_builder_is_dynamic_and_server_accepts_added_questions(self):
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        script = (ROOT / "static" / "js" / "app.js").read_text()
+        routes = (ROOT / "routes" / "family.py").read_text()
+        self.assertIn("data-add-quiz-question", template)
+        self.assertIn("data-remove-quiz-question", template)
+        self.assertIn("replaceAll(\"__INDEX__\"", script)
+        self.assertIn("for position in range(1, 51):", routes)
 
     def test_stage_six_feed_has_loading_empty_and_read_more_states(self):
         template = (ROOT / "templates" / "feed.html").read_text()

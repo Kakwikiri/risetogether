@@ -171,6 +171,21 @@ FAMILY_TYPE_EXPERIENCES = {
     },
 }
 
+FAMILY_CHALLENGE_PROMPTS = {
+    "class": ("Complete this week's lesson", "Finish the lesson or assignment and share what you learned."),
+    "learning": ("Teach one idea to the Family", "Explain one useful idea in your own words and help another member understand it."),
+    "quiz_and_trivia": ("Create a team knowledge streak", "Complete today's knowledge activity and share one surprising fact."),
+    "motivation": ("Seven days of kind check-ins", "Check in honestly and encourage at least one Family member each day."),
+    "fitness": ("Move together this week", "Complete the agreed safe activity and record your progress without comparison."),
+    "business": ("Turn one idea into action", "Choose one practical step, complete it, and share what changed."),
+    "coding": ("Build one small working feature", "Create, test and share a small feature that matches the Family's current skill level."),
+    "books": ("Read and reflect together", "Read the selected section and share one thoughtful reflection."),
+    "language_learning": ("Practice a real conversation", "Use the language in a short conversation and share one new phrase."),
+    "accountability": ("Keep one promise to yourself", "Complete the agreed action and leave a short honest progress note."),
+    "friendship_and_support": ("Make someone feel remembered", "Reach out thoughtfully to one Family member and offer genuine support."),
+    "custom": ("Take one meaningful step together", "Describe a clear action that supports this Family's shared purpose."),
+}
+
 FAMILY_PRIVACY_OPTIONS = {"public", "private", "invite_only"}
 ENCOURAGEMENT_CATEGORIES = {
     "listen": "I need someone to listen", "motivation": "Motivation",
@@ -1808,6 +1823,9 @@ def render_family_detail_page(
         family_experience=FAMILY_TYPE_EXPERIENCES.get(
             family.category, FAMILY_TYPE_EXPERIENCES["custom"]
         ),
+        family_challenge_prompt=FAMILY_CHALLENGE_PROMPTS.get(
+            family.category, FAMILY_CHALLENGE_PROMPTS["custom"]
+        ),
         challenge_types={
             key: label
             for key, label in CHALLENGE_TYPES.items()
@@ -3431,7 +3449,7 @@ def create_quiz(family_id):
     db.session.add(quiz)
     db.session.flush()
     question_count = 0
-    for position in range(1, 6):
+    for position in range(1, 51):
         question_text = request.form.get(f"question_{position}", "").strip()
         if not question_text:
             continue

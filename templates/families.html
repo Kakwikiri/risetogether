@@ -72,10 +72,13 @@
   <div class="recommended-family-grid">
     {% for family in recommended_families %}
     {% set capacity = capacity_by_family.get(family.id) %}
-    <a class="card recommended-family-card" href="{{ url_for('family.family_detail', family_id=family.id) }}">
-      <img src="{{ family_avatar_url(family) }}" alt="" loading="lazy" />
-      <div><h3>{{ family.name }}</h3><p>{{ family.goal_title or family.description or 'Grow together with this Family.' }}</p><span>{{ family.category|replace('_', ' ')|title }} · {{ capacity.member_count if capacity else family.members.count() }} members</span></div>
-    </a>
+    <article class="card family-card recommended-family-card">
+      <img class="family-card-image" src="{{ family_avatar_url(family) }}" alt="{{ family.name }} picture" loading="lazy" />
+      <h3><a href="{{ url_for('family.family_detail', family_id=family.id) }}">{{ family.name }}</a></h3>
+      <p>{{ family.description or 'No description yet.' }}</p>
+      <p class="muted-meta">{{ family.goal_title or 'Grow together with this Family.' }}</p>
+      <span>{{ family.category|replace('_', ' ')|title }} · {{ capacity.member_count if capacity else family.members.count() }} / {{ capacity.member_limit_label if capacity else family.member_limit }} members · Public</span>
+    </article>
     {% endfor %}
   </div>
 </section>

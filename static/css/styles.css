@@ -3924,6 +3924,23 @@ body.media-viewer-open {
   border-radius: 8px;
 }
 
+.quiz-question-builders { display: grid; gap: 0.75rem; }
+.quiz-question-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.quiz-question-heading legend { font-weight: 900; }
+.family-type-guidance {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  color: var(--muted);
+  background: var(--soft);
+  border-left: 3px solid var(--brand);
+  border-radius: 8px;
+}
+
 .quiz-question-list {
   display: grid;
   gap: 0.8rem;
@@ -8409,6 +8426,35 @@ body.nav-menu-open {
   }
   .desktop-nav-more-panel > a,
   .desktop-nav-more-panel > button { justify-content: flex-start; width: 100%; min-height: 40px; padding: 0.5rem 0.65rem; }
+}
+
+@media (min-width: 901px) {
+  .panel.panel-feed > .post-card .media-frame:has(> img.post-media) {
+    display: grid;
+    place-items: center;
+    width: min(100%, 360px);
+    max-height: 360px;
+    margin-inline: auto;
+  }
+  .panel.panel-feed > .post-card .media-frame > img.post-media {
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    max-height: 360px;
+    object-fit: contain;
+  }
+}
+
+.recommended-family-card.family-card {
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  color: inherit;
+}
+.recommended-family-card.family-card .family-card-image {
+  grid-row: 1 / span 4;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
 }
 
 @media (max-width: 900px) {

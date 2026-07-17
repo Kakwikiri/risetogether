@@ -74,7 +74,7 @@
     <section class="family-type-experience family-type-experience--{{ family.category }}">
       <div><p class="eyebrow">{{ categories.get(family.category, 'Family') }}</p><h4>{{ family_experience.title }}</h4><p>{{ family_experience.intro }}</p></div>
       <ul>{% for feature in family_experience.features %}<li>{{ feature }}</li>{% endfor %}</ul>
-      <p class="muted-meta">Earn together through verified goals, completed challenges and passed quizzes. A quiz pass adds 5 Family Points once per member.</p>
+      <p class="muted-meta">Earn together through verified goals and completed challenges{% if supports_quizzes %}, with 5 Family Points for each member’s first pass on a quiz{% endif %}.</p>
     </section>
     {% if feature_enabled('family_xp') and feature_enabled('family_levels') %}
     <section class="family-level-card" aria-label="{{ family.name }} Family level">
@@ -91,8 +91,8 @@
       <a class="family-dashboard-panel dashboard-link" href="#family-challenges" data-family-tab><span class="dashboard-icon">✓</span><h4>Active Challenge</h4><p>{% if dashboard_active_challenges %}{{ dashboard_active_challenges[0].title }}{% else %}A new shared challenge can begin here.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-goal" data-family-tab><span class="dashboard-icon">◎</span><h4>Family Goal</h4><p>{{ family.goal_title or 'Shape a shared goal together.' }}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_encouragement', family_id=family.id) if feature_enabled('anonymous_support_posts') and member else (url_for('main.post_detail', post_id=dashboard_needs_encouragement.id) if dashboard_needs_encouragement else '#family-posts') }}"><span class="dashboard-icon">♡</span><h4>Someone Needs Encouragement</h4><p>A gentle place to ask for listening, motivation, advice, or support.</p></a>
-      <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}" data-family-tab><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
-      <a class="family-dashboard-panel dashboard-link" href="#family-quizzes" data-family-tab><span class="dashboard-icon">★</span><h4>Weekly Quiz Highlight</h4><p>{% if dashboard_quiz_highlight %}{{ dashboard_quiz_highlight.participants }} {{ 'member' if dashboard_quiz_highlight.participants == 1 else 'members' }} made {{ dashboard_quiz_highlight.attempts }} {{ 'attempt' if dashboard_quiz_highlight.attempts == 1 else 'attempts' }} · {{ dashboard_quiz_highlight.passes }} passed.{% else %}The first quiz moment of the week is waiting.{% endif %}</p></a>
+      {% if supports_quizzes %}<a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.take_quiz', family_id=family.id, quiz_id=dashboard_upcoming_quiz.id) if dashboard_upcoming_quiz and member else '#family-quizzes' }}" data-family-tab><span class="dashboard-icon">?</span><h4>Upcoming Quiz</h4><p>{{ dashboard_upcoming_quiz.title if dashboard_upcoming_quiz else 'No open quiz is scheduled.' }}</p></a>
+      <a class="family-dashboard-panel dashboard-link" href="#family-quizzes" data-family-tab><span class="dashboard-icon">★</span><h4>Weekly Quiz Highlight</h4><p>{% if dashboard_quiz_highlight %}{{ dashboard_quiz_highlight.participants }} {{ 'member' if dashboard_quiz_highlight.participants == 1 else 'members' }} made {{ dashboard_quiz_highlight.attempts }} {{ 'attempt' if dashboard_quiz_highlight.attempts == 1 else 'attempts' }} · {{ dashboard_quiz_highlight.passes }} passed.{% else %}The first quiz moment of the week is waiting.{% endif %}</p></a>{% endif %}
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}><span class="dashboard-icon">◌</span><h4>Recent Chat</h4><p>{% if dashboard_recent_messages %}{{ dashboard_recent_messages[0].sender.username }}: {{ dashboard_recent_messages[0].content|default('Shared a message', true)|truncate(55) }}{% else %}The conversation is ready when your Family is.{% endif %}</p></a>
       <a class="family-dashboard-panel dashboard-link" href="#family-posts" data-family-tab><span class="dashboard-icon">▤</span><h4>Recent Posts</h4><p>{% if dashboard_recent_posts %}{{ dashboard_recent_posts|length }} recent Family {{ 'post' if dashboard_recent_posts|length == 1 else 'posts' }}.{% else %}Be the first to share with this Family.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">↗</span><h4>Weekly Activity</h4><p>{{ dashboard_weekly_achievements|length }} growth {{ 'moment' if dashboard_weekly_achievements|length == 1 else 'moments' }} this week.</p></section>
@@ -297,8 +297,9 @@
     >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <h4>Create official challenge</h4>
-      <label>Challenge title<input type="text" name="title" maxlength="160" placeholder="Example: Seven days of kind check-ins" required /></label>
-      <label>Clear instructions<textarea name="description" rows="4" maxlength="5000" placeholder="Explain exactly what participants should do and what completion looks like." required></textarea></label>
+      <p class="family-type-guidance"><strong>Suggested for {{ categories.get(family.category, 'this Family') }}:</strong> {{ family_challenge_prompt[0] }}</p>
+      <label>Challenge title<input type="text" name="title" maxlength="160" placeholder="{{ family_challenge_prompt[0] }}" required /></label>
+      <label>Clear instructions<textarea name="description" rows="4" maxlength="5000" placeholder="{{ family_challenge_prompt[1] }}" required></textarea></label>
       <div class="form-grid two-column">
         <label>
           Type
@@ -545,30 +546,28 @@
       </div>
       <label><input type="checkbox" name="show_correct_answers" value="1" checked /> Show correct answers after submission</label>
 
-      {% for number in range(1, 6) %}
-      <fieldset class="quiz-question-builder">
-        <legend>Question {{ number }}</legend>
-        <input type="text" name="question_{{ number }}" placeholder="Question text" />
-        <input type="number" name="question_{{ number }}_points" min="5" value="5" />
-        <textarea name="question_{{ number }}_explanation" rows="2" maxlength="1000" placeholder="Explanation shown after answering"></textarea>
-        {% for choice in range(1, 5) %}
-        <label>
-          Choice {{ choice }}
-          <input type="text" name="question_{{ number }}_choice_{{ choice }}" />
-        </label>
-        {% endfor %}
-        <label>
-          Correct choice
-          <select name="question_{{ number }}_correct">
-            <option value="">Choose correct answer</option>
-            <option value="1">Choice 1</option>
-            <option value="2">Choice 2</option>
-            <option value="3">Choice 3</option>
-            <option value="4">Choice 4</option>
-          </select>
-        </label>
-      </fieldset>
-      {% endfor %}
+      <div class="quiz-question-builders" data-quiz-questions data-next-index="2">
+        <fieldset class="quiz-question-builder" data-quiz-question>
+          <div class="quiz-question-heading"><legend>Question 1</legend><button class="text-button danger-text" type="button" data-remove-quiz-question disabled>Remove</button></div>
+          <input type="text" name="question_1" placeholder="Question text" required />
+          <label>Points<input type="number" name="question_1_points" min="5" value="5" required /></label>
+          <textarea name="question_1_explanation" rows="2" maxlength="1000" placeholder="Explanation shown after answering"></textarea>
+          {% for choice in range(1, 5) %}<label>Choice {{ choice }}<input type="text" name="question_1_choice_{{ choice }}" {% if choice <= 2 %}required{% endif %} /></label>{% endfor %}
+          <label>Correct choice<select name="question_1_correct" required><option value="">Choose correct answer</option><option value="1">Choice 1</option><option value="2">Choice 2</option><option value="3">Choice 3</option><option value="4">Choice 4</option></select></label>
+        </fieldset>
+      </div>
+      <button class="button secondary" type="button" data-add-quiz-question>Add another question</button>
+      <small class="muted-meta">Start with one question and add only what the quiz needs. Maximum 50 questions.</small>
+      <template data-quiz-question-template>
+        <fieldset class="quiz-question-builder" data-quiz-question>
+          <div class="quiz-question-heading"><legend>Question __NUMBER__</legend><button class="text-button danger-text" type="button" data-remove-quiz-question>Remove</button></div>
+          <input type="text" name="question___INDEX__" placeholder="Question text" required />
+          <label>Points<input type="number" name="question___INDEX___points" min="5" value="5" required /></label>
+          <textarea name="question___INDEX___explanation" rows="2" maxlength="1000" placeholder="Explanation shown after answering"></textarea>
+          <label>Choice 1<input type="text" name="question___INDEX___choice_1" required /></label><label>Choice 2<input type="text" name="question___INDEX___choice_2" required /></label><label>Choice 3<input type="text" name="question___INDEX___choice_3" /></label><label>Choice 4<input type="text" name="question___INDEX___choice_4" /></label>
+          <label>Correct choice<select name="question___INDEX___correct" required><option value="">Choose correct answer</option><option value="1">Choice 1</option><option value="2">Choice 2</option><option value="3">Choice 3</option><option value="4">Choice 4</option></select></label>
+        </fieldset>
+      </template>
 
       <button class="button" type="submit">Create quiz</button>
     </form>
@@ -653,9 +652,9 @@
       </div>
     </form>
     {% else %}
-    <div class="family-empty-panel"><h4>Posts are for Family members</h4><p>Join {{ family.name }} to read and take part in its Family posts.</p>{% if not family_is_full and family.is_active %}<form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Join Family</button></form>{% endif %}</div>
+    <div class="family-empty-panel"><h4>Public Family posts</h4><p>You can read this public Family’s posts. Join to create posts and take part as a member.</p>{% if not family_is_full and family.is_active %}<form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Join Family</button></form>{% endif %}</div>
     {% endif %}
-    {% if member %}
+    {% if member or family.privacy == 'public' %}
     {% for post in posts %}
     <article class="card post-card">
       <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}{{ rise_badges(rise_user_badges(post.author, family)) }}</strong>
