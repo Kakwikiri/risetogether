@@ -4390,22 +4390,6 @@ body.media-viewer-open {
   font-weight: 950;
 }
 
-.family-more-menu {
-  margin: 0.5rem 0 1rem;
-}
-
-.family-more-menu > summary {
-  width: fit-content;
-  padding: 0.55rem 0.8rem;
-  color: var(--brand-dark);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 800;
-  list-style-position: inside;
-}
-
 .recommended-families {
   margin-top: 1rem;
   padding: clamp(1rem, 3vw, 1.5rem);
@@ -8575,4 +8559,21 @@ body.nav-menu-open {
   .family-tabbar a { flex: 1 1 0; }
   .family-nav-more summary { padding-inline: 0.45rem; font-size: 0.86rem; }
   .reaction-form button { min-height: 40px; font-size: 0.78rem; }
+}
+
+@media (min-width: 901px) {
+  .panel-feed .post-card .media-frame:has(> img),
+  .family-section .post-card .media-frame:has(> img) {
+    width: min(100%, 620px);
+    max-height: 440px;
+    margin-inline: auto;
+  }
+
+  .panel-feed .post-card .media-frame > img,
+  .family-section .post-card .media-frame > img {
+    width: auto;
+    max-width: 100%;
+    max-height: 440px;
+    object-fit: contain;
+  }
 }

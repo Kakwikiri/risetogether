@@ -43,17 +43,14 @@
     <a href="#family-posts" data-family-tab>Posts</a>
     <a href="#family-challenges" data-family-tab>Goals</a>
   </nav>
-  <details class="family-more-menu">
-    <summary>More family tools</summary>
-    <nav class="family-tabbar-secondary" aria-label="Family activity and management">
-      <a href="#family-activity" data-family-tab>Activity</a>
-      <a href="#family-members" data-family-tab>Members</a>
-      {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
-      {% if member and feature_enabled('family_upgrades') %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Upgrades</a>{% endif %}
-      {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit family</a>{% endif %}
-      {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}
-    </nav>
-  </details>
+  <nav class="family-tabbar-secondary" aria-label="Family activity and management">
+    <a href="#family-activity" data-family-tab>Activity</a>
+    <a href="#family-members" data-family-tab>Members</a>
+    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
+    {% if member and feature_enabled('family_upgrades') %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">Upgrades</a>{% endif %}
+    {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit</a>{% endif %}
+    {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}
+  </nav>
 
   {% if not member %}<section id="family-chat-locked" class="family-section family-empty-panel" data-family-panel data-family-panel-group="chat" hidden><h3>Family chat</h3><p>No chat is shown here because Family conversations are private to members.</p><form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" {% if family_is_full or not family.is_active %}disabled{% endif %}>Join family to chat</button></form></section>{% endif %}
 
