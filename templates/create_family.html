@@ -7,11 +7,17 @@
     <input type="text" name="name" value="{{ form.get('name', '') if form else '' }}" required />
 
     <label>What type of Family is it?</label>
-    <select name="category" data-family-category>
+    <select name="category" data-family-category data-family-experiences='{{ family_experiences|tojson|forceescape }}'>
       {% for key,label in categories.items() %}
       <option value="{{ key }}" {% if form and form.get('category') == key %}selected{% elif not form and key == 'friendship_and_support' %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <section class="family-type-preview" data-family-experience aria-live="polite">
+      <span class="eyebrow">This Family will feel like</span>
+      <h3 data-family-experience-title></h3>
+      <p data-family-experience-intro></p>
+      <ul data-family-experience-features></ul>
+    </section>
 
     <label>Custom Family type</label>
     <input
@@ -25,13 +31,14 @@
     <input
       type="text"
       name="goal_title"
+      data-family-goal-input
       value="{{ form.get('goal_title', '') if form else '' }}"
       placeholder="Example: Finish beginner Python together"
       required
     />
 
     <label>What should members achieve?</label>
-    <textarea name="goal_description" rows="4" placeholder="Describe the purpose, expectations, or milestone.">{{ form.get('goal_description', '') if form else '' }}</textarea>
+    <textarea name="goal_description" rows="4" data-family-goal-description placeholder="Describe the purpose, expectations, or milestone.">{{ form.get('goal_description', '') if form else '' }}</textarea>
 
     <label>Description</label>
     <textarea name="description" rows="3" placeholder="Short public note about this Family.">{{ form.get('description', '') if form else '' }}</textarea>

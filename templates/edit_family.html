@@ -37,11 +37,17 @@
       <input type="text" name="name" value="{{ family.name }}" required />
 
       <label>Family type</label>
-      <select name="category">
+      <select name="category" data-family-category data-family-experiences='{{ family_experiences|tojson|forceescape }}'>
         {% for key,label in categories.items() %}
         <option value="{{ key }}" {% if family.category == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <section class="family-type-preview family-type-preview--compact" data-family-experience aria-live="polite">
+        <span class="eyebrow">This Family will feel like</span>
+        <h4 data-family-experience-title></h4>
+        <p data-family-experience-intro></p>
+        <ul data-family-experience-features></ul>
+      </section>
 
       <label>Custom Family type</label>
       <input type="text" name="custom_category" value="{{ family.custom_category or '' }}" placeholder="Only needed when type is Custom" />
@@ -50,10 +56,10 @@
     <section class="settings-panel">
       <h3>Goal</h3>
       <label>Shared goal</label>
-      <input type="text" name="goal_title" value="{{ family.goal_title or '' }}" required />
+      <input type="text" name="goal_title" value="{{ family.goal_title or '' }}" data-family-goal-input required />
 
       <label>What should members achieve?</label>
-      <textarea name="goal_description" rows="4">{{ family.goal_description or '' }}</textarea>
+      <textarea name="goal_description" rows="4" data-family-goal-description>{{ family.goal_description or '' }}</textarea>
 
       <label>Description</label>
       <textarea name="description" rows="3">{{ family.description or '' }}</textarea>

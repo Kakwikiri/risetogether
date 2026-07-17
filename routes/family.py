@@ -84,6 +84,93 @@ FAMILY_CATEGORIES = {
     "custom": "Custom",
 }
 
+FAMILY_TYPE_EXPERIENCES = {
+    "class": {
+        "title": "Classroom journey",
+        "intro": "Organize lessons, assignments, quizzes and shared class progress.",
+        "features": ["Assignments and deadlines", "Teacher-led quizzes", "Shared course goals"],
+        "goal_placeholder": "Example: Complete the Python foundations course",
+        "description_placeholder": "Describe the course, learners and class expectations.",
+    },
+    "learning": {
+        "title": "Learning circle",
+        "intro": "Learn a subject together through shared goals, questions and practice.",
+        "features": ["Learning milestones", "Knowledge quizzes", "Peer explanations"],
+        "goal_placeholder": "Example: Master the foundations together",
+        "description_placeholder": "Describe what the Family will learn and how members will help each other.",
+    },
+    "quiz_and_trivia": {
+        "title": "Quiz club",
+        "intro": "Keep curiosity active with friendly quizzes, polls and team learning.",
+        "features": ["Regular quizzes", "Community polls", "Team score goals"],
+        "goal_placeholder": "Example: Complete 10 community quizzes together",
+        "description_placeholder": "Describe the topics, quiz rhythm and friendly rules.",
+    },
+    "motivation": {
+        "title": "Encouragement circle",
+        "intro": "Build confidence through check-ins, practical goals and kind support.",
+        "features": ["Emotional check-ins", "Encouragement posts", "Progress celebrations"],
+        "goal_placeholder": "Example: Encourage one another for 30 days",
+        "description_placeholder": "Describe the kind of encouragement and growth this Family supports.",
+    },
+    "fitness": {
+        "title": "Movement team",
+        "intro": "Grow healthier through safe routines, progress goals and shared accountability.",
+        "features": ["Workout goals", "Habit check-ins", "Team milestones"],
+        "goal_placeholder": "Example: Complete 20 active days together",
+        "description_placeholder": "Describe the activity level, routines and supportive expectations.",
+    },
+    "business": {
+        "title": "Builder network",
+        "intro": "Turn ideas into steady progress through plans, feedback and shared milestones.",
+        "features": ["Project goals", "Idea polls", "Progress reviews"],
+        "goal_placeholder": "Example: Launch our first community project",
+        "description_placeholder": "Describe the business focus and how members will collaborate.",
+    },
+    "coding": {
+        "title": "Project lab",
+        "intro": "Build practical coding skills through projects, quizzes and peer problem-solving.",
+        "features": ["Coding projects", "Skill quizzes", "Peer code support"],
+        "goal_placeholder": "Example: Build and publish our first Python project",
+        "description_placeholder": "Describe the technologies, project level and collaboration style.",
+    },
+    "books": {
+        "title": "Reading circle",
+        "intro": "Read, reflect and connect through shared chapters and thoughtful discussion.",
+        "features": ["Reading goals", "Chapter polls", "Reflection posts"],
+        "goal_placeholder": "Example: Read and discuss one book this month",
+        "description_placeholder": "Describe the books, reading pace and discussion style.",
+    },
+    "language_learning": {
+        "title": "Language practice circle",
+        "intro": "Practice speaking, vocabulary and confidence with supportive learners.",
+        "features": ["Vocabulary quizzes", "Practice prompts", "Weekly fluency goals"],
+        "goal_placeholder": "Example: Hold a five-minute conversation together",
+        "description_placeholder": "Describe the language, current level and practice rhythm.",
+    },
+    "accountability": {
+        "title": "Accountability team",
+        "intro": "Turn intentions into steady action with check-ins and visible milestones.",
+        "features": ["Daily check-ins", "Progress goals", "Kind reminders"],
+        "goal_placeholder": "Example: Keep our chosen habit for 30 days",
+        "description_placeholder": "Describe the commitments and how members should support one another.",
+    },
+    "friendship_and_support": {
+        "title": "Support circle",
+        "intro": "Strengthen real connection through conversation, encouragement and shared growth.",
+        "features": ["Supportive check-ins", "Family conversations", "Shared wellbeing goals"],
+        "goal_placeholder": "Example: Show up for one another every week",
+        "description_placeholder": "Describe the community spirit and the support members can expect.",
+    },
+    "custom": {
+        "title": "Your own Family format",
+        "intro": "Shape a clear purpose using RiseTogether goals, polls, posts and connection tools.",
+        "features": ["Custom shared goal", "Community polls", "Flexible activities"],
+        "goal_placeholder": "Example: Describe the result this Family will reach together",
+        "description_placeholder": "Explain what makes this Family different and how members take part.",
+    },
+}
+
 FAMILY_PRIVACY_OPTIONS = {"public", "private", "invite_only"}
 ENCOURAGEMENT_CATEGORIES = {
     "listen": "I need someone to listen", "motivation": "Motivation",
@@ -469,6 +556,7 @@ def parse_family_datetime(value):
 def family_form_context(**extra):
     context = {
         "categories": FAMILY_CATEGORIES,
+        "family_experiences": FAMILY_TYPE_EXPERIENCES,
         "privacy_options": FAMILY_PRIVACY_OPTIONS,
         "default_member_limit": default_family_member_limit(),
     }
@@ -1694,6 +1782,9 @@ def render_family_detail_page(
         members=members,
         posts=posts,
         categories=FAMILY_CATEGORIES,
+        family_experience=FAMILY_TYPE_EXPERIENCES.get(
+            family.category, FAMILY_TYPE_EXPERIENCES["custom"]
+        ),
         challenge_types={
             key: label
             for key, label in CHALLENGE_TYPES.items()
@@ -3472,13 +3563,22 @@ def take_quiz(family_id, quiz_id):
         session.pop(timer_key, None)
         if attempt.passed:
             controlled_points = min(25, max(5, round(attempt.percentage / 20) * 5))
-            _, created = award_points(
-                amount=controlled_points, reason=f"Passed {quiz.title}", source_type="quiz",
-                source_id=quiz.id, user_id=current_user.id,
-                unique_reward_key=f"quiz:{quiz.id}:user:{current_user.id}:reward",
-                awarded_by_id=quiz.creator_id,
-            )
+            created = False
+            if is_feature_enabled("personal_points"):
+                _, created = award_points(
+                    amount=controlled_points, reason=f"Passed {quiz.title}", source_type="quiz",
+                    source_id=quiz.id, user_id=current_user.id,
+                    unique_reward_key=f"quiz:{quiz.id}:user:{current_user.id}:reward",
+                    awarded_by_id=quiz.creator_id,
+                )
             attempt.points_awarded = controlled_points if created else 0
+            if is_feature_enabled("family_points"):
+                award_points(
+                    amount=5, reason=f"Family quiz passed: {quiz.title}", source_type="family_quiz",
+                    source_id=quiz.id, family_id=family.id,
+                    unique_reward_key=f"quiz:{quiz.id}:user:{current_user.id}:family",
+                    awarded_by_id=quiz.creator_id,
+                )
         record_streak_activity(
             current_user, "learning", source_type="quiz_attempt",
             source_id=attempt.id, unique_key=f"learning-quiz:{attempt.id}",

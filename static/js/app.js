@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-upgrade-campaigns";
+  const APP_VERSION = "20260717-family-experiences";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1167,12 +1167,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (familyPanels.length && familyTabs.length) {
     const showFamilyPanel = (id, updateHash = true) => {
       const target = familyPanels.find((panel) => panel.id === id) || familyPanels[0];
+      const group = target.dataset.familyPanelGroup || target.id;
+      const groupPanels = familyPanels.filter(
+        (panel) => (panel.dataset.familyPanelGroup || panel.id) === group,
+      );
+      if (target.parentNode && groupPanels.length && groupPanels[0] !== target) {
+        target.parentNode.insertBefore(target, groupPanels[0]);
+      }
       familyPanels.forEach((panel) => {
-        panel.hidden = panel !== target;
+        panel.hidden = (panel.dataset.familyPanelGroup || panel.id) !== group;
       });
       familyTabs.forEach((tab) => {
-        tab.classList.toggle("active", tab.getAttribute("href") === `#${target.id}`);
-        if (tab.getAttribute("href") === `#${target.id}`) tab.setAttribute("aria-current", "page");
+        const tabId = (tab.getAttribute("href") || "").replace(/^#/, "");
+        const tabTarget = familyPanels.find((panel) => panel.id === tabId);
+        const sameGroup = Boolean(tabTarget) && (tabTarget.dataset.familyPanelGroup || tabTarget.id) === group;
+        const isPrimaryTab = Boolean(tab.closest(".family-tabbar"));
+        const isActive = tabId === target.id || (isPrimaryTab && sameGroup);
+        tab.classList.toggle("active", isActive);
+        if (isActive) tab.setAttribute("aria-current", "page");
         else tab.removeAttribute("aria-current");
       });
       if (updateHash && window.location.hash !== `#${target.id}`) {
@@ -1191,6 +1203,44 @@ document.addEventListener("DOMContentLoaded", () => {
     const initialId = window.location.hash ? window.location.hash.slice(1) : "family-home";
     showFamilyPanel(initialId, Boolean(window.location.hash));
   }
+
+  const familyCategorySelects = document.querySelectorAll("[data-family-category]");
+  familyCategorySelects.forEach((select) => {
+    const form = select.closest("form");
+    const preview = form?.querySelector("[data-family-experience]");
+    if (!preview) return;
+    let experiences = {};
+    try {
+      experiences = JSON.parse(select.dataset.familyExperiences || "{}");
+    } catch (_error) {
+      return;
+    }
+    const updateExperience = () => {
+      const experience = experiences[select.value] || experiences.custom;
+      if (!experience) return;
+      preview.querySelector("[data-family-experience-title]").textContent = experience.title;
+      preview.querySelector("[data-family-experience-intro]").textContent = experience.intro;
+      const list = preview.querySelector("[data-family-experience-features]");
+      list.replaceChildren(...experience.features.map((feature) => {
+        const item = document.createElement("li");
+        item.textContent = feature;
+        return item;
+      }));
+      const goal = form.querySelector("[data-family-goal-input]");
+      const description = form.querySelector("[data-family-goal-description]");
+      if (goal) goal.placeholder = experience.goal_placeholder;
+      if (description) description.placeholder = experience.description_placeholder;
+    };
+    select.addEventListener("change", updateExperience);
+    updateExperience();
+  });
+
+  document.querySelectorAll("[data-file-picker]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const output = document.querySelector(`[data-file-name-for="${input.id}"]`);
+      if (output) output.textContent = input.files?.[0]?.name || "No file chosen";
+    });
+  });
 
   const certificateImageButton = document.querySelector("[data-certificate-image]");
   const certificateCard = document.querySelector("[data-certificate-card]");

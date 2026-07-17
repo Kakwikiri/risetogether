@@ -63,6 +63,11 @@
 
   <section id="family-home" class="family-section" data-family-panel data-family-panel-group="home">
     <div class="family-welcome"><p class="eyebrow">Family Home</p><h3>{{ dashboard_greeting }}, {{ current_user.profile.display_name if current_user.profile and current_user.profile.display_name else current_user.username }}.</h3><p>Here’s what your family is growing through today.</p></div>
+    <section class="family-type-experience family-type-experience--{{ family.category }}">
+      <div><p class="eyebrow">{{ categories.get(family.category, 'Family') }}</p><h4>{{ family_experience.title }}</h4><p>{{ family_experience.intro }}</p></div>
+      <ul>{% for feature in family_experience.features %}<li>{{ feature }}</li>{% endfor %}</ul>
+      <p class="muted-meta">Earn together through verified goals, completed challenges and passed quizzes. A quiz pass adds 5 Family Points once per member.</p>
+    </section>
     {% if feature_enabled('family_xp') and feature_enabled('family_levels') %}
     <section class="family-level-card" aria-label="{{ family.name }} Family level">
       <div class="family-level-card__heading"><div><p class="eyebrow">Growing together</p><h4>{{ family_level_badge(family_level.level, family_level.name) }}</h4></div><div class="family-level-card__balances">{{ point_badge(family_level.lifetime_xp, 'lifetime XP') }}{% if feature_enabled('family_points') %}{{ point_badge(family_level.available_points, 'available Family Points') }}{% endif %}</div></div>
@@ -613,7 +618,7 @@
   </section>
 
   <section id="family-posts" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
-    <h3>Family posts</h3>
+    <div class="split-header"><h3>Family posts</h3><a class="button secondary" href="#family-polls" data-family-tab>Open polls</a></div>
     {% if member %}
     <form
       action="{{ url_for('main.create_post') }}"

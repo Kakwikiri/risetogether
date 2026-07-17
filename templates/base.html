@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-upgrade-campaigns"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-family-experiences"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-upgrade-campaigns"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-family-experiences"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-upgrade-campaigns"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-family-experiences"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -215,7 +215,7 @@
         </div>
       </div>
     </div>
-    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat'] %}
+    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'goals.goal_detail'] %}
     <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
     {% endif %}
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">

@@ -2958,6 +2958,37 @@ body.media-viewer-open {
 .family-image-controls p { margin: 0; }
 .family-image-choose { cursor: pointer; }
 
+.family-type-preview {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.8rem 0 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--soft), color-mix(in srgb, var(--accent) 9%, var(--panel)));
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: 12px;
+}
+.family-type-preview h3,
+.family-type-preview h4,
+.family-type-preview p { margin: 0; }
+.family-type-preview ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0.35rem 0 0;
+  list-style: none;
+}
+.family-type-preview li {
+  padding: 0.35rem 0.55rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.family-type-preview--compact { margin: 0.25rem 0 0; }
+
 .form-status {
   margin: 0.55rem 0 0;
   color: var(--muted);
@@ -3111,6 +3142,32 @@ body.media-viewer-open {
 .family-welcome p {
   margin: 0.2rem 0;
 }
+
+.family-type-experience {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  gap: 0.8rem 1.2rem;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--soft) 82%, var(--panel));
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--brand);
+  border-radius: 14px;
+}
+.family-type-experience h4,
+.family-type-experience p { margin: 0.2rem 0; }
+.family-type-experience ul {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  padding-left: 1.15rem;
+  margin: 0;
+  font-weight: 750;
+}
+.family-type-experience > .muted-meta { grid-column: 1 / -1; }
+.family-type-experience--class { border-top-color: #2563eb; }
+.family-type-experience--coding { border-top-color: #7c3aed; }
+.family-type-experience--language_learning { border-top-color: #e07a1f; }
+.family-type-experience--fitness { border-top-color: #16a34a; }
 
 .family-dashboard-grid--living {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
@@ -3557,6 +3614,84 @@ body.media-viewer-open {
 .goal-progress-entry time {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.goal-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.4rem;
+  min-height: 42px;
+  padding: 0.55rem 0.8rem;
+  color: var(--brand-dark);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  font-weight: 850;
+}
+.goal-back-link:hover,
+.goal-back-link:focus-visible { background: var(--soft); }
+.goal-file-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+  padding: 0.7rem;
+  background: var(--soft);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+.form-label { display: block; font-weight: 800; }
+.form-label small,
+.goal-encouragement-form label small { color: var(--muted); font-weight: 600; }
+.goal-reward-note {
+  margin: 0.8rem 0 0;
+  padding: 0.7rem 0.8rem;
+  color: var(--muted);
+  background: var(--soft);
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+.goal-encouragement-card { gap: 1rem; }
+.goal-encouragement-card > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.goal-encouragement-card > header h2,
+.goal-encouragement-card > header p { margin: 0.15rem 0; }
+.goal-encouragement-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.6fr) minmax(240px, 1.4fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+.goal-encouragement-form label { display: grid; gap: 0.35rem; }
+.goal-encouragement-form textarea { min-height: 84px; resize: vertical; }
+.goal-encouragement-list { display: grid; gap: 0.55rem; }
+.goal-encouragement-list article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.55rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--soft);
+  border-radius: 10px;
+}
+.goal-encouragement-list article span { color: var(--brand-dark); font-weight: 750; }
+.goal-encouragement-list article p { grid-column: 1 / -1; margin: 0.2rem 0 0; }
+
+@media (max-width: 720px) {
+  .family-type-experience,
+  .goal-encouragement-form { grid-template-columns: 1fr; }
+  .family-type-experience > .muted-meta { grid-column: auto; }
+  .goal-encouragement-card > header { display: grid; }
+  .goal-file-picker .button { width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -206,7 +206,7 @@ def goal_participate(goal_id, action):
 def award_goal_event(goal, actor_id, event_type, source_id):
     if not goal.created_at or goal.created_at > datetime.utcnow() - timedelta(hours=24):
         return
-    amount = 2 if event_type == "milestone" else 10
+    amount = 5 if event_type == "milestone" else 10
     if goal.scope == "personal" and is_feature_enabled("personal_points"):
         award_points(amount=amount, reason=f"Goal {event_type}: {goal.title}", source_type=f"goal_{event_type}", source_id=source_id, unique_reward_key=f"goal:{goal.id}:{event_type}:{source_id}:user", user_id=goal.owner_user_id, repeatable=True, daily_limit=25)
     elif goal.scope == "family" and is_feature_enabled("family_points"):
