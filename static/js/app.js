@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-interests-legal";
+  const APP_VERSION = "20260717-family-course-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1167,24 +1167,13 @@ document.addEventListener("DOMContentLoaded", () => {
   if (familyPanels.length && familyTabs.length) {
     const showFamilyPanel = (id, updateHash = true) => {
       const target = familyPanels.find((panel) => panel.id === id) || familyPanels[0];
-      const group = target.dataset.familyPanelGroup || target.id;
-      const groupPanels = familyPanels.filter(
-        (panel) => (panel.dataset.familyPanelGroup || panel.id) === group,
-      );
-      if (target.parentNode && groupPanels.length && groupPanels[0] !== target) {
-        target.parentNode.insertBefore(target, groupPanels[0]);
-      }
       familyPanels.forEach((panel) => {
-        panel.hidden = (panel.dataset.familyPanelGroup || panel.id) !== group;
+        panel.hidden = panel !== target;
       });
       familyTabs.forEach((tab) => {
-        const tabTarget = familyPanels.find(
-          (panel) => tab.getAttribute("href") === `#${panel.id}`,
-        );
-        tab.classList.toggle(
-          "active",
-          Boolean(tabTarget) && (tabTarget.dataset.familyPanelGroup || tabTarget.id) === group,
-        );
+        tab.classList.toggle("active", tab.getAttribute("href") === `#${target.id}`);
+        if (tab.getAttribute("href") === `#${target.id}`) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
       });
       if (updateHash && window.location.hash !== `#${target.id}`) {
         window.history.replaceState(null, "", `#${target.id}`);
@@ -1201,6 +1190,77 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     const initialId = window.location.hash ? window.location.hash.slice(1) : "family-home";
     showFamilyPanel(initialId, Boolean(window.location.hash));
+  }
+
+  const certificateImageButton = document.querySelector("[data-certificate-image]");
+  const certificateCard = document.querySelector("[data-certificate-card]");
+  if (certificateImageButton && certificateCard) {
+    certificateImageButton.addEventListener("click", async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = 1200;
+      const context = canvas.getContext("2d");
+      const recipient = certificateCard.dataset.recipient || "A RiseTogether member";
+      const achievement = certificateCard.dataset.achievement || "Meaningful progress";
+      const family = certificateCard.dataset.family || "RiseTogether Family";
+      const wrapText = (textValue, y, maxWidth, lineHeight) => {
+        const words = textValue.split(/\s+/);
+        let line = "";
+        words.forEach((word) => {
+          const next = `${line} ${word}`.trim();
+          if (context.measureText(next).width > maxWidth && line) {
+            context.fillText(line, 600, y);
+            line = word;
+            y += lineHeight;
+          } else line = next;
+        });
+        context.fillText(line, 600, y);
+      };
+      const gradient = context.createLinearGradient(0, 0, 1200, 1200);
+      gradient.addColorStop(0, "#eefaf6");
+      gradient.addColorStop(1, "#d7efe7");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 1200, 1200);
+      context.strokeStyle = "#18715e";
+      context.lineWidth = 14;
+      context.strokeRect(55, 55, 1090, 1090);
+      context.textAlign = "center";
+      context.fillStyle = "#145c4e";
+      context.font = "700 42px system-ui, sans-serif";
+      context.fillText("RISETOGETHER", 600, 190);
+      context.font = "800 72px system-ui, sans-serif";
+      context.fillText("Certificate of Achievement", 600, 330);
+      context.fillStyle = "#273633";
+      context.font = "36px system-ui, sans-serif";
+      context.fillText("Presented to", 600, 440);
+      context.font = "800 62px system-ui, sans-serif";
+      wrapText(recipient, 535, 960, 74);
+      context.font = "34px system-ui, sans-serif";
+      context.fillText("for completing", 600, 685);
+      context.font = "700 48px system-ui, sans-serif";
+      wrapText(achievement, 775, 940, 60);
+      context.font = "32px system-ui, sans-serif";
+      context.fillText(family, 600, 970);
+      context.font = "26px system-ui, sans-serif";
+      context.fillText(new Date().toLocaleDateString(), 600, 1040);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], "risetogether-certificate.png", { type: "image/png" });
+        try {
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ title: "My RiseTogether achievement", files: [file] });
+            return;
+          }
+        } catch (error) {
+          if (error?.name === "AbortError") return;
+        }
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = file.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      }, "image/png");
+    });
   }
 
   const familyDescriptionPanel = document.querySelector("[data-family-description-panel]");

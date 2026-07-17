@@ -18,7 +18,7 @@ from notifications_service import smart_notify
 goals_bp = Blueprint("goals", __name__)
 
 GOAL_CATEGORIES = {
-    "wellbeing": "Wellbeing", "learning": "Learning", "fitness": "Fitness",
+    "wellbeing": "Wellbeing", "habit": "Habit", "learning": "Learning", "fitness": "Fitness",
     "saving": "Saving", "career": "Career or work", "relationships": "Relationships",
     "creative": "Creative", "family_growth": "Family growth", "other": "Other",
 }

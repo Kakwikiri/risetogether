@@ -1,9 +1,9 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
 <section class="profile-page">
+  <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
   <header class="profile-hero{% if feature_enabled('premium_profiles') and user_has_premium(user) %} profile-hero--premium{% endif %}">
     <div class="profile-identity-row">
       <div class="profile-avatar-wrap">
-        <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
         <img
           class="avatar-large profile-hero-avatar"
           src="{{ user_avatar_url(user) }}"

@@ -2578,6 +2578,24 @@ textarea:focus {
   margin-top: 1rem;
 }
 
+@media (min-width: 900px) {
+  .feed .media-frame,
+  .family-section .media-frame {
+    display: grid;
+    place-items: center;
+    max-height: 520px;
+    background: color-mix(in srgb, var(--panel) 82%, var(--ink));
+  }
+
+  .feed .post-media,
+  .family-section .post-media {
+    width: auto;
+    max-width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+  }
+}
+
 .media-frame {
   position: relative;
   overflow: hidden;
@@ -4325,6 +4343,7 @@ body.media-viewer-open {
 }
 
 .profile-page {
+  position: relative;
   display: grid;
   gap: 1rem;
 }
@@ -4353,10 +4372,10 @@ body.media-viewer-open {
 }
 
 .profile-back-button {
-  position: absolute;
-  left: -0.35rem;
-  top: -0.35rem;
-  z-index: 2;
+  position: fixed;
+  left: max(0.75rem, env(safe-area-inset-left));
+  top: calc(4.75rem + env(safe-area-inset-top));
+  z-index: 30;
   display: grid;
   place-items: center;
   width: 34px;
@@ -4370,6 +4389,56 @@ body.media-viewer-open {
   font-size: 1.15rem;
   font-weight: 950;
 }
+
+.family-more-menu {
+  margin: 0.5rem 0 1rem;
+}
+
+.family-more-menu > summary {
+  width: fit-content;
+  padding: 0.55rem 0.8rem;
+  color: var(--brand-dark);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+.recommended-families {
+  margin-top: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.recommended-family-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.8rem;
+}
+
+.recommended-family-card {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  color: inherit;
+}
+
+.recommended-family-card img {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.recommended-family-card h3,
+.recommended-family-card p { margin: 0 0 0.25rem; }
+
+.recommended-family-card span { color: var(--muted); font-size: 0.82rem; }
 
 .profile-hero h1,
 .profile-hero p {
@@ -7532,10 +7601,9 @@ body.nav-menu-open {
   }
 
   .profile-back-button {
-    position: static;
+    position: fixed;
     width: 44px;
     height: 44px;
-    align-self: center;
   }
 }
 

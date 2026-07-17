@@ -70,6 +70,7 @@ from weekly_reports import get_or_create_weekly_report, report_post_content
 family_bp = Blueprint("family", __name__)
 
 FAMILY_CATEGORIES = {
+    "class": "Class / course",
     "learning": "Learning",
     "quiz_and_trivia": "Quiz and trivia",
     "motivation": "Motivation",
@@ -156,6 +157,7 @@ CHALLENGE_VISIBILITIES = {"family", "public", "admins_only"}
 CHALLENGE_STATUSES = {"active", "draft", "closed"}
 
 QUIZ_CAPABLE_CATEGORIES = {
+    "class",
     "learning",
     "quiz_and_trivia",
     "coding",
@@ -1249,13 +1251,22 @@ def families():
                 Family.goal_title.ilike(search),
             )
         )
-    families = family_query.order_by(Family.created_at.desc()).all()
+    families = family_query.order_by(Family.created_at.desc()).limit(60).all()
     capacity_by_family = {family.id: family_capacity_status(family) for family in families}
+    joined_family_ids = [membership.family_id for membership in current_user.family_memberships]
+    recommended_families = Family.query.filter(
+        Family.is_active.is_(True),
+        Family.privacy == "public",
+        ~Family.id.in_(joined_family_ids or [-1]),
+    ).order_by(Family.created_at.desc()).limit(6).all()
+    for family in recommended_families:
+        capacity_by_family.setdefault(family.id, family_capacity_status(family))
     return render_template(
         "families.html",
         families=families,
         query=query,
         capacity_by_family=capacity_by_family,
+        recommended_families=recommended_families,
     )
 
 
@@ -2698,6 +2709,13 @@ def create_challenge(family_id):
     db.session.add(challenge)
     db.session.flush()
     if challenge.status == "active":
+        expiry_label = challenge.ends_at.strftime("%b %d, %Y") if challenge.ends_at else "No fixed expiry"
+        db.session.add(Message(
+            sender_id=current_user.id,
+            family_id=family.id,
+            content=f"New challenge: {challenge.title} · Expires: {expiry_label}. Open Family Goals to view or accept it.",
+            media_type="text",
+        ))
         for membership in family.members:
             may_see = challenge.visibility != "admins_only" or membership.role in {"owner", "admin"}
             if membership.user_id != current_user.id and may_see:
@@ -3328,6 +3346,13 @@ def create_quiz(family_id):
         flash("Add at least one quiz question.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-quizzes")
     if quiz.status == "open":
+        closing_label = quiz.closes_at.strftime("%b %d, %Y") if quiz.closes_at else "Open-ended"
+        db.session.add(Message(
+            sender_id=current_user.id,
+            family_id=family.id,
+            content=f"New quiz: {quiz.title} · Closes: {closing_label}. Open Family Goals to take it.",
+            media_type="text",
+        ))
         for membership in family.members:
             if membership.user_id != current_user.id:
                 add_family_notification(

@@ -66,4 +66,18 @@
   </div>
   <p class="live-search-empty" data-live-search-empty hidden>No matching families in this list.</p>
 </section>
+{% if recommended_families %}
+<section class="recommended-families" aria-labelledby="recommended-families-title">
+  <div class="split-header"><div><p class="eyebrow">Find your people</p><h2 id="recommended-families-title">Recommended families</h2></div><span class="muted-meta">Public families you have not joined</span></div>
+  <div class="recommended-family-grid">
+    {% for family in recommended_families %}
+    {% set capacity = capacity_by_family.get(family.id) %}
+    <a class="card recommended-family-card" href="{{ url_for('family.family_detail', family_id=family.id) }}">
+      <img src="{{ family_avatar_url(family) }}" alt="" loading="lazy" />
+      <div><h3>{{ family.name }}</h3><p>{{ family.goal_title or family.description or 'Grow together with this Family.' }}</p><span>{{ family.category|replace('_', ' ')|title }} · {{ capacity.member_count if capacity else family.members.count() }} members</span></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}
