@@ -8,11 +8,11 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Reaction, User
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Post, Reaction, User
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
-from routes.main import FEED_FILTERS, SUPPORTIVE_PROMPTS
+from routes.main import FEED_FILTERS, SUPPORTIVE_PROMPTS, interest_match_count, normalized_interests
 from routes.family import (
     CHALLENGE_ALLOWED_REWARD_TIERS,
     CHALLENGE_VISIBILITIES,
@@ -744,7 +744,7 @@ class SecurityRegressionTests(unittest.TestCase):
     def test_stage_six_feed_filters_and_prompts_are_complete(self):
         self.assertEqual(
             FEED_FILTERS,
-            {"all", "videos", "families", "highlights", "kindness", "trending"},
+            {"all", "interests", "videos", "families", "highlights", "kindness", "trending"},
         )
         for prompt in [
             "What’s on your heart today?",
@@ -754,6 +754,22 @@ class SecurityRegressionTests(unittest.TestCase):
             "Write something uplifting or honest.",
         ]:
             self.assertIn(prompt, SUPPORTIVE_PROMPTS)
+
+    def test_interests_are_optional_bounded_and_do_not_override_feed_privacy(self):
+        self.assertEqual(
+            normalized_interests(" Coding, books, coding,  fitness  "),
+            ["coding", "books", "fitness"],
+        )
+        self.assertEqual(len(normalized_interests(",".join(f"topic-{i}" for i in range(20)))), 10)
+        post = Post(content="Learning Python coding together", purpose="normal")
+        self.assertEqual(interest_match_count(post, ["coding", "books"]), 1)
+        routes = (ROOT / "routes" / "main.py").read_text()
+        self.assertIn("posts = [post for post in posts if can_view_post(post)]", routes)
+
+    def test_non_members_are_not_given_broken_family_post_links(self):
+        template = (ROOT / "templates" / "family_detail.html").read_text()
+        self.assertIn("Posts are for Family members", template)
+        self.assertIn("{% if member %}\n    {% for post in posts %}", template)
 
     def test_stage_six_feed_has_loading_empty_and_read_more_states(self):
         template = (ROOT / "templates" / "feed.html").read_text()

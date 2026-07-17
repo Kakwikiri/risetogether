@@ -10,7 +10,6 @@
       <a class="button" href="{{ url_for('auth.signup') }}">Join Free</a>
       <a class="button secondary" href="{{ url_for('auth.login') }}">Login</a>
     </div>
-    <p class="auth-legal-links"><a href="{{ url_for('main.privacy_policy') }}">Privacy</a><a href="{{ url_for('main.terms_of_use') }}">Terms</a></p>
   </div>
   <div class="hero-notes">
     <ul>
@@ -21,4 +20,5 @@
     </ul>
   </div>
 </section>
+<footer class="landing-legal" aria-label="Legal links"><a href="{{ url_for('main.privacy_policy') }}">Privacy policy</a><a href="{{ url_for('main.terms_of_use') }}">Terms of use</a></footer>
 {% endblock %}

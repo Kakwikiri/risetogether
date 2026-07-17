@@ -267,6 +267,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS checkin_suggestions_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS miss_you_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS return_summaries_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS interests TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE family_members ADD COLUMN IF NOT EXISTS can_create_polls BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE family_members ADD COLUMN IF NOT EXISTS can_create_quizzes BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE family_members ADD COLUMN IF NOT EXISTS can_create_challenges BOOLEAN NOT NULL DEFAULT FALSE",

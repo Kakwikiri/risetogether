@@ -536,7 +536,7 @@
       <fieldset class="quiz-question-builder">
         <legend>Question {{ number }}</legend>
         <input type="text" name="question_{{ number }}" placeholder="Question text" />
-        <input type="number" name="question_{{ number }}_points" min="0" value="1" />
+        <input type="number" name="question_{{ number }}_points" min="5" value="5" />
         <textarea name="question_{{ number }}_explanation" rows="2" maxlength="1000" placeholder="Explanation shown after answering"></textarea>
         {% for choice in range(1, 5) %}
         <label>
@@ -639,7 +639,10 @@
         <button class="button" type="submit">Post to family</button>
       </div>
     </form>
+    {% else %}
+    <div class="family-empty-panel"><h4>Posts are for Family members</h4><p>Join {{ family.name }} to read and take part in its Family posts.</p>{% if not family_is_full and family.is_active %}<form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Join Family</button></form>{% endif %}</div>
     {% endif %}
+    {% if member %}
     {% for post in posts %}
     <article class="card post-card">
       <strong>{{ post.author.profile.display_name if post.author.profile and post.author.profile.display_name else post.author.username }}{{ rise_badges(rise_user_badges(post.author, family)) }}</strong>
@@ -667,6 +670,7 @@
     {% else %}
     <p>No posts in this family yet.</p>
     {% endfor %}
+    {% endif %}
   </section>
 
   {% if can_invite_members %}

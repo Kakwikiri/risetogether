@@ -6,7 +6,7 @@
       {% if video_only %}<label class="status-pill"><input type="checkbox" data-auto-slide checked /> Auto slide</label>{% endif %}
     </div>
     <nav class="mobile-feed-tabs feed-filter-bar" aria-label="Feed filters" data-feed-filters>
-      {% for key, label in [('all', 'All'), ('videos', 'Videos'), ('families', 'Families'), ('highlights', 'Highlights'), ('kindness', 'Kindness'), ('trending', 'Trending')] %}
+      {% for key, label in [('all', 'All'), ('interests', 'My interests'), ('videos', 'Videos'), ('families', 'Families'), ('highlights', 'Highlights'), ('kindness', 'Kindness'), ('trending', 'Trending')] %}
       <a class="{{ 'active' if feed_filter == key else '' }}" href="{{ url_for('main.home', filter=key) }}" {% if feed_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
@@ -193,6 +193,7 @@
     {% else %}
     {% set empty_messages = {
       'all': ('Your feed is ready for its first story', 'Share something honest, hopeful, or small. Your voice belongs here.', '♡'),
+      'interests': ('Choose what matters to you', 'Add optional interests in Settings, or return later when a matching visible post is available.', '◎'),
       'videos': ('No videos here yet', 'Share a video when you have a moment worth showing.', '▶'),
       'families': ('No Family posts yet', 'Join a Family or share something with people growing alongside you.', '⌁'),
       'highlights': ('Highlights are still growing', 'Posts with meaningful community engagement will appear here.', '✦'),
@@ -200,7 +201,7 @@
       'trending': ('Nothing is trending yet', 'As the community connects, active conversations will appear here.', '↗')
     } %}
     {% set empty_copy = empty_messages[feed_filter] %}
-    {{ empty_state(empty_copy[0], empty_copy[1], empty_copy[2], url_for('main.home'), 'Return to all posts') }}
+    {{ empty_state(empty_copy[0], empty_copy[1], empty_copy[2], url_for('main.settings') if feed_filter == 'interests' else url_for('main.home'), 'Choose interests' if feed_filter == 'interests' else 'Return to all posts') }}
     {% endfor %}
   </section>
   {% if not video_only %}

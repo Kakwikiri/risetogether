@@ -255,8 +255,8 @@ def admin_economy():
             except (TypeError, ValueError):
                 flash("Challenge rewards must be whole numbers.", "warning")
                 return redirect(url_for("moderation.admin_economy"))
-            if reward < 1 or reward > 10_000:
-                flash("Challenge rewards must be between 1 and 10,000 points.", "warning")
+            if reward < 5 or reward > 10_000:
+                flash("Challenge rewards must be between 5 and 10,000 points.", "warning")
                 return redirect(url_for("moderation.admin_economy"))
             setting = SiteSetting.query.get(f"challenge_reward_{tier}") or SiteSetting(
                 key=f"challenge_reward_{tier}"

@@ -8123,6 +8123,15 @@ body.nav-menu-open {
   gap: 1rem;
   flex-wrap: wrap;
 }
+.landing-legal {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 0 1.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 .legal-page { width: min(780px, 100%); margin-inline: auto; }
 .legal-copy { display: grid; gap: 0.45rem; }
 .legal-copy h2 { margin: 1rem 0 0; font-size: 1.2rem; }

@@ -116,6 +116,7 @@ class Profile(db.Model):
     )
     display_name = db.Column(db.String(120), nullable=False)
     bio = db.Column(db.Text, default="")
+    interests = db.Column(db.Text, default="", nullable=False)
     avatar = db.Column(db.String(255), default="")
     privacy_posts = db.Column(db.String(20), default="public")
     notifications_enabled = db.Column(db.Boolean, default=True)

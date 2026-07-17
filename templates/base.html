@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-referrals-levels"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-interests-legal"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-referrals-levels"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-interests-legal"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-referrals-levels"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-interests-legal"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">

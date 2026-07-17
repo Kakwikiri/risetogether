@@ -495,7 +495,7 @@ def challenge_reward_values():
             configured = int(setting.value)
         except (TypeError, ValueError):
             continue
-        if tier in values and 1 <= configured <= 10000:
+        if tier in values and 5 <= configured <= 10000:
             values[tier] = configured
     return values
 
@@ -3287,7 +3287,8 @@ def create_quiz(family_id):
         question_text = request.form.get(f"question_{position}", "").strip()
         if not question_text:
             continue
-        points = parse_points(request.form.get(f"question_{position}_points")) or 1
+        points = parse_points(request.form.get(f"question_{position}_points"))
+        points = max(5, points or 5)
         correct_choice = request.form.get(f"question_{position}_correct", "").strip()
         question = QuizQuestion(
             quiz_id=quiz.id,

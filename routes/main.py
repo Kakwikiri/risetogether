@@ -94,7 +94,7 @@ RETURN_CHECKIN_MESSAGES = (
     "Your RiseTogether family is thinking about you.",
     "No pressure to reply. I only wanted you to know that you matter.",
 )
-FEED_FILTERS = {"all", "videos", "families", "highlights", "kindness", "trending"}
+FEED_FILTERS = {"all", "interests", "videos", "families", "highlights", "kindness", "trending"}
 SUPPORTIVE_PROMPTS = (
     "What’s on your heart today?",
     "Share a small win.",
@@ -321,6 +321,13 @@ def home():
         elif feed_filter == "trending":
             posts = [post for post in posts if trend_score(post) > 0]
             posts.sort(key=trend_score, reverse=True)
+        elif feed_filter == "interests":
+            interests = normalized_interests(current_user.profile.interests)
+            posts = [post for post in posts if interest_match_count(post, interests)]
+            posts.sort(
+                key=lambda post: (interest_match_count(post, interests), post.created_at),
+                reverse=True,
+            )
         return render_template(
             "feed.html",
             posts=posts,
@@ -562,6 +569,24 @@ def can_view_post(post):
             post.family_id and post.family_id in set(user_family_ids(current_user))
         )
     return False
+
+
+def normalized_interests(raw_value):
+    interests = []
+    seen = set()
+    for value in (raw_value or "").split(","):
+        value = " ".join(value.strip().lower().split())[:30]
+        if value and value not in seen:
+            interests.append(value)
+            seen.add(value)
+        if len(interests) == 10:
+            break
+    return interests
+
+
+def interest_match_count(post, interests):
+    searchable = " ".join((post.content or "", post.purpose or "")).lower()
+    return sum(1 for interest in interests if interest in searchable)
 
 
 def checkin_today():
@@ -2325,6 +2350,9 @@ def settings():
         current_user.profile.auto_share_completed_challenges = (
             request.form.get("auto_share_completed_challenges") == "on"
         )
+        current_user.profile.interests = ", ".join(normalized_interests(
+            request.form.get("interests", "")
+        ))
         save_notification_preferences(current_user, request.form)
         timezone_name = request.form.get("timezone", "Africa/Kampala").strip()
         try:
