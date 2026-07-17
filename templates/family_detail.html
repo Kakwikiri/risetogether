@@ -41,7 +41,15 @@
     <a href="#family-home" data-family-tab>Home</a>
     <a href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}>Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
-    <a href="#family-challenges" data-family-tab>Goals</a>
+    <details class="family-growth-menu">
+      <summary>Goals</summary>
+      <div class="family-growth-menu__items">
+        <a href="#family-goal" data-family-tab>Shared goal</a>
+        <a href="#family-challenges" data-family-tab>Challenges</a>
+        {% if supports_quizzes %}<a href="#family-quizzes" data-family-tab>Quizzes</a>{% endif %}
+        {% if supports_polls %}<a href="#family-polls" data-family-tab>Polls</a>{% endif %}
+      </div>
+    </details>
   </nav>
   <nav class="family-tabbar-secondary" aria-label="Family activity and management">
     <a href="#family-activity" data-family-tab>Activity</a>
@@ -160,7 +168,7 @@
     <div class="dashboard-list">{% for expanded_goal in family.expanded_goals.order_by(Goal.created_at.desc()).limit(5).all() %}<a href="{{ url_for('goals.goal_detail', goal_id=expanded_goal.id) }}"><strong>{{ expanded_goal.title }}</strong><small>{{ expanded_goal.current_progress|round(2) }} / {{ expanded_goal.target_amount|round(2) }}</small></a>{% else %}<p class="muted-meta">Expanded goals will appear here when a Family owner or admin creates one.</p>{% endfor %}</div>
   </section>
 
-  <section id="family-polls" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
+  {% if supports_polls %}<section id="family-polls" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
     <h3>Polls</h3>
     {% if can_create_polls %}
     <form class="poll-form compact-composer" action="{{ url_for('family.create_poll', family_id=family.id) }}" method="post">
@@ -270,7 +278,7 @@
       <p class="muted-meta">No polls yet.</p>
       {% endfor %}
     </div>
-  </section>
+  </section>{% endif %}
 
   <section id="family-challenges" class="family-section" data-family-panel data-family-panel-group="goals" hidden>
     <h3>Challenges</h3>
@@ -618,7 +626,7 @@
   </section>
 
   <section id="family-posts" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
-    <div class="split-header"><h3>Family posts</h3><a class="button secondary" href="#family-polls" data-family-tab>Open polls</a></div>
+    <h3>Family posts</h3>
     {% if member %}
     <form
       action="{{ url_for('main.create_post') }}"

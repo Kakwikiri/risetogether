@@ -252,6 +252,17 @@ QUIZ_CAPABLE_CATEGORIES = {
     "language_learning",
 }
 
+POLL_CAPABLE_CATEGORIES = {
+    "class",
+    "learning",
+    "quiz_and_trivia",
+    "business",
+    "coding",
+    "books",
+    "language_learning",
+    "custom",
+}
+
 QUIZ_STATUSES = {"open", "draft", "closed"}
 
 ACHIEVEMENT_TYPES = {
@@ -683,6 +694,14 @@ def family_supports_quizzes(family):
     return family.category in QUIZ_CAPABLE_CATEGORIES or family.category == "custom"
 
 
+def family_supports_polls(family):
+    """Keep existing polls accessible while matching new Families to their type."""
+    return (
+        family.category in POLL_CAPABLE_CATEGORIES
+        or FamilyPoll.query.filter_by(family_id=family.id).first() is not None
+    )
+
+
 def challenge_dashboard(family, members, current_member):
     challenges = family.challenges.order_by(FamilyChallenge.created_at.desc()).all()
     can_manage = family_has_permission(current_member, "create_challenge")
@@ -925,7 +944,11 @@ def poll_dashboard(family, current_member):
         )
     return {
         "poll_rows": poll_rows,
-        "can_create_polls": family_can_create(current_member, "create_poll"),
+        "supports_polls": family_supports_polls(family),
+        "can_create_polls": bool(
+            family_supports_polls(family)
+            and family_can_create(current_member, "create_poll")
+        ),
     }
 
 
@@ -2561,6 +2584,9 @@ def join_family(family_id):
 def create_poll(family_id):
     family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
+    if not family_supports_polls(family):
+        flash("Polls are not part of this Family type.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id) + "#family-posts")
     if not family_can_create(member, "create_poll"):
         flash("You do not have permission to create official polls.", "danger")
         return redirect(url_for("family.family_detail", family_id=family.id) + "#family-polls")

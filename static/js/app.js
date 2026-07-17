@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-family-experiences";
+  const APP_VERSION = "20260717-family-growth-menu";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1166,29 +1166,34 @@ document.addEventListener("DOMContentLoaded", () => {
   const familyTabs = Array.from(document.querySelectorAll("[data-family-tab]"));
   if (familyPanels.length && familyTabs.length) {
     const showFamilyPanel = (id, updateHash = true) => {
-      const target = familyPanels.find((panel) => panel.id === id) || familyPanels[0];
+      const requestedElement = document.getElementById(id);
+      const directTarget = familyPanels.find((panel) => panel.id === id);
+      const target = directTarget || requestedElement?.closest("[data-family-panel]") || familyPanels[0];
       const group = target.dataset.familyPanelGroup || target.id;
-      const groupPanels = familyPanels.filter(
-        (panel) => (panel.dataset.familyPanelGroup || panel.id) === group,
-      );
-      if (target.parentNode && groupPanels.length && groupPanels[0] !== target) {
-        target.parentNode.insertBefore(target, groupPanels[0]);
-      }
+      const showWholeGroup = target.id === "family-home";
       familyPanels.forEach((panel) => {
-        panel.hidden = (panel.dataset.familyPanelGroup || panel.id) !== group;
+        panel.hidden = showWholeGroup
+          ? (panel.dataset.familyPanelGroup || panel.id) !== group
+          : panel !== target;
       });
       familyTabs.forEach((tab) => {
         const tabId = (tab.getAttribute("href") || "").replace(/^#/, "");
         const tabTarget = familyPanels.find((panel) => panel.id === tabId);
         const sameGroup = Boolean(tabTarget) && (tabTarget.dataset.familyPanelGroup || tabTarget.id) === group;
-        const isPrimaryTab = Boolean(tab.closest(".family-tabbar"));
-        const isActive = tabId === target.id || (isPrimaryTab && sameGroup);
+        const isDirectPrimaryTab = tab.parentElement?.matches(".family-tabbar");
+        const isActive = tabId === target.id || (isDirectPrimaryTab && sameGroup);
         tab.classList.toggle("active", isActive);
         if (isActive) tab.setAttribute("aria-current", "page");
         else tab.removeAttribute("aria-current");
       });
-      if (updateHash && window.location.hash !== `#${target.id}`) {
+      document.querySelectorAll(".family-growth-menu").forEach((menu) => {
+        menu.classList.toggle("active", Boolean(menu.querySelector("a.active")));
+      });
+      if (updateHash && directTarget && window.location.hash !== `#${target.id}`) {
         window.history.replaceState(null, "", `#${target.id}`);
+      }
+      if (requestedElement && requestedElement !== target) {
+        window.requestAnimationFrame(() => requestedElement.scrollIntoView({ block: "center" }));
       }
     };
     familyTabs.forEach((tab) => {
