@@ -57,6 +57,9 @@ app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads
 app.config["IMAGE_UPLOAD_LIMIT"] = int(os.getenv("IMAGE_UPLOAD_LIMIT_MB", "5")) * 1024 * 1024
 app.config["VIDEO_UPLOAD_LIMIT"] = int(os.getenv("VIDEO_UPLOAD_LIMIT_MB", "25")) * 1024 * 1024
 app.config["FILE_UPLOAD_LIMIT"] = int(os.getenv("FILE_UPLOAD_LIMIT_MB", "10")) * 1024 * 1024
+app.config["PREMIUM_IMAGE_UPLOAD_LIMIT"] = int(os.getenv("PREMIUM_IMAGE_UPLOAD_LIMIT_MB", "15")) * 1024 * 1024
+app.config["PREMIUM_VIDEO_UPLOAD_LIMIT"] = int(os.getenv("PREMIUM_VIDEO_UPLOAD_LIMIT_MB", "75")) * 1024 * 1024
+app.config["PREMIUM_FILE_UPLOAD_LIMIT"] = int(os.getenv("PREMIUM_FILE_UPLOAD_LIMIT_MB", "30")) * 1024 * 1024
 try:
     default_family_member_limit = int(os.getenv("DEFAULT_FAMILY_MEMBER_LIMIT", "50"))
 except ValueError:
@@ -66,6 +69,9 @@ app.config["MAX_CONTENT_LENGTH"] = max(
     app.config["IMAGE_UPLOAD_LIMIT"],
     app.config["VIDEO_UPLOAD_LIMIT"],
     app.config["FILE_UPLOAD_LIMIT"],
+    app.config["PREMIUM_IMAGE_UPLOAD_LIMIT"],
+    app.config["PREMIUM_VIDEO_UPLOAD_LIMIT"],
+    app.config["PREMIUM_FILE_UPLOAD_LIMIT"],
 ) + 1024 * 1024
 app.config["REALTIME_MEDIA_ENABLED"] = (
     os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
@@ -168,6 +174,8 @@ def ensure_schema_compatibility():
         QuizQuestion,
         PointTransaction,
         PointSecurityEvent,
+        PremiumSubscription,
+        VerificationApplication,
         NotificationPreference,
         NotificationDeliveryKey,
         RiseBadgeAssignment,
@@ -202,6 +210,8 @@ def ensure_schema_compatibility():
     QuizAnswer.__table__.create(db.engine, checkfirst=True)
     PointTransaction.__table__.create(db.engine, checkfirst=True)
     PointSecurityEvent.__table__.create(db.engine, checkfirst=True)
+    PremiumSubscription.__table__.create(db.engine, checkfirst=True)
+    VerificationApplication.__table__.create(db.engine, checkfirst=True)
     NotificationPreference.__table__.create(db.engine, checkfirst=True)
     NotificationDeliveryKey.__table__.create(db.engine, checkfirst=True)
     RiseBadgeAssignment.__table__.create(db.engine, checkfirst=True)
@@ -430,6 +440,7 @@ def inject_navigation_counts():
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
     from models import Message, Notification
     from notifications_service import important_unread_count, unread_private_message_count
+    from premium import family_has_premium, recording_limit_seconds, user_has_premium
 
     unread_notifications = 0
     unread_messages = 0
@@ -454,6 +465,9 @@ def inject_navigation_counts():
         "feature_flags": feature_flags,
         "feature_enabled": lambda name: feature_flags.get(name, False),
         "family_has_upgrade": family_has_upgrade,
+        "user_has_premium": user_has_premium,
+        "family_has_premium": family_has_premium,
+        "recording_limit_seconds": recording_limit_seconds,
         "rise_user_badges": user_badges,
         "rise_family_badges": family_badges,
     }

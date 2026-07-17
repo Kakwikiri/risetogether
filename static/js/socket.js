@@ -1293,7 +1293,7 @@ if (typeof chatConfig !== "undefined") {
         if (voiceRecorder && voiceRecorder.state !== "inactive") {
           stopVoiceRecording();
         }
-      }, 180000);
+      }, Number(chatConfig.voiceNoteLimitMs) || 180000);
     };
 
     const pauseVoiceRecording = () => {
@@ -1549,7 +1549,7 @@ if (typeof chatConfig !== "undefined") {
         if (videoRecorder && videoRecorder.state !== "inactive") {
           videoRecorder.stop();
         }
-      }, 180000);
+      }, Number(chatConfig.videoNoteLimitMs) || 180000);
     };
 
     const stopVideoRecording = () => {

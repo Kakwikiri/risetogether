@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Premium · RiseTogether{% endblock %}
+{% block content %}
+<section class="page-shell premium-page">
+  <header class="page-heading premium-heading">
+    <p class="eyebrow">Support sustainable growth</p>
+    <h1>RiseTogether Premium</h1>
+    <p>Activity earns rewards. Premium adds convenience while helping with hosting, storage and continued development. Core connection features remain available without payment.</p>
+  </header>
+  <div class="premium-principles"><span>✓ No purchased points</span><span>✓ No competitive advantage</span><span>✓ Verification is always reviewed</span></div>
+  <section class="premium-plan-grid">
+    <article class="premium-plan-card"><span class="status-chip">Free</span><h2>Keep growing</h2><strong>0</strong><p>Challenges, Families, encouragement, messaging and point-earned upgrades.</p><ul><li>Earn Personal and Family Points</li><li>Contribute to Family upgrades</li><li>Standard uploads and customization</li></ul></article>
+    {% if feature_enabled('premium_profiles') %}<article class="premium-plan-card is-featured"><span class="status-chip">Personal</span><h2>More room to express yourself</h2><strong>${{ prices.personal_monthly }} <small>/ month</small></strong><p>Or ${{ prices.personal_yearly }} yearly.</p><ul><li>Premium supporter profile frame</li>{% if feature_enabled('premium_upload_limits') %}<li>Larger uploads and longer voice/video notes</li>{% endif %}{% if feature_enabled('premium_storage') %}<li>More cloud storage</li>{% endif %}{% if feature_enabled('premium_themes') %}<li>Premium profile themes</li>{% endif %}{% if feature_enabled('premium_analytics') %}<li>Advanced profile analytics</li>{% endif %}</ul>{% if current_user.is_authenticated and personal_subscription %}<span class="upgrade-state">✓ Active {{ personal_subscription.billing_period }}</span>{% else %}<div class="button-row"><a class="button" href="{{ url_for('main.premium_checkout', plan='personal', period='monthly') }}">Choose monthly</a><a class="button secondary" href="{{ url_for('main.premium_checkout', plan='personal', period='yearly') }}">Choose yearly</a></div>{% endif %}</article>{% endif %}
+    {% if feature_enabled('premium_families') %}<article class="premium-plan-card"><span class="status-chip">Family</span><h2>More space for the whole Family</h2><strong>${{ prices.family_monthly }} <small>/ month</small></strong><p>Or ${{ prices.family_yearly }} yearly.</p><ul><li>Up to the configured Premium capacity</li><li>More admins, moderators, challenges and quizzes</li><li>Premium Family upgrades unlock immediately</li></ul><div class="button-row"><a class="button" href="{{ url_for('main.premium_checkout', plan='family', period='monthly') }}">Choose monthly</a><a class="button secondary" href="{{ url_for('main.premium_checkout', plan='family', period='yearly') }}">Choose yearly</a></div></article>{% endif %}
+  </section>
+  {% if family_rows %}<section class="card"><h2>Your Family Premium status</h2><div class="premium-family-list">{% for row in family_rows %}<span><strong>{{ row.family.name }}</strong> · {{ 'Active ' ~ row.subscription.billing_period if row.subscription else 'Free' }}</span>{% endfor %}</div></section>{% endif %}
+  {% if current_user.is_authenticated and feature_enabled('premium_verification_applications') %}<section class="card"><h2>Manual verification application</h2><p>Verification is separate from Premium. Anyone eligible can apply, and only the owner’s evidence review can approve it.</p><a class="button secondary" href="{{ url_for('main.verification_application') }}">Open application</a></section>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Verification application · RiseTogether{% endblock %}
+{% block content %}
+<section class="page-shell verification-application-page">
+  <header class="page-heading"><p class="eyebrow">Manual trust review</p><h1>Verification application</h1><p>This form organizes evidence for the platform owner. Premium does not purchase verification, priority, approval or a badge.</p></header>
+  <section class="card form-card"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Apply for<select name="subject" required><option value="personal">My identity · Verified User</option><option value="organization">My account · Official Organization</option>{% for family in eligible_families %}<option value="family:{{ family.id }}">{{ family.name }} · Trusted Family</option>{% endfor %}</select></label><label>Real evidence and reason<textarea name="statement" minlength="50" maxlength="1000" required placeholder="Explain what should be reviewed. Do not include passwords or private identity numbers."></textarea></label><button class="button" type="submit">Submit for manual review</button></form></section>
+  <section class="card"><h2>Your applications</h2><div class="point-history-list">{% for application in applications %}<article class="point-history-row"><div><strong>{{ application.family.name if application.family else 'Verified User' }}</strong><span>{{ application.created_at.strftime('%b %d, %Y') }} · {{ application.status|title }}</span>{% if application.review_note %}<small>{{ application.review_note }}</small>{% endif %}</div></article>{% else %}<p>No applications submitted.</p>{% endfor %}</div></section>
+</section>
+{% endblock %}

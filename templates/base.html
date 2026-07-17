@@ -60,7 +60,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-demotion-push-storage"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-economy-premium"
     />
     <script
       defer
@@ -69,7 +69,7 @@
     <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-demotion-push-storage"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-demotion-push-storage"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-economy-premium"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -118,6 +118,7 @@
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}
+        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇"><span>Premium</span></a>{% endif %}
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('moderation.admin_dashboard') }}" data-icon="▣"><span>{{ 'Super Admin' if current_user.admin_role == 'super_admin' else 'Admin' }}</span></a>
@@ -133,6 +134,7 @@
         <a href="{{ url_for('moderation.admin_point_transactions') }}" data-icon="✦"><span>Point ledger</span></a>
         <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Settings</span></a>
         <a href="{{ url_for('moderation.admin_feature_flags') }}" data-icon="⚑"><span>Features</span></a>
+        <a href="{{ url_for('moderation.admin_economy') }}" data-icon="◇"><span>Economy</span></a>
         {% endif %}
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" data-icon="⇥" data-logout><span>Logout</span></a>
@@ -144,6 +146,7 @@
         {% else %}
         <a href="{{ url_for('auth.login') }}">Login</a>
         <a href="{{ url_for('auth.signup') }}">Signup</a>
+        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}">Premium</a>{% endif %}
         <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
         <button class="install-button" type="button" hidden>Install</button>

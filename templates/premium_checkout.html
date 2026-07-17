@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Premium coming soon · RiseTogether{% endblock %}
+{% block content %}
+<section class="card form-card premium-checkout-card">
+  <p class="eyebrow">{{ plan|title }} Premium · {{ period|title }}</p>
+  <h1>Secure payments are coming soon</h1>
+  <p>The planned price is <strong>${{ price }} per {{ 'year' if period == 'yearly' else 'month' }}</strong>. No payment has been taken and no subscription has been created.</p>
+  <div class="alert info">We will only activate purchasing after secure payment processing, receipts, cancellation and renewal handling are ready.</div>
+  <a class="button secondary" href="{{ url_for('main.premium_plans') }}">Back to plans</a>
+</section>
+{% endblock %}

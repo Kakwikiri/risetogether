@@ -224,6 +224,8 @@
       targetUserId: {{ other.id if other else 'null' }},
       familyId: {{ family.id if family else 'null' }},
       currentUserName: '{{ current_user.username }}',
+      voiceNoteLimitMs: {{ recording_limit_seconds('audio') * 1000 }},
+      videoNoteLimitMs: {{ recording_limit_seconds('video') * 1000 }},
   };
 </script>
 {% endblock %}

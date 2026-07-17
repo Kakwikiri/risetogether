@@ -1,6 +1,6 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
 <section class="profile-page">
-  <header class="profile-hero">
+  <header class="profile-hero{% if feature_enabled('premium_profiles') and user_has_premium(user) %} profile-hero--premium{% endif %}">
     <div class="profile-identity-row">
       <div class="profile-avatar-wrap">
         <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
@@ -13,6 +13,7 @@
       <div class="profile-title-block">
         <h1>{{ profile.display_name }}{{ rise_badges(rise_user_badges(user), 'large') }}</h1>
         <p class="profile-username">@{{ user.username }}</p>
+        {% if feature_enabled('premium_profiles') and user_has_premium(user) %}<span class="premium-profile-label">Premium supporter</span>{% endif %}
       </div>
     </div>
     <p class="profile-bio">{{ profile.bio or 'No bio yet. Share your story.' }}</p>

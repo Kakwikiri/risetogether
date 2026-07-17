@@ -40,7 +40,14 @@ def award_points(*, amount, reason, source_type, source_id, unique_reward_key,
     if existing:
         return existing, False
     if repeatable and user_id is not None:
-        limit = daily_limit or DAILY_REPEATABLE_PERSONAL_LIMIT
+        if daily_limit is None:
+            from premium import economy_setting_int
+            limit = economy_setting_int(
+                "personal_reward_daily_limit", DAILY_REPEATABLE_PERSONAL_LIMIT,
+                minimum=1, maximum=100_000,
+            )
+        else:
+            limit = daily_limit
         start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         earned_today = db.session.query(
             func.coalesce(func.sum(PointTransaction.amount), 0)

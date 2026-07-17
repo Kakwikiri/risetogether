@@ -51,6 +51,7 @@ from models import (
     StreakMilestone,
     StreakActivity,
     UserStreak,
+    VerificationApplication,
     User,
 )
 from points import (
@@ -1949,7 +1950,8 @@ def point_history():
     page = max(1, page)
     family_ids = [membership.family_id for membership in current_user.family_memberships]
     visibility = []
-    if personal_enabled:
+    transfers_enabled = personal_enabled and is_feature_enabled("point_transfers")
+    if transfers_enabled:
         visibility.append(PointTransaction.user_id == current_user.id)
     if family_enabled and family_ids:
         visibility.append(PointTransaction.family_id.in_(family_ids))
@@ -2001,13 +2003,14 @@ def point_history():
         personal_enabled=personal_enabled,
         family_enabled=family_enabled,
         gift_friends=gift_friends,
+        transfers_enabled=transfers_enabled,
     )
 
 
 @main_bp.route("/points/gift", methods=["POST"])
 @login_required
 def gift_friend_points():
-    if not is_feature_enabled("personal_points"):
+    if not (is_feature_enabled("personal_points") and is_feature_enabled("point_transfers")):
         flash("Personal Points are not available yet.", "info")
         return redirect(url_for("main.point_history"))
     recipient_id = request.form.get("recipient_id", type=int)
@@ -2036,8 +2039,10 @@ def gift_friend_points():
         PointTransaction.reversed == False,
         PointTransaction.created_at >= start_of_day,
     ).count()
-    if gifts_today >= 10:
-        flash("You can share points with friends up to 10 times each day.", "warning")
+    from premium import economy_setting_int
+    transfer_limit = economy_setting_int("point_transfer_daily_limit", 10, minimum=1, maximum=100)
+    if gifts_today >= transfer_limit:
+        flash(f"You can share points with friends up to {transfer_limit} times each day.", "warning")
         return redirect(url_for("main.point_history"))
     User.query.filter(User.id.in_(sorted((current_user.id, recipient.id)))).order_by(User.id).with_for_update().all()
     gift_key = secrets.token_urlsafe(18)
@@ -2074,6 +2079,112 @@ def gift_friend_points():
         return redirect(url_for("main.point_history"))
     flash(f"You shared {amount} points with {recipient.username}.", "success")
     return redirect(url_for("main.point_history"))
+
+
+@main_bp.route("/premium")
+def premium_plans():
+    if not is_feature_enabled("premium_membership"):
+        abort(404)
+    from premium import (
+        active_family_subscription, active_user_subscription, economy_setting_int,
+        subscription_is_active,
+    )
+
+    personal_subscription = None
+    family_rows = []
+    if current_user.is_authenticated:
+        personal_subscription = active_user_subscription(current_user.id)
+        family_rows = [
+            {"family": membership.family, "subscription": active_family_subscription(membership.family_id)}
+            for membership in current_user.family_memberships
+        ]
+    prices = {
+        "personal_monthly": economy_setting_int("premium_monthly_price", 5),
+        "personal_yearly": economy_setting_int("premium_yearly_price", 50),
+        "family_monthly": economy_setting_int("premium_family_monthly_price", 12),
+        "family_yearly": economy_setting_int("premium_family_yearly_price", 120),
+    }
+    return render_template(
+        "premium.html", prices=prices, personal_subscription=personal_subscription,
+        family_rows=family_rows, subscription_is_active=subscription_is_active,
+    )
+
+
+@main_bp.route("/premium/choose/<plan>/<period>")
+@login_required
+def premium_checkout(plan, period):
+    if not is_feature_enabled("premium_membership"):
+        abort(404)
+    if plan not in {"personal", "family"} or period not in {"monthly", "yearly"}:
+        abort(404)
+    from premium import economy_setting_int
+
+    price_key = (
+        f"premium_family_{period}_price" if plan == "family"
+        else f"premium_{period}_price"
+    )
+    return render_template(
+        "premium_checkout.html", plan=plan, period=period,
+        price=economy_setting_int(price_key, 0),
+    )
+
+
+@main_bp.route("/verification/apply", methods=["GET", "POST"])
+@login_required
+def verification_application():
+    if not is_feature_enabled("premium_verification_applications"):
+        abort(404)
+    eligible_families = [
+        membership.family for membership in current_user.family_memberships
+        if membership.role in {"owner", "admin"}
+    ]
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        statement = request.form.get("statement", "").strip()
+        if len(statement) < 50 or len(statement) > 1000:
+            flash("Explain the real identity or Family evidence in 50–1,000 characters.", "warning")
+            return redirect(url_for("main.verification_application"))
+        user_id = None
+        family_id = None
+        application_type = ""
+        if subject == "personal":
+            user_id = current_user.id
+            application_type = "verified_user"
+        elif subject == "organization":
+            user_id = current_user.id
+            application_type = "official_organization"
+        elif subject.startswith("family:"):
+            try:
+                requested_family_id = int(subject.split(":", 1)[1])
+            except (TypeError, ValueError):
+                requested_family_id = 0
+            family = next((item for item in eligible_families if item.id == requested_family_id), None)
+            if family:
+                family_id = family.id
+                application_type = "trusted_family"
+        if not application_type:
+            abort(403)
+        existing = VerificationApplication.query.filter_by(
+            user_id=user_id, family_id=family_id,
+            application_type=application_type, status="pending"
+        ).first()
+        if existing:
+            flash("A verification application for this subject is already awaiting review.", "info")
+            return redirect(url_for("main.verification_application"))
+        db.session.add(VerificationApplication(
+            user_id=user_id, family_id=family_id, submitted_by_id=current_user.id,
+            application_type=application_type, statement=statement, status="pending",
+        ))
+        db.session.commit()
+        flash("Application submitted for manual review. Premium does not guarantee verification.", "success")
+        return redirect(url_for("main.verification_application"))
+    applications = VerificationApplication.query.filter_by(
+        submitted_by_id=current_user.id
+    ).order_by(VerificationApplication.created_at.desc()).all()
+    return render_template(
+        "verification_application.html", eligible_families=eligible_families,
+        applications=applications,
+    )
 
 
 @main_bp.route("/notification/mark-read/<int:notification_id>", methods=["POST"])

@@ -357,6 +357,91 @@ class Family(db.Model):
     )
 
 
+class PremiumSubscription(db.Model):
+    __tablename__ = "premium_subscriptions"
+    __table_args__ = (
+        db.CheckConstraint(
+            "(user_id IS NOT NULL AND family_id IS NULL) OR "
+            "(user_id IS NULL AND family_id IS NOT NULL)",
+            name="ck_premium_subscription_one_subject",
+        ),
+        db.CheckConstraint(
+            "plan IN ('personal','family')", name="ck_premium_subscription_plan"
+        ),
+        db.CheckConstraint(
+            "billing_period IN ('monthly','yearly','lifetime')",
+            name="ck_premium_subscription_period",
+        ),
+        db.CheckConstraint(
+            "status IN ('active','expired','cancelled')",
+            name="ck_premium_subscription_status",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    family_id = db.Column(
+        db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    plan = db.Column(db.String(20), nullable=False)
+    billing_period = db.Column(db.String(20), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)
+    status = db.Column(db.String(20), default="active", nullable=False, index=True)
+    auto_renew = db.Column(db.Boolean, default=False, nullable=False)
+    granted_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    user = db.relationship(
+        "User", foreign_keys=[user_id],
+        backref=db.backref("premium_subscriptions", lazy="dynamic", cascade="all, delete-orphan"),
+    )
+    family = db.relationship(
+        "Family", foreign_keys=[family_id],
+        backref=db.backref("premium_subscriptions", lazy="dynamic", cascade="all, delete-orphan"),
+    )
+    granted_by = db.relationship("User", foreign_keys=[granted_by_id])
+
+
+class VerificationApplication(db.Model):
+    __tablename__ = "verification_applications"
+    __table_args__ = (
+        db.CheckConstraint(
+            "(user_id IS NOT NULL AND family_id IS NULL) OR "
+            "(user_id IS NULL AND family_id IS NOT NULL)",
+            name="ck_verification_application_one_subject",
+        ),
+        db.CheckConstraint(
+            "application_type IN ('verified_user','official_organization','trusted_family')",
+            name="ck_verification_application_type",
+        ),
+        db.CheckConstraint(
+            "status IN ('pending','approved','rejected','withdrawn')",
+            name="ck_verification_application_status",
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    family_id = db.Column(db.Integer, db.ForeignKey("families.id", ondelete="CASCADE"), nullable=True, index=True)
+    submitted_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    application_type = db.Column(db.String(32), nullable=False)
+    statement = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    review_note = db.Column(db.String(500), default="", nullable=False)
+    user = db.relationship("User", foreign_keys=[user_id])
+    family = db.relationship("Family", foreign_keys=[family_id])
+    submitted_by = db.relationship("User", foreign_keys=[submitted_by_id])
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+
+
 class FamilyUpgradePurchase(db.Model):
     __tablename__ = "family_upgrade_purchases"
     __table_args__ = (

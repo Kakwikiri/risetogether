@@ -2,7 +2,7 @@ import secrets
 from collections import Counter
 from datetime import datetime, timedelta
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, fresh_login_required, login_required
 
 from extensions import db
@@ -15,9 +15,11 @@ from feature_flags import (
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
     AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, HelpRequest, Notification,
-    PointSecurityEvent, PointTransaction, Post, Report, RiseBadgeAssignment, SiteSetting, User,
+    PointSecurityEvent, PointTransaction, Post, PremiumSubscription, Report, RiseBadgeAssignment, SiteSetting, User, VerificationApplication,
 )
+from notifications_service import smart_notify
 from points import reverse_completion_rewards_for_user, reverse_reward_group
+from premium import ECONOMY_DEFAULTS, economy_setting_int, subscription_is_active
 from ownership import is_platform_owner, platform_owner_username
 
 mod_bp = Blueprint("moderation", __name__)
@@ -34,6 +36,15 @@ ADMIN_ROLE_RANK = {
     "moderator": 1,
     "": 0,
 }
+
+ECONOMY_FEATURE_FLAGS = (
+    "personal_points", "family_points", "family_xp", "family_levels", "family_upgrades",
+    "point_transfers", "contribution_campaigns", "premium_membership", "premium_families",
+    "premium_profiles", "premium_storage", "premium_upload_limits", "premium_themes",
+    "premium_analytics", "premium_challenges", "premium_verification_applications",
+    "premium_beta_testing",
+    "weekly_reports", "daily_checkins", "achievement_posts",
+)
 
 
 def website_role(user):
@@ -152,6 +163,213 @@ def admin_dashboard():
         recent_reports=recent_reports,
         recent_help_requests=recent_help_requests,
     )
+
+
+@mod_bp.route("/admin/economy", methods=["GET", "POST"])
+@fresh_login_required
+def admin_economy():
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    if request.method == "POST":
+        for name in ECONOMY_FEATURE_FLAGS:
+            setting = SiteSetting.query.get(feature_flag_key(name)) or SiteSetting(
+                key=feature_flag_key(name)
+            )
+            setting.value = "true" if request.form.get(name) == "1" else "false"
+            db.session.add(setting)
+        for key, default in ECONOMY_DEFAULTS.items():
+            try:
+                value = int(request.form.get(key, default))
+            except (TypeError, ValueError):
+                flash(f"{key.replace('_', ' ').title()} must be a whole number.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            if value < 0 or value > 10_000_000:
+                flash("Economy settings must be between 0 and 10,000,000.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            setting = SiteSetting.query.get(f"economy.{key}") or SiteSetting(key=f"economy.{key}")
+            setting.value = str(value)
+            db.session.add(setting)
+        for upgrade_key in request.form.getlist("upgrade_key"):
+            try:
+                cost = int(request.form.get(f"upgrade_cost_{upgrade_key}", ""))
+            except (TypeError, ValueError):
+                flash("Every upgrade cost must be a whole number.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            if cost < 1 or cost > 10_000_000:
+                flash("Upgrade costs must be between 1 and 10,000,000 points.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            setting = SiteSetting.query.get(f"economy.upgrade_cost.{upgrade_key}") or SiteSetting(
+                key=f"economy.upgrade_cost.{upgrade_key}"
+            )
+            setting.value = str(cost)
+            db.session.add(setting)
+        for tier in ("small", "easy", "medium", "hard", "major"):
+            try:
+                reward = int(request.form.get(f"challenge_reward_{tier}", ""))
+            except (TypeError, ValueError):
+                flash("Challenge rewards must be whole numbers.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            if reward < 1 or reward > 10_000:
+                flash("Challenge rewards must be between 1 and 10,000 points.", "warning")
+                return redirect(url_for("moderation.admin_economy"))
+            setting = SiteSetting.query.get(f"challenge_reward_{tier}") or SiteSetting(
+                key=f"challenge_reward_{tier}"
+            )
+            setting.value = str(reward)
+            db.session.add(setting)
+        record_admin_audit(
+            "economy_settings_change",
+            reason="Updated RiseTogether economy controls",
+            metadata_text="Feature switches, limits, prices, and upgrade costs were updated.",
+        )
+        db.session.commit()
+        flash("Economy controls updated.", "success")
+        return redirect(url_for("moderation.admin_economy"))
+    from family_upgrades import configured_upgrade_catalog
+    from routes.family import challenge_reward_values
+
+    flags = get_feature_flags()
+    settings = {key: economy_setting_int(key) for key in ECONOMY_DEFAULTS}
+    subscriptions = PremiumSubscription.query.order_by(
+        PremiumSubscription.purchased_at.desc()
+    ).limit(100).all()
+    verification_applications = VerificationApplication.query.filter_by(status="pending").order_by(
+        VerificationApplication.created_at.asc()
+    ).all()
+    return render_template(
+        "admin_economy.html", flags=flags, economy_flags=ECONOMY_FEATURE_FLAGS,
+        definitions=FEATURE_FLAG_DEFINITIONS, settings=settings,
+        upgrades=configured_upgrade_catalog(), subscriptions=subscriptions,
+        challenge_rewards=challenge_reward_values(),
+        verification_applications=verification_applications,
+        subscription_is_active=subscription_is_active,
+    )
+
+
+@mod_bp.route("/admin/economy/subscriptions", methods=["POST"])
+@fresh_login_required
+def grant_premium_subscription():
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    if not is_feature_enabled("premium_beta_testing"):
+        flash("Enable Premium beta testing before granting test access.", "warning")
+        return redirect(url_for("moderation.admin_economy"))
+    subject_type = request.form.get("subject_type", "").strip()
+    identifier = request.form.get("identifier", "").strip()
+    period = request.form.get("billing_period", "").strip()
+    if subject_type not in {"personal", "family"} or period not in {"monthly", "yearly", "lifetime"}:
+        flash("Choose a valid premium subject and billing period.", "warning")
+        return redirect(url_for("moderation.admin_economy"))
+    user = None
+    family = None
+    if subject_type == "personal":
+        user = User.query.filter(db.func.lower(User.username) == identifier.lower()).first()
+        if not user:
+            flash("No user was found with that username.", "warning")
+            return redirect(url_for("moderation.admin_economy"))
+    else:
+        family = Family.query.filter(db.func.lower(Family.name) == identifier.lower()).first()
+        if not family:
+            flash("No Family was found with that exact name.", "warning")
+            return redirect(url_for("moderation.admin_economy"))
+    now = datetime.utcnow()
+    expires_at = None if period == "lifetime" else now + timedelta(days=30 if period == "monthly" else 365)
+    query = PremiumSubscription.query.filter_by(plan=subject_type, status="active")
+    query = query.filter_by(user_id=user.id) if user else query.filter_by(family_id=family.id)
+    for existing in query.all():
+        existing.status = "cancelled"
+        existing.auto_renew = False
+    subscription = PremiumSubscription(
+        user_id=user.id if user else None, family_id=family.id if family else None,
+        plan=subject_type, billing_period=period, purchased_at=now,
+        expires_at=expires_at, status="active", auto_renew=False,
+        granted_by_id=current_user.id,
+    )
+    db.session.add(subscription)
+    record_admin_audit(
+        "premium_beta_granted", target_user=user, target_family=family,
+        reason=f"Granted {period} {subject_type} Premium for beta testing.",
+    )
+    db.session.commit()
+    flash("Premium beta access granted. No payment was recorded.", "success")
+    return redirect(url_for("moderation.admin_economy"))
+
+
+@mod_bp.route("/admin/economy/subscriptions/<int:subscription_id>/cancel", methods=["POST"])
+@fresh_login_required
+def cancel_premium_subscription(subscription_id):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    subscription = PremiumSubscription.query.get_or_404(subscription_id)
+    subscription.status = "cancelled"
+    subscription.auto_renew = False
+    record_admin_audit(
+        "premium_cancelled", target_user=subscription.user, target_family=subscription.family,
+        reason="Premium beta access cancelled by the platform owner.",
+    )
+    db.session.commit()
+    flash("Premium access cancelled.", "success")
+    return redirect(url_for("moderation.admin_economy"))
+
+
+@mod_bp.route("/admin/economy/verification/<int:application_id>/<action>", methods=["POST"])
+@fresh_login_required
+def review_verification_application(application_id, action):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    application = VerificationApplication.query.filter_by(
+        id=application_id, status="pending"
+    ).first_or_404()
+    if action not in {"approve", "reject"}:
+        abort(404)
+    review_note = request.form.get("review_note", "").strip()
+    if len(review_note) < 10 or len(review_note) > 500:
+        flash("Add a review note between 10 and 500 characters.", "warning")
+        return redirect(url_for("moderation.admin_economy"))
+    now = datetime.utcnow()
+    if action == "approve":
+        badge_type = {
+            "verified_user": "verified_person",
+            "official_organization": "official_organization",
+            "trusted_family": "trusted_family",
+        }[application.application_type]
+        assignment = RiseBadgeAssignment.query.filter_by(
+            badge_type=badge_type, user_id=application.user_id, family_id=application.family_id
+        ).first()
+        if not assignment:
+            assignment = RiseBadgeAssignment(
+                badge_type=badge_type, user_id=application.user_id,
+                family_id=application.family_id, verification_note=review_note,
+            )
+            db.session.add(assignment)
+        assignment.status = "active"
+        assignment.verification_note = review_note
+        assignment.assigned_by_id = current_user.id
+        assignment.assigned_at = now
+        assignment.expires_at = now + timedelta(days=365)
+        assignment.revoked_at = None
+        application.status = "approved"
+    else:
+        application.status = "rejected"
+    application.review_note = review_note
+    application.reviewed_at = now
+    application.reviewed_by_id = current_user.id
+    recipient_id = application.submitted_by_id
+    record_admin_audit(
+        "verification_application_reviewed", target_user=application.user,
+        target_family=application.family, reason=review_note,
+        metadata_text=f"Decision: {application.status}. Premium did not determine the outcome.",
+    )
+    if recipient_id:
+        smart_notify(
+            user_id=recipient_id, category="admin_warning",
+            message=f"Your verification application was {application.status} after manual review.",
+            action_url=url_for("main.verification_application"),
+            dedupe_key=f"verification-application:{application.id}:{application.status}",
+        )
+    db.session.commit()
+    flash(f"Verification application {application.status}.", "success")
+    return redirect(url_for("moderation.admin_economy"))
 
 
 @mod_bp.route("/report/user/<int:user_id>", methods=["POST"])

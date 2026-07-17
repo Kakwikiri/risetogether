@@ -14,7 +14,7 @@
         </span>
         <h2>{{ family.name }}{{ rise_badges(rise_family_badges(family), 'large') }}</h2>
         <p class="muted-meta">
-          {{ active_member_count }} / {{ effective_member_limit }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
+          {{ active_member_count }} / {{ effective_member_limit_label }} members · {{ family.privacy|replace('_', ' ')|capitalize }} · {{ 'Active' if family.is_active else 'Paused' }}
           {% if family_is_full %} · Family is full{% endif %}
         </p>
         {% if feature_enabled('family_levels') %}<div class="family-header-level">{{ family_level_badge(family_level.level, family_level.name) }}</div>{% endif %}
@@ -72,7 +72,7 @@
 
   <section id="family-home" class="family-section" data-family-panel data-family-panel-group="home">
     <div class="family-welcome"><p class="eyebrow">Family Home</p><h3>{{ dashboard_greeting }}, {{ current_user.profile.display_name if current_user.profile and current_user.profile.display_name else current_user.username }}.</h3><p>Here’s what your family is growing through today.</p></div>
-    {% if feature_enabled('family_levels') %}
+    {% if feature_enabled('family_xp') and feature_enabled('family_levels') %}
     <section class="family-level-card" aria-label="{{ family.name }} Family level">
       <div class="family-level-card__heading"><div><p class="eyebrow">Growing together</p><h4>{{ family_level_badge(family_level.level, family_level.name) }}</h4></div><div class="family-level-card__balances">{{ point_badge(family_level.lifetime_xp, 'lifetime XP') }}{% if feature_enabled('family_points') %}{{ point_badge(family_level.available_points, 'available Family Points') }}{% endif %}</div></div>
       {{ progress_bar(family_level.progress_percent, family.name ~ ' progress to level ' ~ (family_level.level + 1)) }}
@@ -95,7 +95,7 @@
       {% if feature_enabled('weekly_reports') %}<a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.latest_weekly_family_report', family_id=family.id) }}"><span class="dashboard-icon">☼</span><h4>Weekly Family Report</h4><p>A warm reflection on how your Family grew together last week.</p></a>{% endif %}
       {% if member %}<a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_memories', family_id=family.id) }}"><span class="dashboard-icon">♡</span><h4>Family memories</h4><p>Revisit milestones created from this Family’s real history.</p></a>{% endif %}
       <a class="family-dashboard-panel dashboard-link" href="#family-members" data-family-tab><span class="dashboard-icon">+</span><h4>New Members</h4><p>{% if dashboard_new_members %}Welcome {{ dashboard_new_members|map(attribute='user.username')|join(', ') }}.{% else %}No new arrivals this week.{% endif %}</p></a>
-      <section class="family-dashboard-panel"><span class="dashboard-icon">✦</span><h4>Family Level Progress</h4><p>Level {{ family_level.level }} · {{ family_level.name }} · {{ family_level.progress_percent }}% toward the next level.</p></section>
+      {% if feature_enabled('family_xp') and feature_enabled('family_levels') %}<section class="family-dashboard-panel"><span class="dashboard-icon">✦</span><h4>Family Level Progress</h4><p>Level {{ family_level.level }} · {{ family_level.name }} · {{ family_level.progress_percent }}% toward the next level.</p></section>{% endif %}
       <a class="family-dashboard-panel dashboard-link" href="{{ url_for('family.family_upgrades', family_id=family.id) if feature_enabled('family_upgrades') else '#family-home' }}" data-family-tab><span class="dashboard-icon">◇</span><h4>Upgrade Campaign</h4><p>{% if dashboard_campaign %}{{ dashboard_campaign.upgrade.get('name', 'Family upgrade') }} · {{ dashboard_campaign.remaining }} points remaining.{% else %}No active campaign. Grow at your own pace.{% endif %}</p></a>
       <section class="family-dashboard-panel"><span class="dashboard-icon">☆</span><h4>Top Supporter of the Week</h4><p>{% if dashboard_top_supporter %}{{ dashboard_top_supporter.membership.user.username }} has been showing up for the Family.{% else %}Kind support this week can begin with anyone.{% endif %}</p></section>
     </div>

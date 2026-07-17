@@ -55,7 +55,7 @@
       <span>
         {% set capacity = capacity_by_family.get(family.id) %}
         {{ family.category|replace('_', ' ')|title }} ·
-        {{ capacity.member_count if capacity else family.members.count() }} / {{ capacity.member_limit if capacity else family.member_limit }} members ·
+        {{ capacity.member_count if capacity else family.members.count() }} / {{ capacity.member_limit_label if capacity else family.member_limit }} members ·
         {{ family.privacy|replace('_', ' ')|capitalize }}
         {% if capacity and capacity.is_full %} · Family is full{% endif %}
       </span>

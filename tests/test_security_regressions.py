@@ -124,12 +124,13 @@ class SecurityRegressionTests(unittest.TestCase):
             "custom_banner", "pinned_announcements", "challenge_slots", "family_gallery",
             "quiz_slots", "extra_themes", "advanced_statistics", "custom_badge_frame",
             "celebration_certificates",
-            "capacity_75", "capacity_100", "capacity_150", "capacity_250",
+            "extra_admins", "extra_moderators", "family_calendar", "resource_library",
+            "capacity_75", "capacity_100", "capacity_150", "capacity_250", "capacity_500",
         }
         self.assertEqual(set(UPGRADE_CATALOG), expected)
-        capacity_costs = [UPGRADE_CATALOG[f"capacity_{size}"]["cost"] for size in (75, 100, 150, 250)]
+        capacity_costs = [UPGRADE_CATALOG[f"capacity_{size}"]["cost"] for size in (75, 100, 150, 250, 500)]
         self.assertEqual(capacity_costs, sorted(capacity_costs))
-        self.assertEqual([UPGRADE_CATALOG[f"capacity_{size}"]["capacity"] for size in (75, 100, 150, 250)], [75, 100, 150, 250])
+        self.assertEqual([UPGRADE_CATALOG[f"capacity_{size}"]["capacity"] for size in (75, 100, 150, 250, 500)], [75, 100, 150, 250, 500])
 
     def test_stage_seventeen_purchases_are_atomic_unique_and_server_priced(self):
         constraint_columns = {
@@ -140,7 +141,7 @@ class SecurityRegressionTests(unittest.TestCase):
         family_source = (ROOT / "routes/family.py").read_text()
         point_source = (ROOT / "points.py").read_text()
         self.assertIn("with_for_update()", family_source)
-        self.assertIn('definition = UPGRADE_CATALOG.get(upgrade_key)', family_source)
+        self.assertIn('definition = upgrade_definition(upgrade_key)', family_source)
         self.assertIn('unique_reward_key=f"family_upgrade:{family.id}:{upgrade_key}"', family_source)
         self.assertIn("def spend_family_points", point_source)
         self.assertIn('transaction_kind="spend"', point_source)
@@ -479,6 +480,11 @@ class SecurityRegressionTests(unittest.TestCase):
             "anonymous_support_posts",
             "media_autoplay",
             "family_leaderboards",
+            "family_xp", "point_transfers", "contribution_campaigns",
+            "premium_membership", "premium_families", "premium_profiles",
+            "premium_storage", "premium_upload_limits", "premium_themes",
+            "premium_analytics", "premium_challenges",
+            "premium_verification_applications", "premium_beta_testing",
         }
         self.assertEqual(set(FEATURE_FLAG_DEFINITIONS), expected)
         defaults = default_feature_flags()

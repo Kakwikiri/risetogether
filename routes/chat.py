@@ -498,7 +498,9 @@ def upload_message_file():
         return jsonify({"error": upload_message}), 400
     filename = save_media(media_file)
     if not filename:
-        return jsonify({"error": "Upload failed. Videos must be valid and 3 minutes or shorter."}), 400
+        from premium import recording_limit_seconds
+        limit_minutes = max(1, recording_limit_seconds(media_kind or get_media_type(media_file.filename)) // 60)
+        return jsonify({"error": f"Upload failed. Recordings must be valid and {limit_minutes} minutes or shorter."}), 400
     media_type = media_kind if media_kind in {"audio", "video"} else get_media_type(filename)
     message = Message(
         sender_id=current_user.id,

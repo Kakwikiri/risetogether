@@ -31,7 +31,8 @@ class FamilyFinalPolishTests(unittest.TestCase):
             self.assertEqual(helpers.video_duration_seconds("sample.mp4"), 180)
         self.assertEqual(helpers.MAX_VIDEO_DURATION_SECONDS, 180)
         socket_js = (ROOT / "static/js/socket.js").read_text()
-        self.assertIn("}, 180000);", socket_js)
+        self.assertIn("chatConfig.voiceNoteLimitMs", socket_js)
+        self.assertIn("chatConfig.videoNoteLimitMs", socket_js)
 
     def test_family_tabs_and_media_do_not_overflow(self):
         css = (ROOT / "static/css/styles.css").read_text()

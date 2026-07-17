@@ -1,4 +1,4 @@
-from models import FamilyUpgradePurchase
+from models import FamilyUpgradePurchase, SiteSetting
 
 
 UPGRADE_CATALOG = {
@@ -11,11 +11,42 @@ UPGRADE_CATALOG = {
     "advanced_statistics": {"name": "Advanced family statistics", "cost": 800, "description": "See deeper participation and completion insights."},
     "custom_badge_frame": {"name": "Custom family badge frame", "cost": 500, "description": "Give the Family avatar a distinctive growth frame."},
     "celebration_certificates": {"name": "Celebration certificates", "cost": 550, "description": "Add a warm decorative frame to certificates earned through this Family's challenges."},
+    "extra_admins": {"name": "More Family admins", "cost": 700, "description": "Add two more Family admin places."},
+    "extra_moderators": {"name": "More Family moderators", "cost": 600, "description": "Add five more Family moderator places."},
+    "family_calendar": {"name": "Family calendar", "cost": 750, "description": "Shared planning calendar.", "implemented": False},
+    "resource_library": {"name": "Resource library", "cost": 900, "description": "Space for pinned Family resources.", "implemented": False},
     "capacity_75": {"name": "Capacity: 75 members", "cost": 1000, "description": "Increase member capacity from 50 to 75.", "capacity": 75},
     "capacity_100": {"name": "Capacity: 100 members", "cost": 1800, "description": "Increase member capacity from 75 to 100.", "capacity": 100},
     "capacity_150": {"name": "Capacity: 150 members", "cost": 3000, "description": "Increase member capacity from 100 to 150.", "capacity": 150},
     "capacity_250": {"name": "Capacity: 250 members", "cost": 5000, "description": "Increase member capacity from 150 to 250.", "capacity": 250},
+    "capacity_500": {"name": "Capacity: 500 members", "cost": 8000, "description": "Increase member capacity from 250 to 500.", "capacity": 500},
 }
+
+PREMIUM_FAMILY_UPGRADES = frozenset(UPGRADE_CATALOG)
+PREMIUM_UPGRADE_FLAGS = {
+    "extra_themes": "premium_themes",
+    "advanced_statistics": "premium_analytics",
+    "challenge_slots": "premium_challenges",
+}
+
+
+def configured_upgrade_catalog():
+    keys = [f"economy.upgrade_cost.{key}" for key in UPGRADE_CATALOG]
+    settings = {row.key: row.value for row in SiteSetting.query.filter(SiteSetting.key.in_(keys)).all()}
+    catalog = {}
+    for key, definition in UPGRADE_CATALOG.items():
+        item = dict(definition)
+        try:
+            configured_cost = int(settings.get(f"economy.upgrade_cost.{key}", item["cost"]))
+        except (TypeError, ValueError):
+            configured_cost = item["cost"]
+        item["cost"] = max(1, min(10_000_000, configured_cost))
+        catalog[key] = item
+    return catalog
+
+
+def upgrade_definition(upgrade_key):
+    return configured_upgrade_catalog().get(upgrade_key)
 
 
 def purchased_upgrade_keys(family_id):
@@ -25,9 +56,21 @@ def purchased_upgrade_keys(family_id):
 
 
 def family_has_upgrade(family_id, upgrade_key):
-    return FamilyUpgradePurchase.query.filter_by(
+    purchased = FamilyUpgradePurchase.query.filter_by(
         family_id=family_id, upgrade_key=upgrade_key
     ).first() is not None
+    if purchased:
+        return True
+    if upgrade_key not in PREMIUM_FAMILY_UPGRADES:
+        return False
+    from feature_flags import is_feature_enabled
+    required_flag = PREMIUM_UPGRADE_FLAGS.get(upgrade_key)
+    if required_flag and not is_feature_enabled(required_flag):
+        return False
+    from models import Family
+    from premium import family_has_premium
+
+    return family_has_premium(Family.query.get(family_id))
 
 
 def active_challenge_limit(family_id):
@@ -43,12 +86,12 @@ def pinned_announcement_limit(family_id):
 
 
 def next_capacity_target(current_capacity):
-    return next((value for value in (75, 100, 150, 250) if value > current_capacity), None)
+    return next((value for value in (75, 100, 150, 250, 500) if value > current_capacity), None)
 
 
 def upgrade_is_available(family, upgrade_key):
     definition = UPGRADE_CATALOG.get(upgrade_key)
-    if not definition or family_has_upgrade(family.id, upgrade_key):
+    if not definition or not definition.get("implemented", True) or family_has_upgrade(family.id, upgrade_key):
         return False
     capacity = definition.get("capacity")
     return capacity is None or capacity == next_capacity_target(family.member_limit or 50)

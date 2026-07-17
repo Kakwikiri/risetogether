@@ -2315,6 +2315,30 @@ textarea:focus {
   .point-gift-form { grid-template-columns: 1fr; }
   .point-gift-note { grid-column: auto; }
 }
+.premium-page, .economy-admin-page { width: min(1120px, 100%); margin-inline: auto; }
+.premium-heading { max-width: 760px; }
+.premium-principles { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 1rem 0; }
+.premium-principles span { padding: 0.45rem 0.7rem; color: var(--brand-dark); background: var(--soft); border-radius: 999px; font-weight: 800; }
+.premium-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.premium-plan-card { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.premium-plan-card.is-featured { border: 2px solid var(--brand); }
+.profile-hero--premium .profile-hero-avatar { outline: 4px double #d4a72c; outline-offset: 4px; }
+.premium-profile-label { display: inline-flex; width: fit-content; padding: 0.28rem 0.55rem; color: #7c4a03; background: #fff3c4; border: 1px solid #e4bd55; border-radius: 999px; font-size: 0.72rem; font-weight: 900; }
+.premium-plan-card h2, .premium-plan-card p { margin: 0; }
+.premium-plan-card > strong { color: var(--brand-dark); font-size: 1.8rem; }
+.premium-plan-card > strong small { color: var(--muted); font-size: 0.85rem; }
+.premium-plan-card ul { flex: 1; margin: 0; padding-left: 1.2rem; color: var(--muted); }
+.premium-family-list, .subscription-admin-list { display: grid; gap: 0.6rem; }
+.premium-checkout-card { width: min(620px, 100%); margin-inline: auto; }
+.economy-admin-form { display: grid; gap: 1rem; }
+.economy-setting-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem; }
+.economy-grant-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 0.75rem; align-items: end; }
+.subscription-admin-list article { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 0.7rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.subscription-admin-list article > div { display: grid; gap: 0.15rem; }
+.subscription-admin-list span { color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 760px) {
+  .premium-plan-grid, .economy-grant-form { grid-template-columns: 1fr; }
+}
 @media (max-width: 560px) {
   .achievement-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .achievement-certificate-footer { display: grid; }

@@ -130,11 +130,9 @@ def get_media_type(filename):
 
 
 def get_upload_limit(media_type):
-    if media_type == "image":
-        return current_app.config["IMAGE_UPLOAD_LIMIT"]
-    if media_type == "video":
-        return current_app.config["VIDEO_UPLOAD_LIMIT"]
-    return current_app.config["FILE_UPLOAD_LIMIT"]
+    from premium import upload_limit_for
+
+    return upload_limit_for(media_type)
 
 
 def file_size(file):
@@ -531,7 +529,8 @@ def save_media(file):
         optimize_image_for_storage(destination, filename)
     elif media_type == "video":
         duration = video_duration_seconds(destination)
-        if duration is None or duration > MAX_VIDEO_DURATION_SECONDS:
+        from premium import recording_limit_seconds
+        if duration is None or duration > recording_limit_seconds("video"):
             try:
                 os.remove(destination)
             except OSError:
@@ -546,6 +545,15 @@ def save_media(file):
                 except OSError:
                     pass
             filename = converted_filename
+    elif media_type == "audio":
+        from premium import recording_limit_seconds
+        duration = video_duration_seconds(destination)
+        if duration is None or duration > recording_limit_seconds("audio"):
+            try:
+                os.remove(destination)
+            except OSError:
+                pass
+            return None
     final_path = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
     if os.path.exists(final_path) and os.path.getsize(final_path) > get_upload_limit(get_media_type(filename)):
         try:
