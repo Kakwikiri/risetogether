@@ -20,7 +20,7 @@
         <input type="search" name="q" value="{{ query }}" placeholder="Search videos..." />
         <button class="icon-button" type="submit" aria-label="Search videos">⌕</button>
       </form>
-      <a class="icon-button" href="{{ url_for('main.home') }}" aria-label="Upload video">+</a>
+      <a class="icon-button" href="#share-story" aria-label="Upload video" data-video-composer-open>+</a>
       <a class="icon-button" href="#trending-videos" aria-label="Trending videos">★</a>
     </div>
     {% endif %}
@@ -30,7 +30,7 @@
     {% if daily_reasons %}<section class="daily-reasons"><p class="eyebrow">A reason to return today</p>{% for reason in daily_reasons %}<a href="{{ reason.url }}">{{ reason.text }}</a>{% endfor %}</section>{% endif %}
     {% if encouragement_suggestions %}<section class="needs-you-today"><div><p class="eyebrow">They may need you today</p><h3>A gentle chance to show up</h3></div>{% for suggestion in encouragement_suggestions %}<a href="{{ url_for('family.family_encouragement', family_id=suggestion.family_id) }}#encouragement-{{ suggestion.id }}"><img src="{{ user_avatar_url(suggestion.requester) }}" alt="" /><span><strong>{{ suggestion.requester.profile.display_name }}</strong><small>Asked for encouragement in {{ suggestion.family.name }}</small></span></a>{% endfor %}</section>{% endif %}
     {% if feature_enabled('daily_checkins') %}<aside class="daily-checkin-prompt"><div><span aria-hidden="true">♡</span><div><strong>How are you feeling today?</strong><p>A private moment to notice what’s here.</p></div></div><a class="button secondary" href="{{ url_for('main.daily_checkins') }}">Check in</a></aside>{% endif %}
-    <section class="composer-card" data-mobile-composer data-supportive-prompts='{{ supportive_prompts|tojson }}'>
+    <section class="composer-card" id="share-story" data-mobile-composer data-supportive-prompts='{{ supportive_prompts|tojson }}'>
       <h3>Share your story</h3>
       <button class="mobile-composer-trigger" type="button" data-composer-open>
         <img

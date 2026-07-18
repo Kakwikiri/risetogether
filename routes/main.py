@@ -365,7 +365,11 @@ def feed_new_count():
         row.blocked_id for row in Block.query.filter_by(blocker_id=current_user.id).all()
     }
     candidates = (
-        Post.query.filter(Post.id > after_id, Post.user_id.notin_(hidden_ids))
+        Post.query.filter(
+            Post.id > after_id,
+            Post.user_id != current_user.id,
+            Post.user_id.notin_(hidden_ids),
+        )
         .order_by(Post.id.desc()).limit(100).all()
     )
     visible = [post for post in candidates if can_view_post(post)]

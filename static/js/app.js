@@ -655,6 +655,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 14000);
     }
   });
+  document.querySelectorAll("[data-video-composer-open]").forEach((shortcut) => {
+    shortcut.addEventListener("click", (event) => {
+      event.preventDefault();
+      const composer = document.querySelector("[data-mobile-composer]");
+      composer?.querySelector("[data-composer-open]")?.click();
+      const input = composer?.querySelector("[data-media-input]");
+      if (!input) return;
+      const originalAccept = input.accept;
+      input.accept = "video/*";
+      input.click();
+      window.setTimeout(() => { input.accept = originalAccept; }, 1200);
+    });
+  });
 
   document.querySelectorAll("[data-post-copy]").forEach((copy) => {
     const content = copy.querySelector(".post-content");
