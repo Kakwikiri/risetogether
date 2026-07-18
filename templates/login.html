@@ -1,15 +1,22 @@
 {% extends 'base.html' %} {% block content %}
-<section class="auth-shell">
+<section class="auth-shell auth-shell--branded">
+  <aside class="auth-story" aria-label="RiseTogether welcome">
+    <img src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="" />
+    <p class="eyebrow">Come as you are</p>
+    <h2>Your people and progress are waiting.</h2>
+    <p>Return to honest conversations, shared goals, and encouragement without pressure.</p>
+    <div><span>♡ Be heard</span><span>⌁ Belong somewhere</span><span>✦ Keep growing</span></div>
+  </aside>
   <div class="auth-card">
     <div class="auth-intro">
       <span class="eyebrow">RiseTogether</span>
       <h1>Welcome back</h1>
       <p>Inspire someone. Get inspired. Continue sharing support and hope.</p>
     </div>
-    <form action="" method="post" class="stacked-form">
+    <form action="{{ url_for('auth.login') }}" method="post" class="stacked-form" data-auth-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <label for="email">Username or email</label>
-      <input id="email" type="text" name="email" required autocomplete="username" />
+      <input id="email" type="text" name="email" required autocomplete="username" autocapitalize="none" spellcheck="false" />
       <label for="password">Password</label>
       <div class="password-field">
         <input

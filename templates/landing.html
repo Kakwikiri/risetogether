@@ -1,23 +1,30 @@
 {% extends 'base.html' %} {% block content %}
-<section class="hero">
-  <div>
-    <p class="eyebrow">RiseTogether</p>
-    <h1>You matter here.</h1>
-    <p>
-      A warm community for honest stories, encouragement, growth, and safe conversations with people who remember what matters.
+<section class="hero landing-stage">
+  <div class="landing-copy">
+    <p class="landing-kicker"><span aria-hidden="true">♡</span> A calmer kind of social community</p>
+    <h1>Life feels lighter when we <span>rise together.</span></h1>
+    <p class="landing-lead">
+      Share honestly, find people who listen, and grow inside supportive Families where encouragement and real progress matter.
     </p>
-    <div class="cta-buttons">
-      <a class="button" href="{{ url_for('auth.signup') }}">Join Free</a>
-      <a class="button secondary" href="{{ url_for('auth.login') }}">Login</a>
+    <div class="cta-buttons landing-actions">
+      <a class="button landing-primary-action" href="{{ url_for('auth.signup') }}">Find your people <span aria-hidden="true">→</span></a>
+      <a class="button secondary" href="{{ url_for('auth.login') }}">Welcome back</a>
+    </div>
+    <div class="landing-values" aria-label="RiseTogether values">
+      <span>Real connection</span><span>No popularity pressure</span><span>Privacy by choice</span>
     </div>
   </div>
-  <div class="hero-notes">
-    <ul>
-      <li>Be heard without judgment</li>
-      <li>Grow with a supportive Family</li>
-      <li>Remember meaningful moments</li>
-      <li>Offer encouragement that counts</li>
-    </ul>
+  <div class="connection-canvas" aria-label="A preview of the supportive RiseTogether experience">
+    <span class="connection-glow connection-glow--one" aria-hidden="true"></span>
+    <span class="connection-glow connection-glow--two" aria-hidden="true"></span>
+    <div class="connection-center">
+      <img src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="" />
+      <strong>You belong here</strong>
+      <small>Grow · connect · encourage</small>
+    </div>
+    <article class="connection-note connection-note--one"><span>♡</span><div><strong>Someone listened</strong><small>Your story was received with care.</small></div></article>
+    <article class="connection-note connection-note--two"><span>✦</span><div><strong>Progress remembered</strong><small>Small steps still count here.</small></div></article>
+    <article class="connection-note connection-note--three"><span>⌁</span><div><strong>Families grow together</strong><small>Goals feel easier with support.</small></div></article>
   </div>
 </section>
 <footer class="landing-legal" aria-label="Legal links"><a href="{{ url_for('main.privacy_policy') }}">Privacy policy</a><a href="{{ url_for('main.terms_of_use') }}">Terms of use</a></footer>

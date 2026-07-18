@@ -239,7 +239,7 @@ def signup():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user.is_authenticated:
+    if request.method == "GET" and current_user.is_authenticated:
         return redirect(url_for("main.home"))
     if request.method == "POST":
         identifier = request.form.get("email", "").strip()
@@ -256,6 +256,10 @@ def login():
                 flash("This account has been banned. Please contact an admin.", "danger")
                 return render_template("login.html")
             remember = request.form.get("remember") == "1"
+            # A restored login page may still carry an older remembered account.
+            # Clear that identity before applying the credentials just verified.
+            session.clear()
+            logout_user()
             login_user(user, remember=remember)
             flash("Logged in successfully.", "success")
             return redirect(url_for("main.home"))
@@ -529,6 +533,7 @@ def google_callback():
 @auth_bp.route("/logout")
 @login_required
 def logout():
+    session.clear()
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))

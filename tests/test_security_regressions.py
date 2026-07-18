@@ -39,6 +39,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_login_replaces_restored_identity_and_private_pages_are_not_cached(self):
+        auth_source = (ROOT / "routes/auth.py").read_text()
+        app_source = (ROOT / "app.py").read_text()
+        client_source = (ROOT / "static/js/app.js").read_text()
+        self.assertIn('if request.method == "GET" and current_user.is_authenticated', auth_source)
+        self.assertIn("session.clear()\n            logout_user()\n            login_user(user", auth_source)
+        self.assertIn("session.clear()\n    logout_user()", auth_source)
+        self.assertIn('response.headers["Cache-Control"] = "no-store, private, max-age=0"', app_source)
+        self.assertIn('login_manager.session_protection = "strong"', app_source)
+        self.assertIn('window.addEventListener("pageshow"', client_source)
+
     def test_friend_point_gift_preserves_total_points(self):
         test_app = Flask(__name__)
         test_app.config.update(

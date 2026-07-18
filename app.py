@@ -90,6 +90,7 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 db.init_app(app)
 init_csrf(app)
 login_manager.init_app(app)
+login_manager.session_protection = "strong"
 login_manager.login_view = "auth.login"
 login_manager.refresh_view = "auth.reauthenticate"
 login_manager.login_message_category = "info"
@@ -458,6 +459,18 @@ def record_real_user_activity():
     if previous is None or now - previous >= timedelta(minutes=15) or recorded_activity_day:
         current_user.last_active_at = now
         db.session.commit()
+
+
+@app.after_request
+def prevent_private_page_caching(response):
+    """Do not let browser history restore another user's private page or login state."""
+    if response.mimetype == "text/html" and (
+        current_user.is_authenticated or request.blueprint == "auth"
+    ):
+        response.headers["Cache-Control"] = "no-store, private, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 @app.context_processor

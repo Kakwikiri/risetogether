@@ -60,19 +60,19 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260718-family-voice-compact"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260718-entry-feed-session"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260718-family-voice-compact"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260718-entry-feed-session"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260718-family-voice-compact"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260718-entry-feed-session"
     ></script>
   </head>
-  <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
+  <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}">
     <header class="topbar">
       <div class="brand">
         <a href="{{ url_for('main.home') }}">
@@ -146,8 +146,8 @@
           </div>
         </details>
         {% else %}
-        <a href="{{ url_for('auth.login') }}">Login</a>
-        <a href="{{ url_for('auth.signup') }}">Signup</a>
+        <a class="public-nav-login" href="{{ url_for('auth.login') }}">Login</a>
+        <a class="public-nav-join" href="{{ url_for('auth.signup') }}">Join free</a>
         {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}">Premium</a>{% endif %}
         <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
@@ -215,7 +215,7 @@
         </div>
       </div>
     </div>
-    {% if request.endpoint not in ['main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'goals.goal_detail'] %}
+    {% if request.endpoint not in ['main.home', 'main.profile', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'goals.goal_detail', 'auth.login', 'auth.signup'] %}
     <button class="page-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
     {% endif %}
     <main class="content {% if request.endpoint in ['chat.direct_chat', 'chat.family_chat'] %}chat-page-content{% endif %}">

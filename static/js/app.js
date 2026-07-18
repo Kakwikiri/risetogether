@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260718-family-voice-compact";
+  const APP_VERSION = "20260718-entry-feed-session";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1781,4 +1781,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   }
+});
+
+window.addEventListener("pageshow", (event) => {
+  const authSensitivePage = document.body?.dataset.authenticated === "1"
+    || ["/login", "/signup", "/reauthenticate"].includes(window.location.pathname);
+  if (event.persisted && authSensitivePage) window.location.reload();
 });

@@ -47,6 +47,18 @@ class EmotionalNavigationPolishTests(unittest.TestCase):
             self.assertIn("main.privacy_policy", template)
             self.assertIn("main.terms_of_use", template)
 
+    def test_entry_and_feed_layouts_are_compact_and_distinctive(self):
+        landing = (ROOT / "templates/landing.html").read_text()
+        login = (ROOT / "templates/login.html").read_text()
+        signup = (ROOT / "templates/signup.html").read_text()
+        css = (ROOT / "static/css/styles.css").read_text()
+        self.assertIn("connection-canvas", landing)
+        self.assertIn("A calmer kind of social community", landing)
+        self.assertIn("auth-shell--branded", login)
+        self.assertIn("auth-shell--branded", signup)
+        self.assertIn('body[data-page="main.home"][data-authenticated="1"] .panel-feed', css)
+        self.assertIn("max-width: 620px", css)
+
 
 if __name__ == "__main__":
     unittest.main()

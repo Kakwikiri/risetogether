@@ -1,27 +1,30 @@
 {% extends 'base.html' %} {% block content %}
-<section class="auth-shell">
+<section class="auth-shell auth-shell--branded auth-shell--signup">
+  <aside class="auth-story" aria-label="Why join RiseTogether">
+    <img src="{{ url_for('static', filename='images/risetogether-logo.png') }}" alt="" />
+    <p class="eyebrow">A place to belong</p>
+    <h2>Build connection that means something.</h2>
+    <p>No follower contest. No pressure to perform. Just people helping each other move forward.</p>
+    <div><span>♡ Human support</span><span>⌁ Shared Families</span><span>✦ Meaningful growth</span></div>
+  </aside>
   <div class="auth-card">
     <div class="auth-intro">
       <span class="eyebrow">Start gently</span>
       <h1>Create your account</h1>
       <p>Your password is stored securely as a hash, not plain text.</p>
     </div>
-    <form action="" method="post" class="stacked-form">
+    <form action="{{ url_for('auth.signup') }}" method="post" class="stacked-form signup-form-grid" data-auth-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       {% if referral_token %}<input type="hidden" name="referral_token" value="{{ referral_token }}" /><div class="alert info">You are joining through a RiseTogether invitation. Rewards are recorded only after three real active days.</div>{% endif %}
-      <label for="username">Username</label>
-      <input id="username" type="text" name="username" required autocomplete="username" />
-      <label for="email">Email address</label>
-      <input id="email" type="email" name="email" required autocomplete="email" />
-      <label for="country">Country</label>
-      <select id="country" name="country" required autocomplete="country-name">
+      <label class="auth-field" for="username"><span>Username</span><input id="username" type="text" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
+      <label class="auth-field" for="email"><span>Email address</span><input id="email" type="email" name="email" required autocomplete="email" autocapitalize="none" spellcheck="false" /></label>
+      <label class="auth-field" for="country"><span>Country</span><select id="country" name="country" required autocomplete="country-name">
         <option value="">Select your country</option>
         {% for country in countries %}
         <option value="{{ country }}">{{ country }}</option>
         {% endfor %}
-      </select>
-      <label for="password">Password</label>
-      <div class="password-field">
+      </select></label>
+      <label class="auth-field" for="password"><span>Password</span><div class="password-field">
         <input
           id="password"
           type="password"
@@ -33,8 +36,8 @@
         <button type="button" class="password-toggle" aria-label="Show password">
           Show
         </button>
-      </div>
-      <button class="button full-width" type="submit">Sign up</button>
+      </div></label>
+      <button class="button full-width signup-submit" type="submit">Create my account</button>
     </form>
     <a class="button secondary full-width google-button" href="{{ url_for('auth.google_login') }}">
       Continue with Google
