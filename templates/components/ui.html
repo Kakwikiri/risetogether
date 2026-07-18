@@ -22,6 +22,22 @@ meta='') -%}
     {% endif %}{% if meta %}<small>{{ meta }}</small>{% endif %}
   </div>
 </article>
+{%- endmacro %} {% macro post_media_gallery(post, alt='Post photos') -%}
+{% if post.media_url %}
+  {% if post.media_type == 'image' %}
+  {% set photo_count = 1 + (post.media_items|length) %}
+  <div class="media-gallery media-gallery--{{ [photo_count, 4]|min }}" data-media-gallery data-photo-count="{{ photo_count }}">
+    <figure class="media-gallery__item"><img class="post-media" src="{{ url_for('api.serve_upload', filename=post.media_url) }}" alt="{{ alt }}" loading="lazy" decoding="async" /><a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url, download=1) }}" download aria-label="Download photo">↓</a></figure>
+    {% for item in post.media_items %}<figure class="media-gallery__item"><img class="post-media" src="{{ url_for('api.serve_upload', filename=item.media_url) }}" alt="{{ alt }} {{ loop.index + 1 }}" loading="lazy" decoding="async" /><a class="media-download" href="{{ url_for('api.serve_upload', filename=item.media_url, download=1) }}" download aria-label="Download photo {{ loop.index + 1 }}">↓</a></figure>{% endfor %}
+  </div>
+  {% elif post.media_type == 'video' %}
+  <div class="media-frame"><video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=post.media_url) }}" src="{{ url_for('api.serve_upload', filename=post.media_url) }}">Your browser cannot play this video.</video><a class="media-download" href="{{ url_for('api.serve_upload', filename=post.media_url, download=1) }}" download aria-label="Download video">↓</a></div>
+  {% elif post.media_type == 'audio' %}
+  <audio controls src="{{ url_for('api.serve_upload', filename=post.media_url) }}"></audio><a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url, download=1) }}" download>Download audio</a>
+  {% else %}
+  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=post.media_url, download=1) }}" target="_blank" rel="noopener" download>Download attachment</a>
+  {% endif %}
+{% endif %}
 {%- endmacro %} {% macro user_avatar(user, size='medium', class_name='', alt='')
 -%}<img
   class="user-avatar user-avatar--{{ size }} {{ class_name }}"

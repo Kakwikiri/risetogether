@@ -348,13 +348,15 @@ def delete_media_if_unreferenced(filename):
     from extensions import db
     from models import (
         ChallengeCompletion, Family, FamilyGalleryItem, GoalProgress,
-        MediaAsset, Message, Post, Profile,
+        MediaAsset, Message, MessageAttachment, Post, PostMedia, Profile,
     )
 
     references = (
         (Profile, Profile.avatar),
         (Post, Post.media_url),
+        (PostMedia, PostMedia.media_url),
         (Message, Message.media_url),
+        (MessageAttachment, MessageAttachment.media_url),
         (Family, Family.profile_image),
         (Family, Family.banner_image),
         (FamilyGalleryItem, FamilyGalleryItem.media_url),

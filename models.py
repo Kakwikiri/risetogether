@@ -221,6 +221,25 @@ class Post(db.Model):
     shares = db.relationship(
         "PostShare", backref="post", lazy="dynamic", cascade="all, delete-orphan"
     )
+    media_items = db.relationship(
+        "PostMedia",
+        backref="post",
+        order_by="PostMedia.position",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PostMedia(db.Model):
+    __tablename__ = "post_media"
+    __table_args__ = (
+        db.UniqueConstraint("post_id", "position", name="uq_post_media_position"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    media_url = db.Column(db.String(255), nullable=False)
+    media_type = db.Column(db.String(32), default="image", nullable=False)
+    position = db.Column(db.Integer, nullable=False)
 
 
 class PostSupportResponse(db.Model):
@@ -1003,6 +1022,25 @@ class Message(db.Model):
         back_populates="messages_received",
     )
     family = db.relationship("Family", backref="messages", foreign_keys=[family_id])
+    attachments = db.relationship(
+        "MessageAttachment",
+        backref="message",
+        order_by="MessageAttachment.position",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class MessageAttachment(db.Model):
+    __tablename__ = "message_attachments"
+    __table_args__ = (
+        db.UniqueConstraint("message_id", "position", name="uq_message_attachment_position"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    media_url = db.Column(db.String(255), nullable=False)
+    media_type = db.Column(db.String(32), default="image", nullable=False)
+    position = db.Column(db.Integer, nullable=False)
 
 
 class MessageReaction(db.Model):

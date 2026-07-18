@@ -72,6 +72,7 @@ app.config["MAX_CONTENT_LENGTH"] = max(
     app.config["PREMIUM_IMAGE_UPLOAD_LIMIT"],
     app.config["PREMIUM_VIDEO_UPLOAD_LIMIT"],
     app.config["PREMIUM_FILE_UPLOAD_LIMIT"],
+    app.config["PREMIUM_IMAGE_UPLOAD_LIMIT"] * 6,
 ) + 1024 * 1024
 app.config["REALTIME_MEDIA_ENABLED"] = (
     os.getenv("REALTIME_MEDIA_ENABLED", "false").strip().lower()
@@ -284,6 +285,10 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",
+        "CREATE TABLE IF NOT EXISTS post_media (id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(32) NOT NULL DEFAULT 'image', position INTEGER NOT NULL, CONSTRAINT uq_post_media_position UNIQUE(post_id, position))",
+        "CREATE INDEX IF NOT EXISTS ix_post_media_post_id ON post_media (post_id)",
+        "CREATE TABLE IF NOT EXISTS message_attachments (id SERIAL PRIMARY KEY, message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(32) NOT NULL DEFAULT 'image', position INTEGER NOT NULL, CONSTRAINT uq_message_attachment_position UNIQUE(message_id, position))",
+        "CREATE INDEX IF NOT EXISTS ix_message_attachments_message_id ON message_attachments (message_id)",
         "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'verified_person', u.id, 'active', 'Legacy verification migrated into the audited RiseTogether badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.is_verified = TRUE ON CONFLICT (badge_type, user_id) DO NOTHING",
         "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'platform_moderator', u.id, 'active', 'Existing website moderation role migrated into the protected badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.admin_role IN ('moderator','admin') ON CONFLICT (badge_type, user_id) DO NOTHING",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(32) NOT NULL DEFAULT 'standard'",

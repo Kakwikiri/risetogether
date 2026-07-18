@@ -9,7 +9,7 @@ from unittest.mock import patch
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Post, Profile, Reaction, User
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, MessageAttachment, PasswordResetToken, PointSecurityEvent, PointTransaction, Post, PostMedia, Profile, Reaction, User
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -41,6 +41,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_multi_photo_posts_and_messages_have_cascading_attachment_tables(self):
+        self.assertEqual(next(iter(PostMedia.__table__.c.post_id.foreign_keys)).ondelete, "CASCADE")
+        self.assertEqual(next(iter(MessageAttachment.__table__.c.message_id.foreign_keys)).ondelete, "CASCADE")
+        migration = (ROOT / "migrations/20260719_multi_photo_galleries.sql").read_text()
+        self.assertIn("CREATE TABLE IF NOT EXISTS post_media", migration)
+        self.assertIn("CREATE TABLE IF NOT EXISTS message_attachments", migration)
+
+    def test_multi_photo_uploads_are_server_limited_and_render_as_grids(self):
+        main_source = (ROOT / "routes/main.py").read_text()
+        chat_source = (ROOT / "routes/chat.py").read_text()
+        feed = (ROOT / "templates/feed.html").read_text()
+        chat = (ROOT / "templates/chat.html").read_text()
+        css = (ROOT / "static/css/styles.css").read_text()
+        self.assertIn('request.files.getlist("media")', main_source)
+        self.assertIn('request.files.getlist("file")', chat_source)
+        self.assertIn("len(media_files) > 6", main_source + chat_source)
+        self.assertIn("multiple", feed)
+        self.assertIn("message.attachments", chat)
+        self.assertIn(".media-gallery--3", css)
+
+    def test_public_family_posts_enter_feed_but_private_family_access_stays_checked(self):
+        source = (ROOT / "routes/main.py").read_text()
+        self.assertIn('Post.family.has(Family.privacy == "public")', source)
+        self.assertIn('post.family.privacy == "public"', source)
+
     def test_date_of_birth_is_private_and_controls_adult_posts(self):
         teen = SimpleNamespace(profile=SimpleNamespace(birth_date=date(2010, 1, 1)))
         adult = SimpleNamespace(profile=SimpleNamespace(birth_date=date(1990, 1, 1)))

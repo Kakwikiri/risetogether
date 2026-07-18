@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support, post_media_gallery with context %} {% block content %}
 {% set content_post = post.original_post or post %}
 <section class="card post-card">
   <header>
@@ -24,34 +24,7 @@
   {{ achievement_post_card(content_post) }}
   {% else %}
   <p>{{ content_post.content }}</p>
-  {% if content_post.media_url %} {% if content_post.media_type == 'image' %}
-  <div class="media-frame">
-    <img
-      class="post-media"
-      src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
-      alt="Post media"
-    />
-    <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download image">↓</a>
-  </div>
-  {% elif content_post.media_type == 'video' %}
-  <div class="media-frame">
-    <video class="post-media" controls preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(content_post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=content_post.media_url) }}">
-      <source src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" type="video/mp4" />
-      Your browser cannot play this video.
-    </video>
-    <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download video">↓</a>
-  </div>
-  {% elif content_post.media_type == 'audio' %}
-  <audio
-    controls
-    src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}"
-  ></audio>
-  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download>Download audio</a>
-  {% elif content_post.media_type == 'file' %}
-  <a class="file-attachment" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" target="_blank" rel="noopener" download>
-    Download attachment
-  </a>
-  {% endif %} {% endif %}
+  {{ post_media_gallery(content_post) }}
   {% endif %}
   {{ purpose_support(content_post, csrf_token()) }}
   <div class="post-actions">

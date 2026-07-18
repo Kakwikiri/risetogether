@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260718-age-feed-fit";
+  const APP_VERSION = "20260719-photo-grid-layout";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -722,7 +722,8 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("change", () => {
       const form = input.closest("form");
       const preview = form ? form.querySelector("[data-media-preview]") : null;
-      const file = input.files && input.files[0];
+      const files = input.files ? Array.from(input.files) : [];
+      const file = files[0];
       if (!preview) return;
 
       preview.innerHTML = "";
@@ -730,6 +731,36 @@ document.addEventListener("DOMContentLoaded", () => {
         preview.hidden = true;
         return;
       }
+
+      if (files.length > 6) {
+        input.value = "";
+        preview.hidden = true;
+        showToast("Choose up to 6 photos for one post.", "warning");
+        return;
+      }
+      if (files.length > 1 && files.some((item) => !item.type.startsWith("image/"))) {
+        input.value = "";
+        preview.hidden = true;
+        showToast("Multiple attachments must all be photos.", "warning");
+        return;
+      }
+      if (files.length > 1) {
+        preview.classList.add("composer-preview--grid");
+        files.forEach((selectedFile) => {
+          const image = document.createElement("img");
+          const objectUrl = URL.createObjectURL(selectedFile);
+          image.src = objectUrl;
+          image.alt = "Selected photo preview";
+          image.addEventListener("load", () => URL.revokeObjectURL(objectUrl), { once: true });
+          preview.appendChild(image);
+        });
+        const meta = document.createElement("span");
+        meta.textContent = `${files.length} photos selected`;
+        preview.appendChild(meta);
+        preview.hidden = false;
+        return;
+      }
+      preview.classList.remove("composer-preview--grid");
 
       const url = URL.createObjectURL(file);
       let element;

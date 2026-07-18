@@ -1,7 +1,7 @@
 import hmac
 import secrets
 
-from flask import current_app, jsonify, request, session
+from flask import current_app, flash, jsonify, redirect, request, session, url_for
 
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
@@ -32,6 +32,10 @@ def csrf_protect():
         request.remote_addr,
     )
     message = "Your form expired or could not be verified. Refresh the page and try again."
+    if request.endpoint == "auth.login":
+        session.pop(CSRF_SESSION_KEY, None)
+        flash("The login page had expired. It has been refreshed safely; please sign in again.", "info")
+        return redirect(url_for("auth.login"), code=303)
     if request.path.startswith("/api/") or request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"ok": False, "error": message}), 400
     return message, 400
@@ -40,4 +44,3 @@ def csrf_protect():
 def init_csrf(app):
     app.before_request(csrf_protect)
     app.jinja_env.globals["csrf_token"] = csrf_token
-

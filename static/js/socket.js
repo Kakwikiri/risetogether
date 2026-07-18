@@ -270,13 +270,31 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   if (data.media_url) {
     if (data.media_type === "image") {
       media = document.createElement("div");
-      media.className = `media-frame${data.view_once ? " view-once-media" : ""}`;
+      const imageItems = Array.isArray(data.media_items) && data.media_items.length
+        ? data.media_items.filter((item) => item.type === "image")
+        : [{ url: data.media_url, type: "image" }];
+      media.className = `media-gallery chat-media-gallery media-gallery--${Math.min(imageItems.length, 4)}${data.view_once ? " view-once-media" : ""}`;
       media.dataset.messageId = data.message_id || "";
       media.dataset.viewOnce = data.view_once ? "1" : "0";
-      const img = document.createElement("img");
-      img.alt = "Shared image";
-      img.src = data.media_url;
-      media.appendChild(img);
+      media.dataset.photoCount = String(imageItems.length);
+      imageItems.forEach((item, index) => {
+        const figure = document.createElement("figure");
+        figure.className = "media-gallery__item";
+        const img = document.createElement("img");
+        img.alt = index ? `Shared image ${index + 1}` : "Shared image";
+        img.src = item.url;
+        figure.appendChild(img);
+        if (!data.view_once) {
+          const download = document.createElement("a");
+          download.className = "media-download";
+          download.href = `${item.url}${item.url.includes("?") ? "&" : "?"}download=1`;
+          download.download = "";
+          download.textContent = "↓";
+          download.setAttribute("aria-label", `Download image ${index + 1}`);
+          figure.appendChild(download);
+        }
+        media.appendChild(figure);
+      });
     } else if (data.media_type === "video") {
       media = document.createElement("div");
       media.className = `media-frame${data.view_once ? " view-once-media" : ""}`;
@@ -305,7 +323,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       media.download = "";
       media.textContent = "Download file";
     }
-    if (data.media_type !== "file" && !data.view_once) {
+    if (data.media_type !== "file" && data.media_type !== "image" && !data.view_once) {
       downloadLink = document.createElement("a");
       downloadLink.className = "media-download";
       downloadLink.href = `${data.media_url}${data.media_url.includes("?") ? "&" : "?"}download=1`;
@@ -677,9 +695,10 @@ if (typeof chatConfig !== "undefined") {
       socket.emit("mark_messages_read", { sender_id: chatConfig.targetUserId });
     };
 
-    const uploadChatFile = async (file, content = "", options = {}) => {
+    const uploadChatFile = async (fileOrFiles, content = "", options = {}) => {
       const formData = new FormData();
-      formData.append("file", file);
+      const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+      files.forEach((file) => formData.append("file", file));
       formData.append("content", content);
       if (options.mediaKind) formData.append("media_kind", options.mediaKind);
       if (replyToId) formData.append("reply_to_id", replyToId);
@@ -969,9 +988,7 @@ if (typeof chatConfig !== "undefined") {
         const content = chatInput.value.trim();
         if (chatFile && chatFile.files && chatFile.files[0]) {
           const files = Array.from(chatFile.files);
-          files.forEach((file, index) => {
-            uploadChatFile(file, index === 0 ? content : "");
-          });
+          uploadChatFile(files, content);
           chatFile.value = "";
           chatInput.value = "";
           clearComposerState();
@@ -1037,6 +1054,18 @@ if (typeof chatConfig !== "undefined") {
           filePreview.hidden = true;
           return;
         }
+        if (files.length > 6) {
+          chatFile.value = "";
+          filePreview.hidden = true;
+          notifyChat("Choose up to 6 photos at once.");
+          return;
+        }
+        if (files.length > 1 && files.some((item) => !item.type.startsWith("image/"))) {
+          chatFile.value = "";
+          filePreview.hidden = true;
+          notifyChat("Multiple chat attachments must all be photos.");
+          return;
+        }
         filePreview.hidden = false;
         files.slice(0, 4).forEach((selectedFile) => {
           if (selectedFile.type.startsWith("image/")) {
@@ -1082,7 +1111,7 @@ if (typeof chatConfig !== "undefined") {
         }
         const viewButton = event.target.closest(".view-once-button");
         if (!viewButton) return;
-        const frame = viewButton.closest(".media-frame, .voice-note-player");
+        const frame = viewButton.closest(".media-frame, .media-gallery, .voice-note-player");
         if (!frame) return;
         const messageId = frame && frame.dataset.messageId;
         frame.classList.add("revealed");

@@ -11,7 +11,7 @@ from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
-from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageDeletion, MessageReaction, Notification, PushSubscription, User
+from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageAttachment, MessageDeletion, MessageReaction, Notification, PushSubscription, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -238,6 +238,16 @@ def log_live_signal(event, session_id=None, broadcaster_id=None, viewer_id=None,
 
 
 def serialize_message(message):
+    media_items = []
+    if message.media_url:
+        media_items.append({
+            "url": url_for("api.serve_upload", filename=message.media_url),
+            "type": message.media_type,
+        })
+    media_items.extend({
+        "url": url_for("api.serve_upload", filename=item.media_url),
+        "type": item.media_type,
+    } for item in message.attachments)
     return {
         "sender_id": message.sender_id,
         "sender_name": message.sender.username,
@@ -251,6 +261,7 @@ def serialize_message(message):
             else ""
         ),
         "media_type": message.media_type,
+        "media_items": media_items,
         "message_id": message.id,
         "reply_to_id": message.reply_to_id,
         "view_once": message.view_once,
@@ -521,7 +532,8 @@ def calls(user_id):
 @chat_bp.route("/chat/upload", methods=["POST"])
 @login_required
 def upload_message_file():
-    media_file = request.files.get("file")
+    media_files = [item for item in request.files.getlist("file") if item and item.filename]
+    media_file = media_files[0] if media_files else None
     content = request.form.get("content", "").strip()
     reply_to_id = parse_user_id(request.form.get("reply_to_id"))
     view_once = request.form.get("view_once") == "1"
@@ -529,6 +541,10 @@ def upload_message_file():
     media_kind = request.form.get("media_kind", "").strip()
     recipient_id = request.form.get("recipient_id")
     family_id = request.form.get("family_id")
+    if len(media_files) > 6:
+        return jsonify({"error": "Choose up to 6 photos at once."}), 400
+    if len(media_files) > 1 and any(get_media_type(item.filename) != "image" for item in media_files):
+        return jsonify({"error": "Multiple chat attachments must all be photos."}), 400
     if media_kind == "audio":
         extension = media_file.filename.rsplit(".", 1)[1].lower() if media_file and "." in media_file.filename else ""
         if extension not in {"webm", "ogg", "mp3", "wav", "m4a"}:
@@ -537,14 +553,23 @@ def upload_message_file():
         extension = media_file.filename.rsplit(".", 1)[1].lower() if media_file and "." in media_file.filename else ""
         if extension not in {"webm", "mp4", "mov", "m4v"}:
             return jsonify({"error": "Video notes must be uploaded as a video recording."}), 400
-    is_valid, upload_message = validate_upload(media_file)
-    if not is_valid:
-        return jsonify({"error": upload_message}), 400
-    filename = save_media(media_file)
-    if not filename:
-        from premium import recording_limit_seconds
-        limit_minutes = max(1, recording_limit_seconds(media_kind or get_media_type(media_file.filename)) // 60)
-        return jsonify({"error": f"Upload failed. Recordings must be valid and {limit_minutes} minutes or shorter."}), 400
+    for item in media_files:
+        is_valid, upload_message = validate_upload(item)
+        if not is_valid:
+            return jsonify({"error": upload_message}), 400
+    saved_media = []
+    for item in media_files:
+        filename = save_media(item)
+        if not filename:
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
+            from premium import recording_limit_seconds
+            limit_minutes = max(1, recording_limit_seconds(media_kind or get_media_type(item.filename)) // 60)
+            return jsonify({"error": f"Upload failed. Recordings must be valid and {limit_minutes} minutes or shorter."}), 400
+        saved_media.append(filename)
+    if not saved_media:
+        return jsonify({"error": "Choose a file to send."}), 400
+    filename = saved_media[0]
     media_type = media_kind if media_kind in {"audio", "video"} else get_media_type(filename)
     message = Message(
         sender_id=current_user.id,
@@ -563,6 +588,8 @@ def upload_message_file():
         try:
             family_id = int(family_id)
         except (TypeError, ValueError):
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             return jsonify({"error": "Invalid family."}), 400
         family = Family.query.get(family_id)
         membership = (
@@ -571,8 +598,12 @@ def upload_message_file():
             else None
         )
         if not family or not membership:
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             return jsonify({"error": "Join this family before sending files."}), 403
         if has_active_family_restriction(family.id, current_user.id, "mute", "suspend"):
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             return jsonify({"error": "You are temporarily restricted from sending Family messages."}), 403
         message.family_id = family.id
         room = f"family-{family.id}"
@@ -581,19 +612,33 @@ def upload_message_file():
         try:
             recipient_id = int(recipient_id)
         except (TypeError, ValueError):
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             return jsonify({"error": "Invalid recipient."}), 400
         recipient = User.query.get(recipient_id)
         if not recipient:
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             return jsonify({"error": "Recipient not found."}), 404
         message.recipient_id = recipient.id
         room = room_for_private_chat(current_user.id, recipient.id)
         recipients = [recipient.id]
     else:
+        for saved_filename in saved_media:
+            delete_media_if_unreferenced(saved_filename)
         return jsonify({"error": "Choose a chat first."}), 400
     if not message.family_id and recipients and user_has_open_chat(recipients[0], room):
         message.delivered = True
         message.read_at = datetime.utcnow()
     db.session.add(message)
+    db.session.flush()
+    for position, attachment_filename in enumerate(saved_media[1:], start=2):
+        db.session.add(MessageAttachment(
+            message_id=message.id,
+            media_url=attachment_filename,
+            media_type=get_media_type(attachment_filename),
+            position=position,
+        ))
     db.session.commit()
     payload = emit_chat_message(
         message,
@@ -601,7 +646,9 @@ def upload_message_file():
         "new_family_message" if message.family_id else "new_private_message",
         [current_user.id, *recipients],
     )
-    if media_type == "audio":
+    if len(saved_media) > 1:
+        notification_message = f"{current_user.username} sent {len(saved_media)} photos."
+    elif media_type == "audio":
         notification_message = f"{current_user.username} sent a voice note."
     elif media_type == "video":
         notification_message = f"{current_user.username} sent a video note."
@@ -645,10 +692,11 @@ def delete_message(message_id):
     if scope == "everyone":
         if message.sender_id != current_user.id and not current_user.is_admin:
             return jsonify({"error": "Only the sender can delete this message for everyone."}), 403
-        media_url = message.media_url
+        media_urls = [message.media_url, *[item.media_url for item in message.attachments]]
         db.session.delete(message)
         db.session.flush()
-        delete_media_if_unreferenced(media_url)
+        for media_url in media_urls:
+            delete_media_if_unreferenced(media_url)
         db.session.commit()
         socketio.emit("message_deleted", {"message_id": message_id}, room=room)
         return jsonify({"ok": True, "scope": "everyone"})
@@ -767,18 +815,16 @@ def forward_message(message_id):
     else:
         return jsonify({"error": "Choose where to forward."}), 400
     db.session.add(forwarded)
+    db.session.flush()
+    for attachment in original.attachments:
+        db.session.add(MessageAttachment(
+            message_id=forwarded.id,
+            media_url=attachment.media_url,
+            media_type=attachment.media_type,
+            position=attachment.position,
+        ))
     db.session.commit()
-    payload = {
-        "message_id": forwarded.id,
-        "sender_id": current_user.id,
-        "sender_name": current_user.username,
-        "recipient_id": forwarded.recipient_id,
-        "family_id": forwarded.family_id,
-        "content": forwarded.content,
-        "media_url": url_for("api.serve_upload", filename=forwarded.media_url) if forwarded.media_url else "",
-        "media_type": forwarded.media_type,
-        "created_at": forwarded.created_at.strftime("%Y-%m-%d %H:%M"),
-    }
+    payload = serialize_message(forwarded)
     emit_chat_message(
         forwarded,
         room,

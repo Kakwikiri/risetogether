@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260718-age-feed-fit"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-photo-grid-layout"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260718-age-feed-fit"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-photo-grid-layout"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260718-age-feed-fit"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-photo-grid-layout"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}">
@@ -146,9 +146,7 @@
           </div>
         </details>
         {% else %}
-        <a class="public-nav-login" href="{{ url_for('auth.login') }}">Login</a>
         <a class="public-nav-join" href="{{ url_for('auth.signup') }}">Join free</a>
-        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}">Premium</a>{% endif %}
         <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
         <button class="install-button" type="button" hidden>Install</button>

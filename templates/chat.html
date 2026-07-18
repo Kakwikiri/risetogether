@@ -83,11 +83,10 @@
       {% endif %}
       {% if message.media_url %}
         {% if message.media_type == 'image' %}
-        <div class="media-frame {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
-          <img src="{{ url_for('api.serve_upload', filename=message.media_url) }}" alt="Shared image" loading="lazy" decoding="async" />
-          {% if not message.view_once %}
-          <a class="media-download" href="{{ url_for('api.serve_upload', filename=message.media_url, download=1) }}" download aria-label="Download image">↓</a>
-          {% endif %}
+        {% set photo_count = 1 + (message.attachments|length) %}
+        <div class="media-gallery chat-media-gallery media-gallery--{{ [photo_count, 4]|min }} {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}" data-photo-count="{{ photo_count }}">
+          <figure class="media-gallery__item"><img src="{{ url_for('api.serve_upload', filename=message.media_url) }}" alt="Shared image" loading="lazy" decoding="async" />{% if not message.view_once %}<a class="media-download" href="{{ url_for('api.serve_upload', filename=message.media_url, download=1) }}" download aria-label="Download image">↓</a>{% endif %}</figure>
+          {% for attachment in message.attachments %}<figure class="media-gallery__item"><img src="{{ url_for('api.serve_upload', filename=attachment.media_url) }}" alt="Shared image {{ loop.index + 1 }}" loading="lazy" decoding="async" />{% if not message.view_once %}<a class="media-download" href="{{ url_for('api.serve_upload', filename=attachment.media_url, download=1) }}" download aria-label="Download image {{ loop.index + 1 }}">↓</a>{% endif %}</figure>{% endfor %}
           {% if message.view_once and message.sender_id != current_user.id %}<button class="view-once-button" type="button">View once</button>{% endif %}
         </div>
         {% elif message.media_type == 'video' %}
@@ -153,7 +152,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="chat-tools">
       <button id="attach-menu-button" class="icon-button" type="button" aria-label="Attach" title="Attach" data-attach-menu-button>+</button>
-      <input id="chat-file" type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" hidden />
+      <input id="chat-file" type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" multiple hidden />
       <button id="location-button" class="icon-button" type="button" aria-label="Share location" title="Share location">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.4"></circle></svg>
       </button>

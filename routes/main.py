@@ -43,6 +43,7 @@ from models import (
     Message,
     PointTransaction,
     Post,
+    PostMedia,
     PostSupportResponse,
     PostShare,
     Profile,
@@ -239,6 +240,11 @@ def home():
         visibility_filters = [
             Post.audience == "public",
             Post.user_id == current_user.id,
+            (
+                (Post.audience == "family")
+                & (Post.family_id != None)
+                & Post.family.has(Family.privacy == "public")
+            ),
             (
                 (Post.audience == "family")
                 & (Post.family_id != None)
@@ -962,23 +968,35 @@ def create_post():
         return redirect(url_for("main.home"))
     if audience not in POST_AUDIENCES:
         audience = "public"
-    media_file = request.files.get("media")
-    if not content and not media_file:
+    media_files = [item for item in request.files.getlist("media") if item and item.filename]
+    if len(media_files) > 6:
+        flash("Choose up to 6 photos for one post.", "warning")
+        return redirect(request.referrer or url_for("main.home"))
+    if len(media_files) > 1 and any(get_media_type(item.filename) != "image" for item in media_files):
+        flash("Multiple attachments must all be photos.", "warning")
+        return redirect(request.referrer or url_for("main.home"))
+    for item in media_files:
+        is_valid, upload_message = validate_upload(item)
+        if not is_valid:
+            flash(upload_message, "warning")
+            return redirect(request.referrer or url_for("main.home"))
+    if not content and not media_files:
         flash("Please add text, image, or audio/video to your post.", "warning")
         return redirect(url_for("main.home"))
     media_url = ""
     media_type = "text"
-    if media_file and media_file.filename:
-        is_valid, upload_message = validate_upload(media_file)
-        if not is_valid:
-            flash(upload_message, "warning")
-            return redirect(url_for("main.home"))
-        filename = save_media(media_file)
+    saved_media = []
+    for item in media_files:
+        filename = save_media(item)
         if not filename:
+            for saved_filename in saved_media:
+                delete_media_if_unreferenced(saved_filename)
             flash("The upload could not be processed. Videos must be valid and 3 minutes or shorter.", "warning")
-            return redirect(url_for("main.home"))
-        media_url = filename
-        media_type = get_media_type(filename)
+            return redirect(request.referrer or url_for("main.home"))
+        saved_media.append(filename)
+    if saved_media:
+        media_url = saved_media[0]
+        media_type = get_media_type(media_url)
     post = Post(
         user_id=current_user.id,
         content=content,
@@ -998,18 +1016,32 @@ def create_post():
                 family_id=selected_family_id, user_id=current_user.id
             ).first()
             if not membership:
+                for saved_filename in saved_media:
+                    delete_media_if_unreferenced(saved_filename)
                 flash("Join that family before posting there.", "warning")
                 return redirect(url_for("main.home"))
             if has_active_family_restriction(selected_family_id, current_user.id, "suspend"):
+                for saved_filename in saved_media:
+                    delete_media_if_unreferenced(saved_filename)
                 flash("You are temporarily suspended from posting in that Family.", "warning")
                 return redirect(url_for("main.home"))
             post.family_id = selected_family_id
             if post.audience == "public":
                 post.audience = "family"
     if post.audience == "family" and not post.family_id:
+        for saved_filename in saved_media:
+            delete_media_if_unreferenced(saved_filename)
         flash("Choose a family before posting to family only.", "warning")
         return redirect(url_for("main.home"))
     db.session.add(post)
+    db.session.flush()
+    for position, filename in enumerate(saved_media[1:], start=2):
+        db.session.add(PostMedia(
+            post_id=post.id,
+            media_url=filename,
+            media_type=get_media_type(filename),
+            position=position,
+        ))
     db.session.commit()
     for follow in Follow.query.filter_by(followed_id=current_user.id).all():
         if follow.follower_id != current_user.id:
@@ -1477,10 +1509,11 @@ def manage_post(post_id, action):
                     ip_address=request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip(),
                 )
             )
-        media_url = post.media_url
+        media_urls = [post.media_url, *[item.media_url for item in post.media_items]]
         db.session.delete(post)
         db.session.flush()
-        delete_media_if_unreferenced(media_url)
+        for media_url in media_urls:
+            delete_media_if_unreferenced(media_url)
         db.session.commit()
         flash("Post removed and recorded in the audit log." if not owns_post else "Post deleted.", "info")
         return redirect(url_for("main.home"))

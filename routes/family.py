@@ -46,8 +46,10 @@ from models import (
     FamilyPollVote,
     MediaAsset,
     Message,
+    MessageAttachment,
     Notification,
     Post,
+    PostMedia,
     PointTransaction,
     PointSecurityEvent,
     Profile,
@@ -429,7 +431,11 @@ def media_filename_is_referenced(filename):
         return True
     if Post.query.filter_by(media_url=filename).first():
         return True
+    if PostMedia.query.filter_by(media_url=filename).first():
+        return True
     if Message.query.filter_by(media_url=filename).first():
+        return True
+    if MessageAttachment.query.filter_by(media_url=filename).first():
         return True
     return False
 

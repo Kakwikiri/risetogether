@@ -1,4 +1,4 @@
-{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support with context %} {% block content %}
+{% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support, post_media_gallery with context %} {% block content %}
 <section class="profile-page">
   <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
   <header class="profile-hero{% if feature_enabled('premium_profiles') and user_has_premium(user) %} profile-hero--premium{% endif %}">
@@ -135,17 +135,7 @@
         {{ achievement_post_card(content_post) }}
         {% else %}
         <p class="profile-post-body">{{ content_post.content or content_post.media_type|capitalize }}</p>
-        {% if content_post.media_url and content_post.media_type == 'image' %}
-        <div class="media-frame">
-          <img class="post-media" src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" alt="Post image" />
-          <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download image">↓</a>
-        </div>
-        {% elif content_post.media_url and content_post.media_type == 'video' %}
-        <div class="media-frame">
-          <video class="post-media{% if feature_enabled('media_autoplay') %} autoplay-video{% endif %}" controls{% if feature_enabled('media_autoplay') %} autoplay muted loop{% endif %} playsinline preload="metadata" data-video-player data-hevc="{{ 1 if is_hevc_upload(content_post.media_url) else 0 }}" data-download-url="{{ url_for('api.serve_upload', filename=content_post.media_url) }}" src="{{ url_for('api.serve_upload', filename=content_post.media_url) }}">Your browser cannot play this video.</video>
-          <a class="media-download" href="{{ url_for('api.serve_upload', filename=content_post.media_url, download=1) }}" download aria-label="Download video">↓</a>
-        </div>
-        {% endif %}
+        {{ post_media_gallery(content_post) }}
         {% endif %}
         {{ purpose_support(content_post, csrf_token()) }}
         <div class="profile-post-actions">

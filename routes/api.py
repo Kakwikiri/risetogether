@@ -10,7 +10,7 @@ from werkzeug.utils import safe_join
 
 from extensions import db
 from helpers import user_avatar_url
-from models import Family, FamilyMember, MediaAsset, Message, Notification, Profile, PushSubscription, User
+from models import Family, FamilyMember, MediaAsset, Message, MessageAttachment, Notification, Profile, PushSubscription, User
 from notifications_service import important_unread_count, unread_private_message_count
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -19,6 +19,12 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 @api_bp.route("/uploads/<path:filename>")
 def serve_upload(filename):
     is_view_once = Message.query.filter_by(media_url=filename, view_once=True).first()
+    if not is_view_once:
+        is_view_once = (
+            Message.query.join(MessageAttachment)
+            .filter(MessageAttachment.media_url == filename, Message.view_once == True)
+            .first()
+        )
     upload_path = safe_join(current_app.config["UPLOAD_FOLDER"], filename)
     if upload_path and os.path.exists(upload_path):
         response = send_from_directory(
