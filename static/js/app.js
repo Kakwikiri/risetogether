@@ -557,6 +557,10 @@ document.addEventListener("DOMContentLoaded", () => {
       installButton.classList.add("ready");
       installButton.textContent = "Install app";
     }
+    if (!localStorage.getItem("installReminderShown")) {
+      localStorage.setItem("installReminderShown", "1");
+      showToast("RiseTogether can be installed on this device. Open Settings when you are ready.");
+    }
   });
 
   if (installButton) {
@@ -599,6 +603,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   showManualInstallButton();
+  if (!isStandalone() && canShowManualInstall() && !localStorage.getItem("installReminderShown")) {
+    localStorage.setItem("installReminderShown", "1");
+    window.setTimeout(() => showToast("Install RiseTogether from Settings or your browser menu."), 900);
+  }
 
   if (shareAppButton) {
     shareAppButton.addEventListener("click", async () => {

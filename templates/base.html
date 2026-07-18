@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-navigation-access"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-thin-social-surfaces"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-navigation-access"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-thin-social-surfaces"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-navigation-access"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-thin-social-surfaces"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}">
@@ -146,9 +146,7 @@
         {% endif %}
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" data-icon="⇥" data-logout><span>Logout</span></a>
-        <button class="theme-toggle" type="button" data-theme-toggle>Theme</button>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
-        <button class="install-button" type="button" hidden>Install</button>
           </div>
         </details>
         {% else %}

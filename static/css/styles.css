@@ -9713,3 +9713,105 @@ body[data-page="main.home"][data-authenticated="0"] .landing-legal { font-size: 
   }
   .family-tabbar-secondary { display: none; }
 }
+
+/* One continuous social surface: thin separators instead of oversized boxes. */
+.profile-desktop-layout { display: grid; grid-template-columns: minmax(0, 660px) minmax(230px, 270px); gap: 0.7rem; align-items: start; }
+.profile-desktop-layout > main { min-width: 0; }
+.profile-context-sidebar { display: grid; gap: 0; }
+.profile-context-sidebar > section { padding: 0.75rem 0.15rem; border-bottom: 1px solid var(--line); }
+.profile-context-sidebar h3,
+.profile-context-sidebar p { margin: 0 0 0.35rem; }
+.profile-context-sidebar a { display: block; padding: 0.5rem 0; color: var(--ink); border-bottom: 1px solid var(--line); text-decoration: none; font-weight: 800; }
+
+.content > .card,
+.content > .panel,
+.profile-hero,
+.profile-section,
+.family-detail-card,
+.family-section,
+.person-card,
+.request-card,
+.friend-row,
+.message-row,
+.post-card,
+.compact-composer,
+.recommended-families {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.profile-page { gap: 0; }
+.profile-hero,
+.profile-section { padding: 0.8rem 0.75rem; }
+.profile-stats span,
+.family-button { border-radius: 4px; box-shadow: none; }
+.profile-section#profile-posts { padding-inline: 0; }
+.profile-section#profile-posts > h2 { padding-inline: 0.75rem; }
+.profile-feed-cards .profile-post-card,
+#family-posts > .post-card {
+  width: 100%;
+  max-width: 660px;
+  margin: 0;
+  padding: 0.75rem;
+  background: var(--panel);
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.profile-feed-cards .post-author,
+#family-posts .post-author { display: flex; align-items: center; gap: 0.55rem; }
+.profile-feed-cards .post-author > div,
+#family-posts .post-author > div { display: grid; min-width: 0; }
+.profile-feed-cards .post-author a,
+#family-posts .post-author a { color: inherit; text-decoration: none; }
+.profile-feed-cards .post-author time,
+#family-posts .post-author time { color: var(--muted); font-size: 0.78rem; }
+.profile-feed-cards .media-gallery,
+#family-posts .media-gallery { width: 100%; max-width: 100%; border-radius: 10px; }
+.profile-feed-cards .media-gallery__item img,
+#family-posts .media-gallery__item img { max-height: 440px; }
+.profile-feed-cards .post-actions,
+#family-posts .post-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px solid var(--line); }
+.family-tabbar { border-width: 0 0 1px; border-radius: 0; }
+.family-tabbar a,
+.family-growth-menu summary { min-height: 34px !important; padding: 0.35rem 0.3rem !important; font-size: 0.82rem; }
+.compact-composer { padding: 0.7rem 0; background: transparent; }
+.settings-app-panel,
+.device-notification-panel,
+.danger-zone { padding-block: 0.8rem; border-bottom: 1px solid var(--line); }
+
+@media (min-width: 901px) {
+  body[data-authenticated="1"] .topbar .nav-links { justify-content: flex-start; }
+  body[data-page="main.home"][data-authenticated="1"] .panel-feed { overflow: visible; }
+  .feed-filter-bar { position: sticky; top: 0; z-index: 35; background: var(--panel); border-bottom: 1px solid var(--line); }
+  body[data-page="main.home"][data-authenticated="1"] .panel-sidebar,
+  .family-context-sidebar,
+  .profile-context-sidebar,
+  .messages-people-sidebar { position: static !important; align-self: stretch; height: 100%; }
+  body[data-page="main.home"][data-authenticated="1"] .panel-sidebar > :last-child,
+  .family-context-sidebar > :last-child,
+  .profile-context-sidebar > :last-child,
+  .messages-people-sidebar > :last-child { position: sticky; top: 0.75rem; }
+}
+@media (max-width: 1080px) { .profile-desktop-layout { grid-template-columns: minmax(0, 1fr); } .profile-context-sidebar { display: none; } }
+@media (max-width: 900px) {
+  .feed-filter-bar { position: sticky; top: 58px; z-index: 35; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .content > .card,
+  .content > .panel,
+  .profile-hero,
+  .profile-section,
+  .family-detail-card,
+  .family-section,
+  .person-card,
+  .request-card,
+  .friend-row,
+  .message-row,
+  .post-card,
+  .compact-composer { border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+  .people-list { gap: 0; }
+  .person-card,
+  .request-card,
+  .friend-row { margin: 0; padding: 0.7rem 0.2rem; background: transparent; }
+  #family-posts > .post-card,
+  .profile-feed-cards .profile-post-card { max-width: none; padding-inline: 0.7rem; }
+}

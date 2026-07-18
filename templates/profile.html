@@ -1,4 +1,5 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import reaction_bar, achievement_post_card, rise_badges, purpose_support, post_media_gallery with context %} {% block content %}
+<div class="profile-desktop-layout"><main>
 <section class="profile-page">
   <button class="profile-back-button" type="button" data-page-back aria-label="Go back" title="Back">‹</button>
   <header class="profile-hero{% if feature_enabled('premium_profiles') and user_has_premium(user) %} profile-hero--premium{% endif %}">
@@ -61,7 +62,7 @@
   </section>{% endif %}
   {% if is_owner_view %}<section class="profile-section"><div class="split-header"><h2>Thank-you history</h2><a href="{{ url_for('main.impact') }}">View impact</a></div>{% for appreciation in profile_appreciations %}<p class="appreciation-row"><strong>{% if appreciation.message_key == 'words_helped' %}Your words helped me.{% elif appreciation.message_key == 'appreciate_advice' %}I appreciate your advice.{% else %}Thank you.{% endif %}</strong><time>{{ appreciation.created_at.strftime('%b %d, %Y') }}</time></p>{% else %}<p class="muted-meta">Thank-you messages you receive will be kept here.</p>{% endfor %}</section>{% endif %}
 
-  {% if show_achievements %}<section class="profile-section">
+  {% if show_achievements %}<section class="profile-section" id="profile-achievements">
     <h2>Achievements and badges</h2>
     {% if profile_badges %}<div class="profile-badge-cloud">{% for badge in profile_badges %}<span class="status-chip status-chip--success">✦ {{ badge }}</span>{% endfor %}</div>{% endif %}
     <div class="profile-achievement-list">{% for item in achievement_posts %}{{ achievement_post_card(item) }}{% else %}<p class="muted-meta">No shared achievements yet. Growth can be private too.</p>{% endfor %}</div>
@@ -75,7 +76,7 @@
 
   {% if show_checkins %}<section class="profile-section"><h2>Shared reflections</h2><div class="profile-checkin-list">{% for checkin in recent_checkins %}<article><strong>{{ checkin.mood.replace('_', ' ')|title }}</strong><span>{{ checkin.checkin_date.strftime('%b %d, %Y') }}</span>{% if checkin.note %}<p>{{ checkin.note }}</p>{% endif %}</article>{% else %}<p class="muted-meta">No public reflections are being shown.</p>{% endfor %}</div></section>{% endif %}
 
-  <section class="profile-section">
+  <section class="profile-section" id="profile-families">
     <h2>Families</h2>
     {% if show_families %}
     <div class="family-button-list">
@@ -91,7 +92,7 @@
     {% else %}<p class="muted-meta">This person keeps their Family memberships private.</p>{% endif %}
   </section>
 
-  <section class="profile-section">
+  <section class="profile-section" id="profile-posts">
     <h2>Following</h2>
     <div class="family-button-list">
       {% for followed in following %}
@@ -111,22 +112,22 @@
       {% for post in posts %}
       {% set content_post = post.original_post or post %}
       <article class="post-card profile-post-card">
-        <div class="profile-post-top">
+        <header><div class="post-author">
           <img
             class="avatar"
             src="{{ user_avatar_url(post.author) }}"
             alt="Avatar"
           />
           <div>
-            <strong>{{ post.author.profile.display_name }}{{ rise_badges(rise_user_badges(post.author)) }}</strong>
-            <span>{{ post.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+            <strong><a href="{{ url_for('main.profile', username=post.author.username) }}">{{ post.author.profile.display_name }}</a>{{ rise_badges(rise_user_badges(post.author)) }}</strong>
+            <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at.strftime('%b %d · %H:%M') }}</time>
           </div>
-        </div>
+        </div><div class="post-family post-audience"><span>{{ post.audience|capitalize }}</span></div></header>
         {% if post.original_post %}<div class="reshare-attribution">Shared from @{{ content_post.author.username }}</div>{% endif %}
         {% if content_post.post_type == 'achievement' %}
         {{ achievement_post_card(content_post) }}
         {% else %}
-        <p class="profile-post-body">{{ content_post.content or content_post.media_type|capitalize }}</p>
+        {% if content_post.content %}<div class="post-copy" data-post-copy><p class="post-content">{{ content_post.content }}</p><button class="post-read-more" type="button" data-read-more aria-expanded="false" hidden>Read more</button></div>{% endif %}
         {{ post_media_gallery(content_post) }}
         {% endif %}
         {{ purpose_support(content_post, csrf_token()) }}
@@ -156,4 +157,9 @@
   </section>
   {% endif %}
 </section>
+</main><aside class="profile-context-sidebar panel-sidebar" aria-label="Profile at a glance">
+  <section><p class="eyebrow">Profile at a glance</p><h3>{{ profile.display_name }}</h3><p class="muted-meta">@{{ user.username }}</p><p>{{ posts|length }} posts · {{ follower_count }} followers</p></section>
+  <section><h3>About</h3><p>{{ profile.bio or 'No bio shared yet.' }}</p></section>
+  <section><h3>Explore this profile</h3><a href="#profile-posts">Posts</a>{% if show_families %}<a href="#profile-families">Families</a>{% endif %}{% if show_achievements %}<a href="#profile-achievements">Achievements</a>{% endif %}</section>
+</aside></div>
 {% endblock %}
