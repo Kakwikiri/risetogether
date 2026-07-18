@@ -50,14 +50,6 @@
     </div>
   </header>
 
-  <nav class="profile-tabbar" aria-label="Profile navigation">
-    <a class="active" href="{{ url_for('main.home') }}">Feed</a>
-    <a href="{{ url_for('main.people') }}">People</a>
-    <a href="{{ url_for('family.families') }}">Families</a>
-    <a href="{{ url_for('chat.inbox') }}">Messages</a>
-    <a href="{{ url_for('main.notifications') }}">Notifications</a>
-  </nav>
-
   {% if show_achievements or show_points or show_streaks or show_goals %}<section class="profile-section profile-growth-overview">
     <div class="split-header"><div><p class="eyebrow">Positive growth</p><h2>Growth and milestones</h2></div><span class="status-pill">No kindness score</span></div>
     <p class="muted-meta">These are separate, verified milestones.. not a permanent judgment or moral ranking.</p>
@@ -118,7 +110,7 @@
     <div class="profile-feed-cards">
       {% for post in posts %}
       {% set content_post = post.original_post or post %}
-      <article class="profile-post-card">
+      <article class="post-card profile-post-card">
         <div class="profile-post-top">
           <img
             class="avatar"

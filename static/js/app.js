@@ -1819,3 +1819,48 @@ window.addEventListener("pageshow", (event) => {
     || ["/login", "/signup", "/reauthenticate"].includes(window.location.pathname);
   if (event.persisted && authSensitivePage) window.location.reload();
 });
+
+// Keep the feed calm: notify people about real newer records without moving their scroll position.
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("form").forEach((form) => {
+    const mediaInput = form.querySelector("[data-media-input]");
+    const rights = form.querySelector("[data-video-rights-confirmation]");
+    if (!mediaInput || !rights) return;
+    const syncRights = () => {
+      const hasVideo = [...mediaInput.files].some((file) => file.type.startsWith("video/"));
+      rights.hidden = !hasVideo;
+      const checkbox = rights.querySelector("input");
+      if (checkbox) { checkbox.required = hasVideo; if (!hasVideo) checkbox.checked = false; }
+    };
+    mediaInput.addEventListener("change", syncRights);
+  });
+  const feed = document.querySelector("[data-feed-latest-id][data-new-post-url]");
+  if (!feed) return;
+  const indicator = feed.querySelector("[data-new-posts-indicator]");
+  const navCount = document.querySelector("[data-new-post-nav-count]");
+  const afterId = Number(feed.dataset.feedLatestId || 0);
+  const update = async () => {
+    if (document.hidden) return;
+    try {
+      const response = await fetch(`${feed.dataset.newPostUrl}?after_id=${afterId}`, {
+        headers: { Accept: "application/json" }, credentials: "same-origin",
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const count = Number(payload.count || 0);
+      if (!count) return;
+      const label = count > 9 ? "9+" : String(count);
+      if (navCount) { navCount.textContent = label; navCount.hidden = false; }
+      if (indicator) {
+        indicator.querySelector("span").textContent = `${label} new ${count === 1 ? "post" : "posts"}`;
+        indicator.hidden = window.scrollY < 180;
+      }
+    } catch (_error) { /* In-app counters continue to work if polling is unavailable. */ }
+  };
+  window.addEventListener("scroll", () => {
+    if (indicator && navCount && !navCount.hidden) indicator.hidden = window.scrollY < 180;
+  }, { passive: true });
+  window.setInterval(update, 25000);
+  update();
+
+});

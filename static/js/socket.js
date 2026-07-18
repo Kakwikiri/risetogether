@@ -2006,6 +2006,19 @@ if (typeof familyVoiceConfig !== "undefined") {
       participantNames.set(participant.socket_id, participant.username);
       renderParticipants();
     });
+    socket.on("family_voice_presence", (payload) => {
+      if (!joined) return;
+      const activeIds = new Set();
+      (payload?.participants || []).forEach((participant) => {
+        if (!participant?.socket_id || participant.socket_id === socket.id) return;
+        activeIds.add(participant.socket_id);
+        participantNames.set(participant.socket_id, participant.username || "Family member");
+      });
+      [...participantNames.keys()].forEach((socketId) => {
+        if (!activeIds.has(socketId)) closePeer(socketId);
+      });
+      renderParticipants();
+    });
     socket.on("family_voice_participant_left", (participant) => closePeer(participant.socket_id));
     socket.on("family_voice_signal", handleSignal);
     socket.on("family_voice_error", (payload) => {

@@ -354,6 +354,24 @@ def home():
     return render_template("landing.html")
 
 
+@main_bp.route("/feed/new-count")
+@login_required
+def feed_new_count():
+    """Return a privacy-filtered count for the unobtrusive new-post prompt."""
+    after_id = max(request.args.get("after_id", type=int) or 0, 0)
+    hidden_ids = {
+        row.blocker_id for row in Block.query.filter_by(blocked_id=current_user.id).all()
+    } | {
+        row.blocked_id for row in Block.query.filter_by(blocker_id=current_user.id).all()
+    }
+    candidates = (
+        Post.query.filter(Post.id > after_id, Post.user_id.notin_(hidden_ids))
+        .order_by(Post.id.desc()).limit(100).all()
+    )
+    visible = [post for post in candidates if can_view_post(post)]
+    return jsonify({"count": len(visible), "latest_id": visible[0].id if visible else after_id})
+
+
 @main_bp.route("/offline")
 def offline():
     return render_template("offline.html")
@@ -975,6 +993,10 @@ def create_post():
     if len(media_files) > 1 and any(get_media_type(item.filename) != "image" for item in media_files):
         flash("Multiple attachments must all be photos.", "warning")
         return redirect(request.referrer or url_for("main.home"))
+    if any(get_media_type(item.filename) == "video" for item in media_files):
+        if request.form.get("media_rights_confirmed") != "1":
+            flash("Confirm that you have permission to share this video before posting it.", "warning")
+            return redirect(request.referrer or url_for("main.home"))
     for item in media_files:
         is_valid, upload_message = validate_upload(item)
         if not is_valid:

@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-photo-grid-layout"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-connection-layout"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-photo-grid-layout"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-connection-layout"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-photo-grid-layout"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-connection-layout"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}">
@@ -90,7 +90,7 @@
       </button>
       <nav class="nav-links" id="primary-navigation" aria-label="Primary navigation">
         {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.home') }}" data-icon="⌂"><span>Feed</span></a>
+        <a href="{{ url_for('main.home') }}" data-icon="⌂" data-for-you-link><span>For you</span><span class="nav-badge" data-new-post-nav-count hidden></span></a>
         <a href="{{ url_for('main.people') }}" data-icon="☻"><span>People</span></a>
         <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
         <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
@@ -106,13 +106,13 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
+        <a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>
         <details class="desktop-nav-more">
           <summary data-icon="＋">More</summary>
           <div class="desktop-nav-more-panel">
         <a href="{{ url_for('main.settings') }}" data-icon="⚙"><span>Settings</span></a>
         {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
         {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗"><span>Streaks</span></a>{% endif %}
-        <a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>
         <a href="{{ url_for('main.memories') }}" data-icon="♡"><span>Memories</span></a>
         <a href="{{ url_for('main.impact') }}" data-icon="↗"><span>My impact</span></a>
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}

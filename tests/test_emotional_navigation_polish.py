@@ -10,7 +10,7 @@ class EmotionalNavigationPolishTests(unittest.TestCase):
         base = (ROOT / "templates/base.html").read_text()
         css = (ROOT / "static/css/styles.css").read_text()
         self.assertIn('class="desktop-nav-more"', base)
-        for label in ("Feed", "People", "Families", "Messages", "Notifications", "Profile"):
+        for label in ("For you", "People", "Families", "Messages", "Notifications", "Profile", "Goals"):
             self.assertIn(f"<span>{label}</span>", base)
         self.assertIn("@media (min-width: 901px)", css)
         self.assertIn(".desktop-nav-more-panel", css)

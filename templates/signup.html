@@ -16,6 +16,7 @@
     <form action="{{ url_for('auth.signup') }}" method="post" class="stacked-form signup-form-grid" data-auth-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       {% if referral_token %}<input type="hidden" name="referral_token" value="{{ referral_token }}" /><div class="alert info">You are joining through a RiseTogether invitation. Rewards are recorded only after three real active days.</div>{% endif %}
+      <label class="auth-field" for="full-name"><span>Full name</span><input id="full-name" type="text" name="full_name" required maxlength="120" autocomplete="name" /></label>
       <label class="auth-field" for="username"><span>Username</span><input id="username" type="text" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
       <label class="auth-field" for="email"><span>Email address</span><input id="email" type="email" name="email" required autocomplete="email" autocapitalize="none" spellcheck="false" /></label>
       <label class="auth-field" for="country"><span>Country</span><select id="country" name="country" required autocomplete="country-name">

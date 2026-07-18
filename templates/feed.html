@@ -1,6 +1,6 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import empty_state, skeleton, reaction_bar, achievement_post_card, rise_badges, purpose_support, post_media_gallery with context %} {% block content %}
 <div class="grid-layout {% if video_only %}video-only-layout{% endif %}">
-  <section class="panel panel-feed">
+  <section class="panel panel-feed" data-feed-latest-id="{{ posts[0].id if posts else 0 }}" data-new-post-url="{{ url_for('main.feed_new_count') }}">
     <div class="panel-header">
       <div><p class="eyebrow">RiseTogether community</p><h2>{{ feed_filter|replace('_', ' ')|title }}</h2></div>
       {% if video_only %}<label class="status-pill"><input type="checkbox" data-auto-slide checked /> Auto slide</label>{% endif %}
@@ -10,6 +10,7 @@
       <a class="{{ 'active' if feed_filter == key else '' }}" href="{{ url_for('main.home', filter=key) }}" {% if feed_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
+    <a class="new-posts-indicator" href="{{ url_for('main.home') }}" data-new-posts-indicator hidden>↑ <span>New posts</span></a>
     <div class="feed-loading-grid" data-feed-loading hidden>{{ skeleton(3, 'Loading posts') }}{{ skeleton(3, 'Loading posts') }}</div>
     {% if video_only %}
     <div class="video-quick-actions">
@@ -61,6 +62,9 @@
           <label class="file-pill">
             Add file
             <input type="file" name="media" accept="image/*,audio/*,video/*,.pdf,.doc,.docx" data-media-input multiple />
+          </label>
+          <label class="video-rights-confirmation" data-video-rights-confirmation hidden>
+            <input type="checkbox" name="media_rights_confirmed" value="1" /> I created this video or have permission to share it.
           </label>
           <select name="audience" aria-label="Post audience">
             <option value="public">Public</option>

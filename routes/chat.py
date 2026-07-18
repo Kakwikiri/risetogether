@@ -11,7 +11,7 @@ from family_upgrades import pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
-from models import Block, Family, FamilyMember, FamilyMemberRestriction, LiveSession, Message, MessageAttachment, MessageDeletion, MessageReaction, Notification, PushSubscription, User
+from models import Block, Family, FamilyMember, FamilyMemberRestriction, FriendRequest, LiveSession, Message, MessageAttachment, MessageDeletion, MessageReaction, Notification, PushSubscription, User
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -418,8 +418,26 @@ def inbox():
         membership.family
         for membership in current_user.family_memberships
     ]
+    friendships = FriendRequest.query.filter(
+        FriendRequest.status == "accepted",
+        (FriendRequest.sender_id == current_user.id) | (FriendRequest.receiver_id == current_user.id),
+    ).all()
+    friend_ids = {
+        row.receiver_id if row.sender_id == current_user.id else row.sender_id
+        for row in friendships
+    }
+    friends = User.query.filter(User.id.in_(friend_ids)).order_by(User.username).limit(8).all() if friend_ids else []
+    excluded_ids = set(friend_ids) | {current_user.id}
+    pending = FriendRequest.query.filter(
+        (FriendRequest.sender_id == current_user.id) | (FriendRequest.receiver_id == current_user.id)
+    ).all()
+    excluded_ids.update(row.receiver_id if row.sender_id == current_user.id else row.sender_id for row in pending)
+    suggested_friends = User.query.filter(
+        ~User.id.in_(excluded_ids), User.is_banned == False, User.is_hidden_from_directory == False
+    ).order_by(User.created_at.desc()).limit(6).all()
     return render_template(
-        "messages.html", conversations=conversations, families=families
+        "messages.html", conversations=conversations, families=families,
+        friends=friends, suggested_friends=suggested_friends,
     )
 
 
@@ -1002,6 +1020,14 @@ def leave_family_voice_room(sid):
             {"socket_id": sid, "user_id": participant["user_id"]},
             room=f"family-voice-{family_id}",
         )
+        socketio.emit(
+            "family_voice_presence",
+            {"participants": [
+                {"socket_id": socket_id, **row}
+                for socket_id, row in participants.items()
+            ]},
+            room=f"family-voice-{family_id}",
+        )
         if not participants:
             family_voice_participants.pop(family_id, None)
         break
@@ -1047,6 +1073,14 @@ def join_family_voice(data):
         {"socket_id": request.sid, "user_id": current_user.id, "username": current_user.username},
         room=room,
         include_self=False,
+    )
+    socketio.emit(
+        "family_voice_presence",
+        {"participants": [
+            {"socket_id": socket_id, **participant}
+            for socket_id, participant in participants.items()
+        ]},
+        room=room,
     )
 
 

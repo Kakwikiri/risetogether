@@ -9548,3 +9548,93 @@ body[data-page="main.home"][data-authenticated="0"] .landing-legal { font-size: 
 .family-context-sidebar p { margin: 0; }
 .family-context-sidebar a { padding: 0.42rem 0.5rem; color: var(--ink); background: var(--soft); border-radius: 8px; text-decoration: none; font-weight: 800; }
 @media (max-width: 1100px) { .family-desktop-layout { grid-template-columns: minmax(0, 1fr); } .family-context-sidebar { display: none; } }
+
+/* Calm navigation, moving context columns, and consistent people/post surfaces. */
+.new-posts-indicator {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 80;
+  padding: 0.55rem 0.85rem;
+  color: white;
+  background: var(--brand);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+  font-weight: 850;
+  transform: translateX(-50%);
+}
+.video-rights-confirmation {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  color: var(--muted);
+  background: var(--soft);
+  font-size: 0.8rem;
+}
+.video-rights-confirmation input { flex: 0 0 auto; margin-top: 0.15rem; }
+.video-rights-confirmation[hidden] { display: none; }
+.messages-desktop-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 0.8rem; align-items: start; }
+.messages-desktop-layout > main { display: grid; min-width: 0; gap: 0.75rem; }
+.messages-desktop-layout > main > .panel { margin: 0; }
+.messages-people-sidebar { display: grid; gap: 0; }
+.messages-people-sidebar section { padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
+.messages-people-sidebar h3 { margin: 0 0 0.35rem; }
+.messages-people-sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0;
+  color: var(--ink);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  text-decoration: none;
+}
+.messages-people-sidebar a:last-child { border-bottom: 0; }
+.messages-people-sidebar img { width: 38px; height: 38px; object-fit: cover; border-radius: 50%; }
+.messages-people-sidebar span { display: grid; min-width: 0; }
+.messages-people-sidebar small { color: var(--muted); }
+.profile-feed-cards { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.profile-feed-cards .profile-post-card {
+  width: 100%;
+  margin: 0;
+  padding: 0.8rem 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.profile-feed-cards .media-frame { max-width: 620px; margin-inline: 0; }
+.profile-feed-cards .profile-post-body { max-width: 68ch; }
+.family-voice-room { min-height: min(520px, calc(100dvh - 100px)); }
+.family-voice-orb { width: 82px; height: 82px; font-size: 2.7rem; }
+.family-voice-controls .button { min-height: 40px; padding: 0.5rem 0.8rem; }
+
+@media (min-width: 901px) {
+  body[data-authenticated="1"] .topbar { width: 200px; padding-inline: 0.6rem; }
+  body[data-authenticated="1"] .content {
+    width: min(calc(100% - 200px), 1110px);
+    max-width: 1110px;
+    margin-left: max(200px, calc((100vw - 910px) / 2));
+  }
+  body[data-page="main.home"][data-authenticated="1"] .content { width: min(calc(100% - 200px), 1110px); }
+  body[data-page="main.home"][data-authenticated="1"] .grid-layout { grid-template-columns: minmax(0, 660px) minmax(230px, 270px); gap: 0.7rem; }
+  body[data-page="main.home"][data-authenticated="1"] .panel-sidebar,
+  .family-context-sidebar { position: static; }
+  body[data-page="main.home"][data-authenticated="1"] .panel-sidebar { display: block; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  body[data-page="main.home"][data-authenticated="1"] .panel-sidebar .card,
+  .family-context-sidebar section {
+    margin: 0;
+    padding: 0.75rem 0.15rem;
+    background: transparent;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .family-context-sidebar a { background: transparent; border-radius: 0; border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 1080px) { .messages-desktop-layout { grid-template-columns: minmax(0, 1fr); } .messages-people-sidebar { display: none; } }
+@media (max-width: 900px) {
+  .profile-feed-cards .profile-post-card { padding-inline: 0; }
+  .new-posts-indicator { top: 0.55rem; }
+}

@@ -196,15 +196,21 @@ def signup():
         session["referral_token"] = referral_token
     if request.method == "POST":
         username = request.form.get("username", "").strip()
+        # Older installed clients may not yet send this field; keep them compatible
+        # while the current signup UI asks for the person's name.
+        full_name = " ".join(request.form.get("full_name", "").split()) or username
         email = request.form.get("email", "").strip().lower()
         country = request.form.get("country", "").strip()
         birth_date, birth_date_error = parse_birth_date(request.form.get("birth_date"))
         password = request.form.get("password", "").strip()
-        if not username or not email or not password or not country or not birth_date:
+        if not full_name or not username or not email or not password or not country or not birth_date:
             if birth_date_error:
                 flash(birth_date_error, "warning")
                 return render_signup()
             flash("Please complete all fields.", "warning")
+            return render_signup()
+        if len(full_name) < 2 or len(full_name) > 120:
+            flash("Please enter your full name using 2 to 120 characters.", "warning")
             return render_signup()
         if not SAFE_USERNAME_RE.fullmatch(username):
             flash("Usernames may use only letters, numbers, and underscores. Badge-like symbols are not allowed.", "warning")
@@ -230,7 +236,7 @@ def signup():
             user.admin_role = "super_admin"
         db.session.add(user)
         db.session.commit()
-        profile = Profile(user_id=user.id, display_name=username, birth_date=birth_date)
+        profile = Profile(user_id=user.id, display_name=full_name, birth_date=birth_date)
         db.session.add(profile)
         from referrals import register_referral_signup
         register_referral_signup(user, referral_token)
