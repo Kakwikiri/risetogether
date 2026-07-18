@@ -281,6 +281,9 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_family_memberships BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_checkins BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
+        "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",
         "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'verified_person', u.id, 'active', 'Legacy verification migrated into the audited RiseTogether badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.is_verified = TRUE ON CONFLICT (badge_type, user_id) DO NOTHING",
         "INSERT INTO rise_badge_assignments (badge_type, user_id, status, verification_note, assigned_by_id, assigned_at) SELECT 'platform_moderator', u.id, 'active', 'Existing website moderation role migrated into the protected badge system.', (SELECT id FROM users WHERE admin_role = 'super_admin' ORDER BY created_at ASC LIMIT 1), CURRENT_TIMESTAMP FROM users u WHERE u.admin_role IN ('moderator','admin') ON CONFLICT (badge_type, user_id) DO NOTHING",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(32) NOT NULL DEFAULT 'standard'",
@@ -475,6 +478,7 @@ def prevent_private_page_caching(response):
 
 @app.context_processor
 def inject_navigation_counts():
+    from age_safety import user_age_group, user_is_adult
     from badges import family_badges, user_badges
     from family_upgrades import family_has_upgrade
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
@@ -508,6 +512,8 @@ def inject_navigation_counts():
         "user_has_premium": user_has_premium,
         "family_has_premium": family_has_premium,
         "recording_limit_seconds": recording_limit_seconds,
+        "viewer_age_group": user_age_group(current_user) if current_user.is_authenticated else "unknown",
+        "viewer_is_adult": user_is_adult(current_user) if current_user.is_authenticated else False,
         "rise_user_badges": user_badges,
         "rise_family_badges": family_badges,
     }

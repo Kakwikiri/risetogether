@@ -643,6 +643,7 @@
         placeholder="Share encouragement with {{ family.name }}..."
       ></textarea>
       <select name="purpose" aria-label="Post purpose"><option value="normal">Normal</option><option value="feeling">Sharing how I feel</option><option value="humour">A little humour</option><option value="encouragement">I need encouragement</option><option value="advice">I need advice</option><option value="listen">I need someone to listen</option><option value="practical_help">I need practical help</option><option value="celebrating">I'm celebrating</option></select>
+      <select name="age_rating" aria-label="Who is this suitable for"><option value="general">Suitable for everyone</option>{% if viewer_is_adult %}<option value="adult">Adult topic · 18+</option>{% endif %}</select>
       <div class="composer-preview" data-media-preview hidden></div>
       <div class="composer-tools">
         <label class="file-pill">

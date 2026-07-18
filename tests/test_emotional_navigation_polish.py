@@ -59,6 +59,20 @@ class EmotionalNavigationPolishTests(unittest.TestCase):
         self.assertIn('body[data-page="main.home"][data-authenticated="1"] .panel-feed', css)
         self.assertIn("max-width: 620px", css)
 
+    def test_entry_pages_fit_viewport_and_dark_heading_stays_readable(self):
+        css = (ROOT / "static/css/styles.css").read_text()
+        self.assertIn('body[data-page="main.home"][data-authenticated="0"]', css)
+        self.assertIn("height: 100dvh", css)
+        self.assertIn('body[data-page^="auth."]', css)
+        self.assertIn(":root[data-theme=\"dark\"] .landing-copy h1", css)
+        self.assertIn("color: #f2fffb", css)
+
+    def test_desktop_feed_is_a_continuous_compact_stream(self):
+        css = (ROOT / "static/css/styles.css").read_text()
+        self.assertIn("border-width: 0 0 1px", css)
+        self.assertIn("border-radius: 0", css)
+        self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
+
 
 if __name__ == "__main__":
     unittest.main()

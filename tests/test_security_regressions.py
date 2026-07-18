@@ -1,14 +1,15 @@
 import os
 import io
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
-from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Post, Reaction, User
+from models import AuditLog, ChallengeCompletion, ChallengeParticipant, FamilyCampaignContribution, FamilyChallenge, FamilyContributionCampaign, FamilyGalleryItem, FamilyUpgradePurchase, PasswordResetToken, PointSecurityEvent, PointTransaction, Post, Profile, Reaction, User
 from models import SiteSetting
 from extensions import db
 from routes.auth import google_oauth_config, public_url_for, should_make_admin
@@ -33,12 +34,35 @@ from feature_flags import (
 from family_levels import family_level_for_xp
 from family_upgrades import UPGRADE_CATALOG
 from points import award_points, personal_point_balance, spend_personal_points
+from age_safety import can_view_age_rating, parse_birth_date, user_age_group
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityRegressionTests(unittest.TestCase):
+    def test_date_of_birth_is_private_and_controls_adult_posts(self):
+        teen = SimpleNamespace(profile=SimpleNamespace(birth_date=date(2010, 1, 1)))
+        adult = SimpleNamespace(profile=SimpleNamespace(birth_date=date(1990, 1, 1)))
+        self.assertEqual(user_age_group(teen, today=date(2026, 7, 18)), "teen")
+        self.assertFalse(can_view_age_rating(teen, "adult"))
+        self.assertTrue(can_view_age_rating(adult, "adult"))
+        self.assertTrue(can_view_age_rating(teen, "general"))
+        self.assertIsNone(parse_birth_date("2020-01-01", today=date(2026, 7, 18))[0])
+        self.assertIn("birth_date", Profile.__table__.columns)
+        self.assertIn("age_rating", Post.__table__.columns)
+
+    def test_age_appropriate_content_is_server_enforced_and_disclosed(self):
+        route_source = (ROOT / "routes/main.py").read_text()
+        signup = (ROOT / "templates/signup.html").read_text()
+        privacy = (ROOT / "templates/privacy.html").read_text()
+        migration = (ROOT / "migrations/20260718_age_appropriate_content.sql").read_text()
+        self.assertIn("can_view_age_rating", route_source)
+        self.assertIn("Only confirmed adult accounts", route_source)
+        self.assertIn('name="birth_date"', signup)
+        self.assertIn("not shown on your profile", privacy)
+        self.assertIn("ck_post_age_rating", migration)
+
     def test_login_replaces_restored_identity_and_private_pages_are_not_cached(self):
         auth_source = (ROOT / "routes/auth.py").read_text()
         app_source = (ROOT / "app.py").read_text()

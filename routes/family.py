@@ -8,6 +8,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from extensions import db
+from age_safety import can_view_age_rating
 from feature_flags import feature_required, is_feature_enabled
 from family_levels import family_level_summary
 from family_upgrades import (
@@ -1030,6 +1031,8 @@ def family_home_dashboard(family, members, current_member):
         .order_by(Post.created_at.desc())
         .all()
     )
+    if not is_platform_owner(current_user):
+        family_posts = [post for post in family_posts if can_view_age_rating(current_user, post.age_rating)]
     family_messages = (
         Message.query.filter_by(family_id=family.id)
         .order_by(Message.created_at.desc())
@@ -1458,6 +1461,8 @@ def family_detail(family_id):
         .order_by(Post.created_at.desc())
         .all()
     )
+    if not is_super_admin:
+        posts = [post for post in posts if can_view_age_rating(current_user, post.age_rating)]
     if family.is_active and is_feature_enabled("weekly_reports") and (member or is_super_admin):
         ensure_weekly_report_ready(family)
     if family.is_active and member and is_feature_enabled("enhanced_notifications"):

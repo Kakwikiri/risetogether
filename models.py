@@ -116,6 +116,7 @@ class Profile(db.Model):
     )
     display_name = db.Column(db.String(120), nullable=False)
     bio = db.Column(db.Text, default="")
+    birth_date = db.Column(db.Date, nullable=True)
     interests = db.Column(db.Text, default="", nullable=False)
     avatar = db.Column(db.String(255), default="")
     privacy_posts = db.Column(db.String(20), default="public")
@@ -166,6 +167,9 @@ class RiseBadgeAssignment(db.Model):
 
 class Post(db.Model):
     __tablename__ = "posts"
+    __table_args__ = (
+        db.CheckConstraint("age_rating IN ('general','adult')", name="ck_post_age_rating"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -175,6 +179,7 @@ class Post(db.Model):
     media_type = db.Column(db.String(32), default="text")
     audience = db.Column(db.String(20), default="public", nullable=False)
     purpose = db.Column(db.String(32), default="normal", nullable=False)
+    age_rating = db.Column(db.String(16), default="general", nullable=False)
     is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     family_id = db.Column(

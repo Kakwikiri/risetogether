@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from markupsafe import Markup, escape
 
 from extensions import db, socketio
+from age_safety import POST_AGE_RATINGS, can_view_age_rating, parse_birth_date, user_is_adult
 from helpers import (
     delete_media_if_unreferenced,
     REACTION_LABELS,
@@ -548,6 +549,8 @@ def can_view_post(post):
         return False
     if current_user.is_authenticated and website_moderator_role(current_user) == "super_admin":
         return True
+    if not can_view_age_rating(current_user if current_user.is_authenticated else None, post.age_rating):
+        return False
     if post.is_hidden and (
         not current_user.is_authenticated or post.user_id != current_user.id
     ):
@@ -772,7 +775,10 @@ def profile(username):
         posts_query = posts_query.filter_by(audience="public", is_hidden=False)
         if not profile.show_achievements:
             posts_query = posts_query.filter(Post.post_type != "achievement")
-    posts = posts_query.order_by(Post.created_at.desc()).all()
+    posts = [
+        post for post in posts_query.order_by(Post.created_at.desc()).all()
+        if is_owner_view or can_view_age_rating(current_user if current_user.is_authenticated else None, post.age_rating)
+    ]
     following = [
         follow.followed
         for follow in Follow.query.filter_by(follower_id=user.id)
@@ -874,12 +880,19 @@ def edit_profile():
         display_name = request.form.get("display_name", "").strip()
         bio = request.form.get("bio", "").strip()
         privacy = request.form.get("privacy_posts", "public")
+        birth_date_value = request.form.get("birth_date", "").strip()
         wants_password_change = request.form.get("change_password") == "1"
         current_password = request.form.get("current_password", "")
         new_password = request.form.get("new_password", "").strip()
         confirm_password = request.form.get("confirm_password", "").strip()
         reset_phrase = request.form.get("reset_phrase", "").strip()
         avatar_file = request.files.get("avatar")
+        if birth_date_value:
+            birth_date, birth_date_error = parse_birth_date(birth_date_value)
+            if birth_date_error:
+                flash(birth_date_error, "warning")
+                return redirect(url_for("main.edit_profile"))
+            profile.birth_date = birth_date
         if avatar_file and avatar_file.filename:
             is_valid, upload_message = validate_profile_avatar_upload(avatar_file)
             if not is_valid:
@@ -939,8 +952,14 @@ def create_post():
     family_id = request.form.get("family_id")
     audience = request.form.get("audience", current_user.profile.privacy_posts)
     purpose = request.form.get("purpose", "normal").strip()
+    age_rating = request.form.get("age_rating", "general").strip()
     if purpose not in POST_PURPOSES:
         purpose = "normal"
+    if age_rating not in POST_AGE_RATINGS:
+        age_rating = "general"
+    if age_rating == "adult" and not user_is_adult(current_user):
+        flash("Only confirmed adult accounts can share posts marked 18+.", "warning")
+        return redirect(url_for("main.home"))
     if audience not in POST_AUDIENCES:
         audience = "public"
     media_file = request.files.get("media")
@@ -967,6 +986,7 @@ def create_post():
         media_type=media_type,
         audience=audience,
         purpose=purpose,
+        age_rating=age_rating,
     )
     if family_id:
         try:

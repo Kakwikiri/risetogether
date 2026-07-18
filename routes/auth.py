@@ -13,6 +13,7 @@ from flask_login import confirm_login, current_user, login_required, login_user,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
+from age_safety import parse_birth_date
 from models import PasswordResetToken, Profile, SiteSetting, User
 from ownership import is_platform_owner_username
 
@@ -197,8 +198,12 @@ def signup():
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip().lower()
         country = request.form.get("country", "").strip()
+        birth_date, birth_date_error = parse_birth_date(request.form.get("birth_date"))
         password = request.form.get("password", "").strip()
-        if not username or not email or not password or not country:
+        if not username or not email or not password or not country or not birth_date:
+            if birth_date_error:
+                flash(birth_date_error, "warning")
+                return render_signup()
             flash("Please complete all fields.", "warning")
             return render_signup()
         if not SAFE_USERNAME_RE.fullmatch(username):
@@ -225,7 +230,7 @@ def signup():
             user.admin_role = "super_admin"
         db.session.add(user)
         db.session.commit()
-        profile = Profile(user_id=user.id, display_name=username)
+        profile = Profile(user_id=user.id, display_name=username, birth_date=birth_date)
         db.session.add(profile)
         from referrals import register_referral_signup
         register_referral_signup(user, referral_token)

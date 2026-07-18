@@ -57,6 +57,12 @@
     </select>
     </section>
     <section class="settings-panel">
+      <h3>Age-appropriate experience</h3>
+      <p class="muted-meta">Your date of birth is private. RiseTogether uses it only to keep age-restricted posts away from younger members.</p>
+      <label for="profile-birth-date">Date of birth</label>
+      <input id="profile-birth-date" type="date" name="birth_date" value="{{ profile.birth_date.isoformat() if profile.birth_date else '' }}" autocomplete="bday" required />
+    </section>
+    <section class="settings-panel">
     <div class="form-section-header">
       <h3>Security</h3>
       <button class="button secondary" type="button" data-toggle-password-fields>
