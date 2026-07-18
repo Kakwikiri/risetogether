@@ -20,7 +20,9 @@ live_broadcasters = {}
 live_viewers = {}
 active_calls = {}
 active_calls_lock = Lock()
+family_voice_participants = {}
 CALL_TIMEOUT_SECONDS = 45
+FAMILY_VOICE_ROOM_LIMIT = 8
 
 
 def parse_user_id(value):
@@ -482,6 +484,24 @@ def family_chat(family_id):
     )
 
 
+@chat_bp.route("/family/<int:family_id>/voice")
+@login_required
+def family_voice_room(family_id):
+    family = Family.query.get_or_404(family_id)
+    membership = FamilyMember.query.filter_by(
+        family_id=family.id, user_id=current_user.id
+    ).first()
+    if not membership:
+        flash("Join this family before opening its voice room.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    return render_template(
+        "family_voice_room.html",
+        family=family,
+        ice_servers=get_ice_servers(),
+        room_limit=FAMILY_VOICE_ROOM_LIMIT,
+    )
+
+
 @login_required
 def calls(user_id):
     if not current_app.config.get("REALTIME_MEDIA_ENABLED"):
@@ -843,6 +863,7 @@ def on_connect():
 def on_disconnect(reason=None):
     if current_user.is_authenticated:
         open_chat_rooms.pop(request.sid, None)
+        leave_family_voice_room(request.sid)
         log_socket_event("disconnect", reason=reason)
         stale_live_sessions = [
             session_id
@@ -923,6 +944,94 @@ def on_join_room(data):
     open_chat_rooms[request.sid] = room
     log_socket_event("join_room", room=room)
     emit("room_joined", {"room": room}, room=request.sid)
+
+
+def leave_family_voice_room(sid):
+    for family_id, participants in list(family_voice_participants.items()):
+        participant = participants.pop(sid, None)
+        if not participant:
+            continue
+        socketio.emit(
+            "family_voice_participant_left",
+            {"socket_id": sid, "user_id": participant["user_id"]},
+            room=f"family-voice-{family_id}",
+        )
+        if not participants:
+            family_voice_participants.pop(family_id, None)
+        break
+
+
+@socketio.on("join_family_voice")
+def join_family_voice(data):
+    family_id = parse_user_id((data or {}).get("family_id"))
+    membership = (
+        FamilyMember.query.filter_by(family_id=family_id, user_id=current_user.id).first()
+        if family_id
+        else None
+    )
+    if not membership:
+        emit("family_voice_error", {"message": "Only Family members can join this voice room."}, room=request.sid)
+        return
+    participants = family_voice_participants.setdefault(family_id, {})
+    if request.sid not in participants and len(participants) >= FAMILY_VOICE_ROOM_LIMIT:
+        emit(
+            "family_voice_error",
+            {"message": f"This voice room is full ({FAMILY_VOICE_ROOM_LIMIT} devices)."},
+            room=request.sid,
+        )
+        return
+    existing = [
+        {"socket_id": sid, **participant}
+        for sid, participant in participants.items()
+        if sid != request.sid
+    ]
+    participants[request.sid] = {
+        "user_id": current_user.id,
+        "username": current_user.username,
+    }
+    room = f"family-voice-{family_id}"
+    join_room(room)
+    emit(
+        "family_voice_joined",
+        {"family_id": family_id, "participants": existing, "socket_id": request.sid},
+        room=request.sid,
+    )
+    emit(
+        "family_voice_participant_joined",
+        {"socket_id": request.sid, "user_id": current_user.id, "username": current_user.username},
+        room=room,
+        include_self=False,
+    )
+
+
+@socketio.on("family_voice_signal")
+def family_voice_signal(data):
+    payload = data or {}
+    family_id = parse_user_id(payload.get("family_id"))
+    target_sid = str(payload.get("target_socket_id") or "")
+    signal = payload.get("signal")
+    participants = family_voice_participants.get(family_id, {}) if family_id else {}
+    if request.sid not in participants or target_sid not in participants or not isinstance(signal, dict):
+        return
+    emit(
+        "family_voice_signal",
+        {
+            "source_socket_id": request.sid,
+            "user_id": current_user.id,
+            "username": current_user.username,
+            "signal": signal,
+        },
+        room=target_sid,
+    )
+
+
+@socketio.on("leave_family_voice")
+def leave_family_voice(data=None):
+    family_id = parse_user_id((data or {}).get("family_id"))
+    room = f"family-voice-{family_id}" if family_id else None
+    leave_family_voice_room(request.sid)
+    if room:
+        leave_room(room)
 
 
 @socketio.on("private_message")

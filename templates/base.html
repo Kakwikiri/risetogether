@@ -60,16 +60,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260717-chat-date-quiz-slots"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260718-family-voice-compact"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260717-chat-date-quiz-slots"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260718-family-voice-compact"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260717-chat-date-quiz-slots"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260718-family-voice-compact"
     ></script>
   </head>
   <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}">
@@ -228,7 +228,7 @@
       </section>
       {% endif %} {% endwith %} {% block content %}{% endblock %}
     </main>
-    {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat'] %}
+    {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room'] %}
     <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
       <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="Feed"><span aria-hidden="true">⌂</span><small>Feed</small></a>
       <a href="{{ url_for('main.people') }}" class="{% if request.endpoint == 'main.people' %}is-active{% endif %}" aria-label="People"><span aria-hidden="true">☻</span><small>People</small></a>
@@ -237,7 +237,7 @@
       <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ '9+' if unread_notifications > 9 else unread_notifications }}</b>{% endif %}</a>
     </nav>
     {% endif %}
-    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'auth.login', 'auth.signup'] and (request.endpoint != 'main.home' or current_user.is_authenticated) %}
+    {% if request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'auth.login', 'auth.signup'] and (request.endpoint != 'main.home' or current_user.is_authenticated) %}
     <footer class="footer">
       <p>
         RiseTogether.. a safe, supportive community for stories, hope, and

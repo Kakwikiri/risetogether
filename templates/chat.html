@@ -36,7 +36,7 @@
     {% endif %}
     {% endfor %}
   </button>
-  {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Voice rooms are not available yet. Family messages remain ready below.</small></div></aside>{% endif %}
+  {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Talk together without leaving your Family.</small></div><a class="button secondary" href="{{ url_for('chat.family_voice_room', family_id=family.id) }}">Open room</a></aside>{% endif %}
   <div class="chat-typing" data-chat-typing role="status" aria-live="polite" hidden>Typing…</div>
   <div id="chat-log" class="chat-log">
     <div class="chat-active-date" data-chat-active-date hidden aria-hidden="true"></div>

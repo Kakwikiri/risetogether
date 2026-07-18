@@ -363,6 +363,7 @@
 .family-voice-placeholder > span { font-size: 1.25rem; color: var(--brand); }
 .family-voice-placeholder > div { display: grid; min-width: 0; }
 .family-voice-placeholder strong { color: var(--ink); }
+.family-voice-placeholder .button { flex: 0 0 auto; margin-left: auto; }
 
 body {
   overflow-x: hidden;
@@ -8853,3 +8854,85 @@ body.nav-menu-open {
 .family-growth-menu__items a:hover,
 .family-growth-menu__items a:focus-visible,
 .family-growth-menu__items a.active { color: var(--brand-dark); background: var(--soft); }
+
+/* Compact Family desktop layout and the member-only audio room. */
+.family-voice-room {
+  display: grid;
+  width: min(100%, 720px);
+  min-height: min(680px, calc(100dvh - 130px));
+  margin-inline: auto;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.family-voice-room__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.family-voice-room__header h1,
+.family-voice-room__header p { margin: 0; }
+.family-voice-room__body {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+.family-voice-orb {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  color: white;
+  background: radial-gradient(circle at 35% 30%, var(--brand-light), var(--brand-dark));
+  border-radius: 50%;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--brand) 28%, transparent);
+  font-size: 4rem;
+}
+.family-voice-participants { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
+.family-voice-participant {
+  padding: 0.35rem 0.6rem;
+  color: var(--brand-dark);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.family-voice-controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+.family-voice-controls .is-muted { color: white; background: var(--danger); }
+
+@media (min-width: 901px) {
+  .family-detail-card { width: min(100%, 980px); padding: 0.85rem; }
+  .family-tabbar { margin-top: 0.55rem; padding: 0.2rem; }
+  .family-tabbar a,
+  .family-growth-menu summary { min-height: 40px; padding: 0.45rem 0.35rem; }
+  .family-tabbar-secondary { margin-bottom: 0.45rem; padding: 0.18rem; }
+  .family-tabbar-secondary a { min-height: 34px; padding: 0.35rem 0.55rem; }
+  .family-section { padding-block: 0.7rem; }
+  #family-posts > .post-card {
+    width: min(100%, 580px);
+    margin-inline: auto;
+    padding: 0.7rem;
+  }
+  #family-posts > .post-card .media-frame:has(> img.post-media) { width: min(100%, 500px); }
+}
+
+@media (max-width: 560px) {
+  .family-voice-placeholder { flex-wrap: wrap; }
+  .family-voice-placeholder .button { width: 100%; margin-left: 0; }
+  .family-voice-room { min-height: calc(100dvh - 90px); border-radius: 0; }
+  .family-voice-controls { flex-wrap: wrap; }
+}

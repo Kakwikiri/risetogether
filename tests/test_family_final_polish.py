@@ -51,6 +51,21 @@ class FamilyFinalPolishTests(unittest.TestCase):
         self.assertTrue((ROOT / "templates/privacy.html").exists())
         self.assertTrue((ROOT / "templates/terms.html").exists())
 
+    def test_family_voice_room_and_compact_posts_are_wired(self):
+        chat_routes = (ROOT / "routes/chat.py").read_text()
+        chat_template = (ROOT / "templates/chat.html").read_text()
+        socket_js = (ROOT / "static/js/socket.js").read_text()
+        app_js = (ROOT / "static/js/app.js").read_text()
+        css = (ROOT / "static/css/styles.css").read_text()
+        self.assertIn('@chat_bp.route("/family/<int:family_id>/voice")', chat_routes)
+        self.assertIn("FamilyMember.query.filter_by", chat_routes)
+        self.assertIn("join_family_voice", socket_js)
+        self.assertIn("family_voice_signal", socket_js)
+        self.assertIn("chat.family_voice_room", chat_template)
+        self.assertTrue((ROOT / "templates/family_voice_room.html").exists())
+        self.assertIn('#family-posts > .post-card', css)
+        self.assertIn('frame.closest(".chat-log, .post-detail")', app_js)
+
 
 if __name__ == "__main__":
     unittest.main()

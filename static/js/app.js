@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260717-chat-date-quiz-slots";
+  const APP_VERSION = "20260718-family-voice-compact";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1135,7 +1135,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", (event) => {
     if (event.target.closest(".media-download, .view-once-button, a, button")) return;
     const frame = event.target.closest(".media-frame");
-    if (!frame || !frame.closest(".chat-log, .post-card, .post-detail, .family-section")) return;
+    if (!frame || !frame.closest(".chat-log, .post-detail")) return;
     if (frame.classList.contains("view-once-media") && !frame.classList.contains("revealed")) return;
     const image = event.target.closest("img");
     const video = event.target.closest("video");

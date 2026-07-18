@@ -1793,6 +1793,202 @@ socket.on("message_reaction_updated", (data) => {
   });
 });
 
+if (typeof familyVoiceConfig !== "undefined") {
+  document.addEventListener("DOMContentLoaded", () => {
+    const room = document.querySelector("[data-family-voice-room]");
+    if (!room) return;
+    const joinButton = room.querySelector("[data-family-voice-join]");
+    const muteButton = room.querySelector("[data-family-voice-mute]");
+    const leaveButton = room.querySelector("[data-family-voice-leave]");
+    const status = document.getElementById("family-voice-status");
+    const errorBox = room.querySelector("[data-family-voice-error]");
+    const participantList = room.querySelector("[data-family-voice-participants]");
+    const participantCount = room.querySelector("[data-family-voice-count]");
+    const audioStage = document.querySelector("[data-family-voice-audio]");
+    const peers = new Map();
+    const participantNames = new Map();
+    let localStream = null;
+    let joined = false;
+
+    const config = {
+      iceServers: familyVoiceConfig.iceServers || [{ urls: "stun:stun.l.google.com:19302" }],
+    };
+
+    const showError = (message) => {
+      if (!errorBox) return;
+      errorBox.textContent = message;
+      errorBox.hidden = !message;
+    };
+
+    const renderParticipants = () => {
+      if (!participantList || !participantCount) return;
+      participantList.replaceChildren();
+      const names = joined
+        ? [familyVoiceConfig.currentUsername, ...participantNames.values()]
+        : [...participantNames.values()];
+      participantCount.textContent = `${names.length} ${names.length === 1 ? "person" : "people"} connected`;
+      names.forEach((name, index) => {
+        const chip = document.createElement("span");
+        chip.className = "family-voice-participant";
+        chip.textContent = index === 0 && joined ? `${name} (you)` : name;
+        participantList.appendChild(chip);
+      });
+    };
+
+    const sendSignal = (targetSocketId, signal) => {
+      socket.emit("family_voice_signal", {
+        family_id: familyVoiceConfig.familyId,
+        target_socket_id: targetSocketId,
+        signal,
+      });
+    };
+
+    const closePeer = (socketId) => {
+      const state = peers.get(socketId);
+      if (state) {
+        state.connection.close();
+        state.audio?.remove();
+      }
+      peers.delete(socketId);
+      participantNames.delete(socketId);
+      renderParticipants();
+    };
+
+    const createPeer = (socketId, username) => {
+      if (peers.has(socketId)) return peers.get(socketId);
+      const connection = new RTCPeerConnection(config);
+      const state = { connection, pendingCandidates: [], audio: null };
+      peers.set(socketId, state);
+      if (username) participantNames.set(socketId, username);
+      localStream?.getTracks().forEach((track) => connection.addTrack(track, localStream));
+      connection.onicecandidate = (event) => {
+        if (event.candidate) sendSignal(socketId, { candidate: event.candidate });
+      };
+      connection.ontrack = (event) => {
+        if (!audioStage) return;
+        if (!state.audio) {
+          state.audio = document.createElement("audio");
+          state.audio.autoplay = true;
+          state.audio.playsInline = true;
+          audioStage.appendChild(state.audio);
+        }
+        state.audio.srcObject = event.streams[0];
+        state.audio.play().catch(() => {
+          if (status) status.textContent = "Tap Join voice room again to allow sound.";
+        });
+      };
+      connection.onconnectionstatechange = () => {
+        if (["failed", "closed"].includes(connection.connectionState)) closePeer(socketId);
+      };
+      renderParticipants();
+      return state;
+    };
+
+    const makeOffer = async (socketId, username) => {
+      const state = createPeer(socketId, username);
+      const offer = await state.connection.createOffer();
+      await state.connection.setLocalDescription(offer);
+      sendSignal(socketId, { description: state.connection.localDescription });
+    };
+
+    const handleSignal = async (payload) => {
+      if (!joined || !payload?.source_socket_id) return;
+      const socketId = payload.source_socket_id;
+      const state = createPeer(socketId, payload.username);
+      const signal = payload.signal || {};
+      try {
+        if (signal.description) {
+          await state.connection.setRemoteDescription(signal.description);
+          while (state.pendingCandidates.length) {
+            await state.connection.addIceCandidate(state.pendingCandidates.shift());
+          }
+          if (signal.description.type === "offer") {
+            const answer = await state.connection.createAnswer();
+            await state.connection.setLocalDescription(answer);
+            sendSignal(socketId, { description: state.connection.localDescription });
+          }
+        } else if (signal.candidate) {
+          if (state.connection.remoteDescription) {
+            await state.connection.addIceCandidate(signal.candidate);
+          } else {
+            state.pendingCandidates.push(signal.candidate);
+          }
+        }
+      } catch (error) {
+        showError("A voice connection could not be completed. Please leave and try again.");
+      }
+    };
+
+    const cleanup = (notifyServer = true) => {
+      if (notifyServer && joined) socket.emit("leave_family_voice", { family_id: familyVoiceConfig.familyId });
+      joined = false;
+      peers.forEach((state) => state.connection.close());
+      peers.clear();
+      participantNames.clear();
+      localStream?.getTracks().forEach((track) => track.stop());
+      localStream = null;
+      audioStage?.replaceChildren();
+      renderParticipants();
+    };
+
+    joinButton?.addEventListener("click", async () => {
+      if (joined) return;
+      showError("");
+      if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+        showError("Voice rooms are not supported by this browser.");
+        return;
+      }
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false,
+        });
+        if (status) status.textContent = "Connecting to the Family voice room…";
+        socket.emit("join_family_voice", { family_id: familyVoiceConfig.familyId });
+      } catch (error) {
+        showError("Microphone access is required. Allow it in your browser settings and try again.");
+      }
+    });
+
+    muteButton?.addEventListener("click", () => {
+      const track = localStream?.getAudioTracks()[0];
+      if (!track) return;
+      track.enabled = !track.enabled;
+      muteButton.textContent = track.enabled ? "Mute" : "Unmute";
+      muteButton.classList.toggle("is-muted", !track.enabled);
+    });
+
+    leaveButton?.addEventListener("click", () => cleanup(true));
+    window.addEventListener("beforeunload", () => cleanup(true));
+
+    socket.on("family_voice_joined", async (payload) => {
+      joined = true;
+      joinButton.hidden = true;
+      if (muteButton) muteButton.hidden = false;
+      if (status) status.textContent = "You are in the room.";
+      renderParticipants();
+      for (const participant of payload.participants || []) {
+        participantNames.set(participant.socket_id, participant.username);
+        await makeOffer(participant.socket_id, participant.username);
+      }
+    });
+    socket.on("family_voice_participant_joined", (participant) => {
+      if (!joined || participant.socket_id === socket.id) return;
+      participantNames.set(participant.socket_id, participant.username);
+      renderParticipants();
+    });
+    socket.on("family_voice_participant_left", (participant) => closePeer(participant.socket_id));
+    socket.on("family_voice_signal", handleSignal);
+    socket.on("family_voice_error", (payload) => {
+      showError(payload?.message || "Could not join the voice room.");
+      cleanup(false);
+      joinButton.hidden = false;
+      if (muteButton) muteButton.hidden = true;
+    });
+    renderParticipants();
+  });
+}
+
 socket.on("incoming_call", (data) => {
   if (typeof callConfig !== "undefined") return;
   console.log("[call signaling]", {

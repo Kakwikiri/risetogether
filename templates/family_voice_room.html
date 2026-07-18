@@ -1,0 +1,33 @@
+{% extends 'base.html' %} {% block content %}
+<section class="family-voice-room" data-family-voice-room>
+  <header class="family-voice-room__header">
+    <a class="icon-button" href="{{ url_for('chat.family_chat', family_id=family.id) }}" aria-label="Back to {{ family.name }} chat">‹</a>
+    <div>
+      <p class="eyebrow">Family voice room</p>
+      <h1>{{ family.name }}</h1>
+      <p id="family-voice-status">Join when you are ready. Your microphone stays off until you choose to enter.</p>
+    </div>
+  </header>
+  <div class="family-voice-room__body">
+    <div class="family-voice-orb" aria-hidden="true">◌</div>
+    <strong data-family-voice-count>0 people connected</strong>
+    <p class="muted-meta">Up to {{ room_limit }} connected devices. Headphones help prevent echo.</p>
+    <div class="family-voice-participants" data-family-voice-participants aria-live="polite"></div>
+    <p class="alert error" data-family-voice-error hidden></p>
+  </div>
+  <footer class="family-voice-controls">
+    <button class="button" type="button" data-family-voice-join>Join voice room</button>
+    <button class="button secondary" type="button" data-family-voice-mute hidden>Mute</button>
+    <a class="button secondary" href="{{ url_for('chat.family_chat', family_id=family.id) }}" data-family-voice-leave>Leave</a>
+  </footer>
+</section>
+<div data-family-voice-audio hidden></div>
+<script>
+  const familyVoiceConfig = {
+    familyId: {{ family.id }},
+    currentUserId: {{ current_user.id }},
+    currentUsername: {{ current_user.username|tojson }},
+    iceServers: {{ ice_servers|tojson }}
+  };
+</script>
+{% endblock %}
