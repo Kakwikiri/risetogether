@@ -95,6 +95,14 @@
  </main>
  <aside class="messages-people-sidebar" aria-label="People to message">
    <section>
+     <h3>Recent chats</h3>
+     {% for item in conversations[:5] %}<a href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"><img src="{{ user_avatar_url(item.user) }}" alt="" /><span><strong>{{ item.user.profile.display_name or item.user.username }}</strong><small>{{ item.message.content or item.message.media_type|title }}</small></span></a>{% else %}<p class="muted-meta">Your latest conversations will appear here.</p>{% endfor %}
+   </section>
+   <section>
+     <h3>Active people</h3>
+     {% for person in active_friends %}<a href="{{ url_for('chat.direct_chat', user_id=person.id) }}"><img src="{{ user_avatar_url(person) }}" alt="" /><span><strong>{{ person.profile.display_name or person.username }}</strong><small class="active-person-label">● Online</small></span></a>{% else %}<p class="muted-meta">No friends are active right now.</p>{% endfor %}
+   </section>
+   <section>
      <h3>Friends</h3>
      {% for person in friends %}<a href="{{ url_for('chat.direct_chat', user_id=person.id) }}"><img src="{{ user_avatar_url(person) }}" alt="" /><span><strong>{{ person.profile.display_name or person.username }}</strong><small>Open conversation</small></span></a>{% else %}<p class="muted-meta">Friends you connect with will appear here.</p>{% endfor %}
    </section>

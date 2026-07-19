@@ -133,6 +133,7 @@ class Profile(db.Model):
     show_family_memberships = db.Column(db.Boolean, default=True, nullable=False)
     show_checkins = db.Column(db.Boolean, default=False, nullable=False)
     show_goal_progress = db.Column(db.Boolean, default=False, nullable=False)
+    show_last_seen = db.Column(db.Boolean, default=True, nullable=False)
 
 
 class RiseBadgeAssignment(db.Model):

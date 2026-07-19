@@ -449,7 +449,7 @@ socket.on("user_status", (data) => {
   });
   if (typeof chatConfig !== "undefined" && data.user_id === chatConfig.targetUserId) {
     const label = document.querySelector("[data-presence-label]");
-    if (label) label.textContent = data.status === "online" ? "Online" : "Offline";
+    if (label) label.textContent = data.status === "online" ? "Online" : (data.label || "Offline");
   }
 });
 

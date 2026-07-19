@@ -1,4 +1,5 @@
 {% extends 'base.html' %} {% block content %}
+<div class="families-desktop-layout"><main>
 <section class="card panel" data-live-search data-live-search-singular="family" data-live-search-plural="families">
   <div class="split-header">
     <h2>Families</h2>
@@ -83,4 +84,9 @@
   </div>
 </section>
 {% endif %}
+</main><aside class="families-context-sidebar panel-sidebar" aria-label="Family shortcuts">
+  <section><p class="eyebrow">Your Families</p><h3>Growing together</h3>{% for family in joined_families %}<a href="{{ url_for('family.family_detail', family_id=family.id) }}">{{ family.name }}</a>{% else %}<p class="muted-meta">Families you join will appear here.</p>{% endfor %}</section>
+  <section><h3>Recently visited</h3>{% for family in recent_families %}<a href="{{ url_for('family.family_detail', family_id=family.id) }}">{{ family.name }}</a>{% else %}<p class="muted-meta">Open a Family and it will appear here.</p>{% endfor %}</section>
+  <section><h3>Suggested Families</h3>{% for family in recommended_families[:4] %}<a href="{{ url_for('family.family_detail', family_id=family.id) }}">{{ family.name }}<small>{{ family.category|replace('_', ' ')|title }}</small></a>{% else %}<p class="muted-meta">No new suggestions right now.</p>{% endfor %}</section>
+</aside></div>
 {% endblock %}

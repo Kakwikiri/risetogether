@@ -96,7 +96,18 @@ def room_for_private_chat(user_id, other_id):
 
 
 def user_is_online(user_id):
-    return bool(connected_users.get(user_id))
+    if connected_users.get(user_id):
+        return True
+    user = User.query.get(user_id)
+    return bool(user and user.last_active_at and datetime.utcnow() - user.last_active_at < timedelta(minutes=10))
+
+
+def user_presence_label(user):
+    if user_is_online(user.id):
+        return "Online"
+    if user.profile and user.profile.show_last_seen and user.last_active_at:
+        return f"Last seen {user.last_active_at.strftime('%b %d at %H:%M')}"
+    return "Offline"
 
 
 def user_room(user_id):
@@ -427,6 +438,7 @@ def inbox():
         for row in friendships
     }
     friends = User.query.filter(User.id.in_(friend_ids)).order_by(User.username).limit(8).all() if friend_ids else []
+    active_friends = [friend for friend in friends if user_is_online(friend.id)][:6]
     excluded_ids = set(friend_ids) | {current_user.id}
     pending = FriendRequest.query.filter(
         (FriendRequest.sender_id == current_user.id) | (FriendRequest.receiver_id == current_user.id)
@@ -437,7 +449,8 @@ def inbox():
     ).order_by(User.created_at.desc()).limit(6).all()
     return render_template(
         "messages.html", conversations=conversations, families=families,
-        friends=friends, suggested_friends=suggested_friends,
+        friends=friends, active_friends=active_friends,
+        suggested_friends=suggested_friends,
     )
 
 
@@ -478,6 +491,7 @@ def direct_chat(user_id):
         messages=messages,
         family=None,
         is_other_online=user_is_online(other.id),
+        presence_label=user_presence_label(other),
         older_before_id=older_before_id,
         viewing_older=viewing_older,
     )
@@ -967,11 +981,18 @@ def on_disconnect(reason=None):
             user_sids.discard(request.sid)
             if not user_sids:
                 connected_users.pop(current_user.id, None)
-                emit(
-                    "user_status",
-                    {"user_id": current_user.id, "status": "offline"},
-                    broadcast=True,
-                )
+                current_user.last_active_at = datetime.utcnow()
+                db.session.commit()
+                user_id = current_user.id
+                flask_app = current_app._get_current_object()
+                def announce_offline_after_grace():
+                    socketio.sleep(600)
+                    with flask_app.app_context():
+                        if not connected_users.get(user_id):
+                            user = User.query.get(user_id)
+                            label = user_presence_label(user) if user else "Offline"
+                            socketio.emit("user_status", {"user_id": user_id, "status": "offline", "label": label})
+                socketio.start_background_task(announce_offline_after_grace)
 
 
 @socketio.on("join_room")

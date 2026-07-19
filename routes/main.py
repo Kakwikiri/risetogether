@@ -2428,6 +2428,7 @@ def settings():
         current_user.profile.return_summaries_enabled = (
             request.form.get("return_summaries_enabled") == "on"
         )
+        current_user.profile.show_last_seen = request.form.get("show_last_seen") == "on"
         current_user.profile.auto_share_completed_challenges = (
             request.form.get("auto_share_completed_challenges") == "on"
         )

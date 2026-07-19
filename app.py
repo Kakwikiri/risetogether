@@ -282,6 +282,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_family_memberships BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_checkins BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_last_seen BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",

@@ -45,6 +45,7 @@
       <label><input type="checkbox" name="checkin_suggestions_enabled" {% if current_user.profile.checkin_suggestions_enabled %}checked{% endif %} /> Suggest trusted people I may want to check on</label>
       <label><input type="checkbox" name="miss_you_notifications_enabled" {% if current_user.profile.miss_you_notifications_enabled %}checked{% endif %} /> Receive “we miss you” check-ins</label>
       <label><input type="checkbox" name="return_summaries_enabled" {% if current_user.profile.return_summaries_enabled %}checked{% endif %} /> Show a welcome-back summary after time away</label>
+      <label><input type="checkbox" name="show_last_seen" {% if current_user.profile.show_last_seen %}checked{% endif %} /> Let people see when I was last active</label>
     </fieldset>
     {% if feature_enabled('achievement_posts') %}
     <label>

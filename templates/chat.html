@@ -8,7 +8,7 @@
         <h2>
           {% if family %}{{ family.name }}{% else %}<a class="chat-profile-link" href="{{ url_for('main.profile', username=other.username) }}">{{ other.username }}{{ rise_badges(rise_user_badges(other)) }}</a>{% endif %}
         </h2>
-        {% if family %}<span data-presence-label>Family chat</span>{% else %}<span class="chat-presence"><span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-hidden="true"></span><span data-presence-label>{{ 'Online' if is_other_online else 'Offline' }}</span></span>{% endif %}
+        {% if family %}<span data-presence-label>Family chat</span>{% else %}<span class="chat-presence"><span class="presence-dot {{ 'online' if is_other_online else 'offline' }}" data-presence-user="{{ other.id }}" aria-hidden="true"></span><span data-presence-label>{{ presence_label }}</span></span>{% endif %}
       </div>
     </div>
     <div class="chat-selection-toolbar" data-chat-selection-toolbar hidden>

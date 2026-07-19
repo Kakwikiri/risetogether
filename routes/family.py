@@ -1393,6 +1393,7 @@ def families():
     families = family_query.order_by(Family.created_at.desc()).limit(60).all()
     capacity_by_family = {family.id: family_capacity_status(family) for family in families}
     joined_family_ids = [membership.family_id for membership in current_user.family_memberships]
+    joined_families = Family.query.filter(Family.id.in_(joined_family_ids or [-1])).order_by(Family.name).limit(12).all()
     recommended_families = Family.query.filter(
         Family.is_active.is_(True),
         Family.privacy == "public",
@@ -1400,12 +1401,23 @@ def families():
     ).order_by(Family.created_at.desc()).limit(6).all()
     for family in recommended_families:
         capacity_by_family.setdefault(family.id, family_capacity_status(family))
+    recent_ids = [int(value) for value in session.get("recent_family_ids", []) if str(value).isdigit()]
+    recent_rows = Family.query.filter(Family.id.in_(recent_ids or [-1])).all()
+    recent_by_id = {family.id: family for family in recent_rows}
+    recent_families = [
+        recent_by_id[family_id] for family_id in recent_ids
+        if family_id in recent_by_id and (
+            recent_by_id[family_id].privacy == "public" or family_id in joined_family_ids
+        )
+    ][:6]
     return render_template(
         "families.html",
         families=families,
         query=query,
         capacity_by_family=capacity_by_family,
         recommended_families=recommended_families,
+        joined_families=joined_families,
+        recent_families=recent_families,
     )
 
 
@@ -1446,6 +1458,8 @@ def family_detail(family_id):
     if family.privacy != "public" and not member and not is_super_admin:
         flash("This Family is private. Join through an invitation to enter.", "warning")
         return redirect(url_for("family.families"))
+    recent_ids = [int(value) for value in session.get("recent_family_ids", []) if str(value).isdigit()]
+    session["recent_family_ids"] = [family.id] + [value for value in recent_ids if value != family.id][:5]
     members = FamilyMember.query.filter_by(family_id=family.id).all()
     encouragement_checkin_count = 0
     if is_feature_enabled("daily_checkins") and member:

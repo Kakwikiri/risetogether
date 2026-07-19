@@ -629,6 +629,8 @@
   <section id="family-posts" class="family-section" data-family-panel data-family-panel-group="posts" hidden>
     <h3>Family posts</h3>
     {% if member %}
+    <section class="family-post-composer composer-card" data-mobile-composer>
+    <button class="mobile-composer-trigger" type="button" data-composer-open><img class="avatar" src="{{ user_avatar_url(current_user) }}" alt="" /><span>Share encouragement with {{ family.name }}...</span><strong aria-label="Add media">＋</strong></button>
     <form
       action="{{ url_for('main.create_post') }}"
       method="post"
@@ -655,8 +657,10 @@
           <input type="checkbox" name="media_rights_confirmed" value="1" /> If this is a video, I created it or have permission to share it.
         </label>
         <button class="button" type="submit">Post to family</button>
+        <button class="button secondary mobile-composer-cancel" type="button" data-composer-cancel>Cancel</button>
       </div>
     </form>
+    </section>
     {% else %}
     <div class="family-empty-panel"><h4>Public Family posts</h4><p>You can read this public Family’s posts. Join to create posts and take part as a member.</p>{% if not family_is_full and family.is_active %}<form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Join Family</button></form>{% endif %}</div>
     {% endif %}
