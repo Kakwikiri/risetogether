@@ -60,19 +60,21 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-family-presence-polish"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-uniform-three-column"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-family-presence-polish"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-uniform-three-column"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-family-presence-polish"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-uniform-three-column"
     ></script>
   </head>
-  <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}">
+  {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
+  {% set show_global_context = current_user.is_authenticated and request.endpoint not in contextual_layout_endpoints %}
+  <body data-authenticated="{{ '1' if current_user.is_authenticated else '0' }}" data-page="{{ request.endpoint or '' }}" data-global-context="{{ '1' if show_global_context else '0' }}">
     <header class="topbar">
       <div class="brand">
         <a href="{{ url_for('main.home') }}">
@@ -230,6 +232,36 @@
       </section>
       {% endif %} {% endwith %} {% block content %}{% endblock %}
     </main>
+    {% if show_global_context %}
+    <aside class="global-context-rail" aria-label="Related RiseTogether shortcuts">
+      <section>
+        <p class="eyebrow">Keep connected</p>
+        <a href="{{ url_for('main.home') }}"><strong>For you</strong><small>Stories and encouragement</small></a>
+        <a href="{{ url_for('chat.inbox') }}"><strong>Messages</strong><small>Continue recent conversations</small></a>
+        <a href="{{ url_for('family.families') }}"><strong>Families</strong><small>Grow with your communities</small></a>
+        <a href="{{ url_for('main.people') }}"><strong>People</strong><small>Find supportive connections</small></a>
+      </section>
+      <section>
+        <p class="eyebrow">Related to this page</p>
+        {% if request.endpoint == 'main.notifications' %}
+        <a href="{{ url_for('main.settings') }}#device-notifications"><strong>Notification settings</strong><small>Choose what reaches your devices</small></a>
+        {% elif request.endpoint and request.endpoint.startswith('goals.') %}
+        <a href="{{ url_for('goals.goals_dashboard') }}"><strong>Your goals</strong><small>Review meaningful progress</small></a>
+        <a href="{{ url_for('goals.create_goal') }}"><strong>Create a goal</strong><small>Begin one clear next step</small></a>
+        {% elif request.endpoint == 'main.settings' %}
+        <a href="#device-notifications"><strong>Device notifications</strong><small>Control alerts on this device</small></a>
+        <a href="{{ url_for('main.privacy_policy') }}"><strong>Privacy</strong><small>See how your choices are protected</small></a>
+        {% elif request.endpoint and request.endpoint.startswith('moderation.') and current_user.is_admin %}
+        <a href="{{ url_for('moderation.admin_dashboard') }}"><strong>Admin overview</strong><small>Return to moderation tools</small></a>
+        <a href="{{ url_for('moderation.admin_reports') }}"><strong>Reports</strong><small>Review community concerns</small></a>
+        {% else %}
+        <a href="{{ url_for('main.memories') }}"><strong>Memories</strong><small>Revisit real moments</small></a>
+        <a href="{{ url_for('main.impact') }}"><strong>My impact</strong><small>See how your support helped</small></a>
+        <a href="{{ url_for('goals.goals_dashboard') }}"><strong>Goals</strong><small>Keep growing at your pace</small></a>
+        {% endif %}
+      </section>
+    </aside>
+    {% endif %}
     {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room'] %}
     <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
       <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="For you"><span aria-hidden="true">⌂</span><small>For you</small></a>
