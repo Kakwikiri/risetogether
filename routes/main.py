@@ -1,5 +1,6 @@
 import re
 import secrets
+from collections import Counter
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -105,6 +106,7 @@ SUPPORTIVE_PROMPTS = (
     "Write something uplifting or honest.",
 )
 MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_]{2,80})")
+HASHTAG_RE = re.compile(r"(?<![\w#])#([A-Za-z0-9_]{2,60})")
 CHECKIN_MOODS = {
     "happy": "Happy", "peaceful": "Peaceful", "motivated": "Motivated",
     "okay": "Okay", "tired": "Tired", "worried": "Worried",
@@ -177,6 +179,10 @@ def add_notification(user_id, category, message, action_url="", important=None):
 
 def mentioned_usernames(content):
     return {match.group(1).lower() for match in MENTION_RE.finditer(content or "")}
+
+
+def post_hashtags(content):
+    return {match.group(1).lower() for match in HASHTAG_RE.finditer(content or "")}
 
 
 def link_mentions(content):
@@ -297,9 +303,29 @@ def home():
             })
         available_families = Family.query.order_by(Family.created_at.desc()).limit(8).all()
         all_visible_posts = list(posts)
+        hashtag_counts = Counter(
+            tag for visible_post in all_visible_posts for tag in post_hashtags(visible_post.content)
+        )
+        hashtag_engagement = Counter()
+        for visible_post in all_visible_posts:
+            for tag in post_hashtags(visible_post.content):
+                hashtag_engagement[tag] += trend_score(visible_post)
+
+        def feed_trend_score(visible_post):
+            repeated_tag_bonus = sum(
+                min(max(hashtag_counts[tag] - 1, 0), 3) * 2
+                for tag in post_hashtags(visible_post.content)
+            )
+            return trend_score(visible_post) + repeated_tag_bonus
+
+        trending_hashtags = sorted(
+            hashtag_counts,
+            key=lambda tag: (hashtag_counts[tag], hashtag_engagement[tag], tag),
+            reverse=True,
+        )[:6]
         trending_posts = [
-            post for post in sorted(all_visible_posts, key=trend_score, reverse=True)
-            if trend_score(post) > 0
+            post for post in sorted(all_visible_posts, key=feed_trend_score, reverse=True)
+            if feed_trend_score(post) > 0
         ][:5]
         if query:
             posts = [
@@ -328,8 +354,8 @@ def home():
             ]
             posts.sort(key=trend_score, reverse=True)
         elif feed_filter == "trending":
-            posts = [post for post in posts if trend_score(post) > 0]
-            posts.sort(key=trend_score, reverse=True)
+            posts = [post for post in posts if feed_trend_score(post) > 0]
+            posts.sort(key=feed_trend_score, reverse=True)
         elif feed_filter == "interests":
             interests = normalized_interests(current_user.profile.interests)
             posts = [post for post in posts if interest_match_count(post, interests)]
@@ -344,6 +370,8 @@ def home():
             families=families,
             available_families=available_families,
             trending_posts=trending_posts,
+            trending_hashtags=trending_hashtags,
+            hashtag_counts=hashtag_counts,
             video_only=video_only,
             feed_filter=feed_filter,
             query=query,

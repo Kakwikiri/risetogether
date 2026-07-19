@@ -10,6 +10,15 @@
       <a class="{{ 'active' if feed_filter == key else '' }}" href="{{ url_for('main.home', filter=key) }}" {% if feed_filter == key %}aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
+    {% if feed_filter == 'trending' or query %}
+    <div class="feed-tag-tools">
+      <form class="hashtag-search" action="{{ url_for('main.home') }}" method="get">
+        <input type="search" name="q" value="{{ query }}" placeholder="Search #hashtags or posts" aria-label="Search hashtags or posts" />
+        <button type="submit" aria-label="Search">⌕</button>
+      </form>
+      {% if trending_hashtags %}<nav class="trending-hashtags" aria-label="Trending hashtags">{% for tag in trending_hashtags %}<a href="{{ url_for('main.home', q='#' ~ tag) }}">#{{ tag }} <small>{{ hashtag_counts[tag] }}</small></a>{% endfor %}</nav>{% endif %}
+    </div>
+    {% endif %}
     <a class="new-posts-indicator" href="{{ url_for('main.home') }}" data-new-posts-indicator hidden>↑ <span>New posts</span></a>
     <div class="feed-loading-grid" data-feed-loading hidden>{{ skeleton(3, 'Loading posts') }}{{ skeleton(3, 'Loading posts') }}</div>
     {% if video_only %}
@@ -204,15 +213,14 @@
     </div>
     <div class="card" id="trending-videos">
       <h3>Trending now</h3>
+      {% if trending_hashtags %}<nav class="trending-hashtags" aria-label="Trending hashtags">{% for tag in trending_hashtags %}<a href="{{ url_for('main.home', q='#' ~ tag) }}">#{{ tag }} <small>{{ hashtag_counts[tag] }}</small></a>{% endfor %}</nav>{% endif %}
       <ul>
         {% for post in trending_posts %}
-        {% if post.reactions.count() or post.comments.count() %}
         <li>
           <a href="{{ url_for('main.post_detail', post_id=post.id) }}">
             {{ post.author.username }} · {{ post.reactions.count() }} reactions · {{ post.comments.count() }} comments
           </a>
         </li>
-        {% endif %}
         {% else %}
         <li>No trending posts yet.</li>
         {% endfor %}

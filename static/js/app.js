@@ -738,6 +738,32 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelectorAll(".post-content").forEach((content) => {
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    textNodes.forEach((node) => {
+      const text = node.nodeValue || "";
+      const hashtagPattern = /(^|[^\w#])#([A-Za-z0-9_]{2,60})/g;
+      if (!hashtagPattern.test(text)) return;
+      hashtagPattern.lastIndex = 0;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      for (const match of text.matchAll(hashtagPattern)) {
+        const prefixEnd = match.index + match[1].length;
+        fragment.append(text.slice(lastIndex, prefixEnd));
+        const link = document.createElement("a");
+        link.className = "hashtag-link";
+        link.href = `/?q=${encodeURIComponent(`#${match[2]}`)}`;
+        link.textContent = `#${match[2]}`;
+        fragment.append(link);
+        lastIndex = prefixEnd + match[2].length + 1;
+      }
+      fragment.append(text.slice(lastIndex));
+      node.replaceWith(fragment);
+    });
+  });
+
   document.querySelectorAll("[data-post-copy]").forEach((copy) => {
     const content = copy.querySelector(".post-content");
     const button = copy.querySelector("[data-read-more]");

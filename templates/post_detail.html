@@ -23,7 +23,7 @@
   {% if content_post.post_type == 'achievement' %}
   {{ achievement_post_card(content_post) }}
   {% else %}
-  <p>{{ content_post.content }}</p>
+  <p class="post-content">{{ content_post.content }}</p>
   {{ post_media_gallery(content_post) }}
   {% endif %}
   {{ purpose_support(content_post, csrf_token()) }}
