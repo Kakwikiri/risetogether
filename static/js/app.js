@@ -1186,9 +1186,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.addEventListener("click", (event) => {
     if (event.target.closest(".media-download, .view-once-button, a, button")) return;
-    const frame = event.target.closest(".media-frame");
-    if (!frame || !frame.closest(".chat-log, .post-detail")) return;
-    if (frame.classList.contains("view-once-media") && !frame.classList.contains("revealed")) return;
+    const frame = event.target.closest(".media-frame, .media-gallery__item");
+    const mediaScope = frame?.closest(".chat-log, .post-card, .post-detail, .profile-feed-cards, #family-posts");
+    if (!frame || !mediaScope) return;
+    const protectedMedia = frame.closest(".view-once-media");
+    if (protectedMedia && !protectedMedia.classList.contains("revealed")) return;
     const image = event.target.closest("img");
     const video = event.target.closest("video");
     if (!image && !video) return;

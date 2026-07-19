@@ -1,7 +1,7 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import rise_badges with context %} {% block content %}
 <section class="chat-card">
   <header class="chat-header">
-    <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back">‹</a>
+    <a class="icon-button chat-back-button" href="{{ url_for('chat.inbox') }}" aria-label="Back to messages" title="Back" data-chat-normal-header>‹</a>
     <div class="chat-identity" data-chat-normal-header>
       {% if not family and other.profile and other.profile.avatar %}<button class="chat-header-avatar-button" type="button" data-avatar-preview="{{ user_avatar_url(other) }}" aria-label="Preview {{ other.username }} profile picture"><img class="chat-header-avatar" src="{{ user_avatar_url(other) }}" alt="" /></button>{% else %}<img class="chat-header-avatar" src="{{ family_avatar_url(family) if family else user_avatar_url(other) }}" alt="" />{% endif %}
       <div class="chat-title">
@@ -36,7 +36,7 @@
     {% endif %}
     {% endfor %}
   </button>
-  {% if family %}<aside class="family-voice-placeholder"><span aria-hidden="true">◌</span><div><strong>Family voice room</strong><small>Talk together without leaving your Family.</small></div><a class="button secondary" href="{{ url_for('chat.family_voice_room', family_id=family.id) }}">Open room</a></aside>{% endif %}
+  {% if family %}<aside class="family-voice-placeholder" data-family-voice-banner data-family-id="{{ family.id }}"><span aria-hidden="true">◌</span><div><strong data-family-voice-title>{% if family_voice_count %}{{ family_voice_count }} {{ 'person is' if family_voice_count == 1 else 'people are' }} in the voice room{% else %}Family voice room{% endif %}</strong><small data-family-voice-copy>{% if family_voice_count %}Join your Family conversation now.{% else %}Talk together without leaving your Family.{% endif %}</small></div><a class="button secondary" href="{{ url_for('chat.family_voice_room', family_id=family.id) }}">{{ 'Join' if family_voice_count else 'Open room' }}</a></aside>{% endif %}
   <div class="chat-typing" data-chat-typing role="status" aria-live="polite" hidden>Typing…</div>
   <div id="chat-log" class="chat-log">
     <div class="chat-active-date" data-chat-active-date hidden aria-hidden="true"></div>

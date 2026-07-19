@@ -602,6 +602,8 @@ if (typeof chatConfig !== "undefined") {
     let sendVideoAfterStop = false;
     let typingTimer = null;
     const selectedMessages = new Map();
+    let selectionHistoryActive = false;
+    let suppressSelectionClick = false;
 
     const activeDateLabel = chatLog?.querySelector("[data-chat-active-date]");
     const updateActiveDateLabel = () => {
@@ -784,6 +786,10 @@ if (typeof chatConfig !== "undefined") {
       normalHeaderParts.forEach((part) => {
         part.hidden = false;
       });
+      if (selectionHistoryActive) {
+        selectionHistoryActive = false;
+        window.history.back();
+      }
     };
 
     const selectedMessageList = () => Array.from(selectedMessages.values());
@@ -868,12 +874,22 @@ if (typeof chatConfig !== "undefined") {
 
     const beginMessageSelection = (message) => {
       if (!message || !message.dataset.messageId) return;
+      if (!selectedMessages.size && !selectionHistoryActive) {
+        window.history.pushState({ riseChatSelection: true }, "", window.location.href);
+        selectionHistoryActive = true;
+      }
       selectedMessages.forEach((selected) => selected.classList.remove("is-selected"));
       selectedMessages.clear();
       selectedMessages.set(message.dataset.messageId, message);
       message.classList.add("is-selected");
       updateSelectionBar();
     };
+
+    window.addEventListener("popstate", () => {
+      if (!selectionHistoryActive || !selectedMessages.size) return;
+      selectionHistoryActive = false;
+      clearMessageSelection();
+    });
 
     const runMessageAction = (action, message) => {
       const messageId = message.dataset.messageId;
@@ -1100,10 +1116,20 @@ if (typeof chatConfig !== "undefined") {
       chatLog.addEventListener("touchstart", (event) => {
         const message = event.target.closest(".chat-message");
         if (!message) return;
-        longPressTimer = window.setTimeout(() => beginMessageSelection(message), 520);
+        longPressTimer = window.setTimeout(() => {
+          suppressSelectionClick = true;
+          if (selectedMessages.has(message.dataset.messageId)) toggleMessageSelection(message);
+          else if (selectedMessages.size) toggleMessageSelection(message);
+          else beginMessageSelection(message);
+        }, 520);
       });
       chatLog.addEventListener("touchend", () => window.clearTimeout(longPressTimer));
       chatLog.addEventListener("click", (event) => {
+        if (suppressSelectionClick) {
+          suppressSelectionClick = false;
+          event.preventDefault();
+          return;
+        }
         const message = event.target.closest(".chat-message");
         if (message && selectedMessages.size) {
           toggleMessageSelection(message);
@@ -1129,6 +1155,9 @@ if (typeof chatConfig !== "undefined") {
     }
 
     if (selectionCancel) selectionCancel.addEventListener("click", clearMessageSelection);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && selectedMessages.size) clearMessageSelection();
+    });
     if (selectionReply) selectionReply.addEventListener("click", () => runSelectionAction("reply"));
     if (selectionPin) selectionPin.addEventListener("click", () => runSelectionAction("pin"));
     if (selectionDelete) selectionDelete.addEventListener("click", () => runSelectionAction("delete"));
@@ -1763,6 +1792,18 @@ socket.on("new_private_message", (data) => {
       if (data.family_id === chatConfig.familyId) {
         appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
       }
+    });
+
+    socket.on("family_voice_presence", (payload) => {
+      const banner = document.querySelector("[data-family-voice-banner]");
+      if (!banner || Number(payload?.family_id) !== Number(chatConfig.familyId)) return;
+      const count = Array.isArray(payload.participants) ? payload.participants.length : 0;
+      const title = banner.querySelector("[data-family-voice-title]");
+      const copy = banner.querySelector("[data-family-voice-copy]");
+      const action = banner.querySelector("a.button");
+      if (title) title.textContent = count ? `${count} ${count === 1 ? "person is" : "people are"} in the voice room` : "Family voice room";
+      if (copy) copy.textContent = count ? "Join your Family conversation now." : "Talk together without leaving your Family.";
+      if (action) action.textContent = count ? "Join" : "Open room";
     });
 
     socket.on("chat_typing", (data) => {

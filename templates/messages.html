@@ -106,10 +106,6 @@
      <h3>Friends</h3>
      {% for person in friends %}<a href="{{ url_for('chat.direct_chat', user_id=person.id) }}"><img src="{{ user_avatar_url(person) }}" alt="" /><span><strong>{{ person.profile.display_name or person.username }}</strong><small>Open conversation</small></span></a>{% else %}<p class="muted-meta">Friends you connect with will appear here.</p>{% endfor %}
    </section>
-   <section>
-     <h3>People you may know</h3>
-     {% for person in suggested_friends %}<a href="{{ url_for('main.profile', username=person.username) }}"><img src="{{ user_avatar_url(person) }}" alt="" /><span><strong>{{ person.profile.display_name or person.username }}</strong><small>@{{ person.username }}</small></span></a>{% else %}<p class="muted-meta">No new suggestions right now.</p>{% endfor %}
-   </section>
  </aside>
 </div>
 <dialog class="message-avatar-modal" data-message-avatar-modal aria-label="Profile picture preview">

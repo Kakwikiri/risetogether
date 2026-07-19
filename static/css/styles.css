@@ -3325,9 +3325,16 @@ body.media-viewer-open {
 }
 .family-type-experience > .muted-meta { grid-column: 1 / -1; }
 .family-type-experience--class { border-top-color: #2563eb; }
+.family-type-experience--learning { border-top-color: #0891b2; }
+.family-type-experience--quiz_and_trivia { border-top-color: #d97706; }
+.family-type-experience--motivation { border-top-color: #db2777; }
 .family-type-experience--coding { border-top-color: #7c3aed; }
 .family-type-experience--language_learning { border-top-color: #e07a1f; }
 .family-type-experience--fitness { border-top-color: #16a34a; }
+.family-type-experience--business { border-top-color: #0f766e; }
+.family-type-experience--books { border-top-color: #b45309; }
+.family-type-experience--accountability { border-top-color: #4f46e5; }
+.family-type-experience--friendship_and_support { border-top-color: #e85d2a; }
 
 .family-dashboard-grid--living {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
@@ -8996,10 +9003,15 @@ body.nav-menu-open {
   display: grid;
   width: min(220px, calc(100vw - 2rem));
   padding: 0.4rem;
-  background: var(--card);
+  background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
+}
+:root[data-theme="dark"] .family-growth-menu__items {
+  color: #effffb;
+  background: #0e1b17;
+  border-color: #29443d;
 }
 .family-growth-menu__items a {
   display: block;
@@ -9717,7 +9729,7 @@ body[data-page="main.home"][data-authenticated="0"] .landing-legal { font-size: 
 /* One continuous social surface: thin separators instead of oversized boxes. */
 .profile-desktop-layout { display: grid; grid-template-columns: minmax(0, 660px) minmax(230px, 270px); gap: 0.7rem; align-items: start; }
 .profile-desktop-layout > main { min-width: 0; }
-.profile-context-sidebar { display: grid; gap: 0; }
+.profile-context-sidebar { display: grid; align-content: start; grid-auto-rows: max-content; gap: 0; min-height: 0; }
 .profile-context-sidebar > section { padding: 0.75rem 0.15rem; border-bottom: 1px solid var(--line); }
 .profile-context-sidebar h3,
 .profile-context-sidebar p { margin: 0 0 0.35rem; }
@@ -9909,8 +9921,31 @@ body[data-page="main.home"][data-authenticated="0"] .landing-legal { font-size: 
   }
   body[data-page="main.home"][data-authenticated="0"] .connection-note > span { width: 26px; height: 26px; flex-basis: 26px; font-size: 0.8rem; }
   body[data-page="main.home"][data-authenticated="0"] .connection-note strong { font-size: 0.68rem; line-height: 1.1; }
-  body[data-page="main.home"][data-authenticated="0"] .connection-note small { display: none; }
+  body[data-page="main.home"][data-authenticated="0"] .connection-note small {
+    display: block;
+    margin-top: 0.12rem;
+    font-size: 0.54rem;
+    line-height: 1.15;
+  }
+  body[data-page="main.home"][data-authenticated="0"] .connection-note { width: 148px; min-height: 48px; }
   body[data-page="main.home"][data-authenticated="0"] .connection-note--one { top: 2px; left: 0; }
   body[data-page="main.home"][data-authenticated="0"] .connection-note--two { top: 2px; right: 0; }
   body[data-page="main.home"][data-authenticated="0"] .connection-note--three { right: 4px; bottom: 2px; }
 }
+
+/* Final containment and compactness fixes for social surfaces. */
+body[data-page="main.home"][data-authenticated="0"] .landing-values { margin-top: 0.55rem; }
+body[data-page="main.home"][data-authenticated="0"] .landing-actions { margin-top: 0.75rem; }
+.chat-card { border-width: 1px 0; border-radius: 0; box-shadow: none; }
+.chat-log .chat-message,
+.chat-log .chat-message:has(.chat-media-gallery) { min-width: 0; overflow: hidden; }
+.chat-log .chat-media-gallery { width: 100%; max-width: 100%; margin-inline: 0; }
+.chat-log .chat-media-gallery .media-gallery__item,
+.chat-log .chat-media-gallery img { min-width: 0; max-width: 100%; }
+.chat-log .chat-media-gallery img { display: block; width: 100%; height: auto; object-fit: contain; }
+.post-card .media-gallery__item img,
+.profile-feed-cards .media-gallery__item img,
+#family-posts .media-gallery__item img,
+.chat-log .media-gallery__item img { cursor: zoom-in; }
+.people-suggestions .friend-row { grid-template-columns: 38px minmax(0, 1fr) auto; padding-block: 0.5rem; }
+.people-suggestions .avatar { width: 38px; height: 38px; }

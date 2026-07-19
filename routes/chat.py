@@ -439,18 +439,9 @@ def inbox():
     }
     friends = User.query.filter(User.id.in_(friend_ids)).order_by(User.username).limit(8).all() if friend_ids else []
     active_friends = [friend for friend in friends if user_is_online(friend.id)][:6]
-    excluded_ids = set(friend_ids) | {current_user.id}
-    pending = FriendRequest.query.filter(
-        (FriendRequest.sender_id == current_user.id) | (FriendRequest.receiver_id == current_user.id)
-    ).all()
-    excluded_ids.update(row.receiver_id if row.sender_id == current_user.id else row.sender_id for row in pending)
-    suggested_friends = User.query.filter(
-        ~User.id.in_(excluded_ids), User.is_banned == False, User.is_hidden_from_directory == False
-    ).order_by(User.created_at.desc()).limit(6).all()
     return render_template(
         "messages.html", conversations=conversations, families=families,
         friends=friends, active_friends=active_friends,
-        suggested_friends=suggested_friends,
     )
 
 
@@ -524,6 +515,7 @@ def family_chat(family_id):
     return render_template(
         "chat.html", other=None, messages=messages, family=family,
         older_before_id=older_before_id, viewing_older=viewing_older,
+        family_voice_count=len(family_voice_participants.get(family.id, {})),
     )
 
 
@@ -1043,11 +1035,19 @@ def leave_family_voice_room(sid):
         )
         socketio.emit(
             "family_voice_presence",
-            {"participants": [
+            {"family_id": family_id, "participants": [
                 {"socket_id": socket_id, **row}
                 for socket_id, row in participants.items()
             ]},
             room=f"family-voice-{family_id}",
+        )
+        socketio.emit(
+            "family_voice_presence",
+            {"family_id": family_id, "participants": [
+                {"socket_id": socket_id, **row}
+                for socket_id, row in participants.items()
+            ]},
+            room=f"family-{family_id}",
         )
         if not participants:
             family_voice_participants.pop(family_id, None)
@@ -1097,11 +1097,19 @@ def join_family_voice(data):
     )
     socketio.emit(
         "family_voice_presence",
-        {"participants": [
+        {"family_id": family_id, "participants": [
             {"socket_id": socket_id, **participant}
             for socket_id, participant in participants.items()
         ]},
         room=room,
+    )
+    socketio.emit(
+        "family_voice_presence",
+        {"family_id": family_id, "participants": [
+            {"socket_id": socket_id, **participant}
+            for socket_id, participant in participants.items()
+        ]},
+        room=f"family-{family_id}",
     )
 
 
