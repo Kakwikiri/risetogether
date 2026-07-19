@@ -538,15 +538,20 @@ def save_media(file):
             except OSError:
                 pass
             return None
-        converted_filename = convert_video_for_browser(destination, filename)
-        if converted_filename != filename:
-            converted_path = os.path.join(current_app.config["UPLOAD_FOLDER"], converted_filename)
-            if os.path.exists(converted_path):
-                try:
-                    os.remove(destination)
-                except OSError:
-                    pass
-            filename = converted_filename
+        # Browser-ready MP4/H.264 uploads should not be synchronously re-encoded.
+        # Conversion can take minutes and made the request look frozen. Only
+        # convert formats that are known to need a compatibility copy.
+        needs_conversion = video_needs_browser_conversion(destination)
+        if needs_conversion:
+            converted_filename = convert_video_for_browser(destination, filename)
+            if converted_filename != filename:
+                converted_path = os.path.join(current_app.config["UPLOAD_FOLDER"], converted_filename)
+                if os.path.exists(converted_path):
+                    try:
+                        os.remove(destination)
+                    except OSError:
+                        pass
+                filename = converted_filename
     elif media_type == "audio":
         from premium import recording_limit_seconds
         duration = video_duration_seconds(destination)

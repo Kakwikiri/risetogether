@@ -233,6 +233,24 @@ const attachEngineLogging = () => {
   });
 };
 
+const createChatVideoGate = (url, caption = "Video message") => {
+  const gate = document.createElement("div");
+  gate.className = "chat-video-gate";
+  gate.dataset.chatVideoGate = "";
+  gate.dataset.chatVideoUrl = url;
+  gate.innerHTML = `
+    <div class="chat-video-gate__blur" aria-hidden="true"></div>
+    <div class="chat-video-gate__content">
+      <strong></strong>
+      <small>Download before playing</small>
+      <button class="button" type="button" data-chat-video-download>↓ Download video</button>
+      <progress max="100" value="0" data-chat-video-progress hidden></progress>
+      <span data-chat-video-status></span>
+    </div>`;
+  gate.querySelector("strong").textContent = caption || "Video message";
+  return gate;
+};
+
 const appendChatMessage = (chatLog, data, isOwn) => {
   if (!chatLog) return;
   if (data.message_id && chatLog.querySelector(`[data-message-id="${data.message_id}"]`)) {
@@ -261,7 +279,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
   }
   user.append(isOwn ? "You" : data.sender_name || `User ${data.sender_id}`);
 
-  const body = data.media_type === "call" || !data.content
+  const body = data.media_type === "call" || !data.content || (data.media_type === "video" && !isOwn && !data.view_once)
     ? null
     : createMessageTextElement(data.content);
 
@@ -296,18 +314,24 @@ const appendChatMessage = (chatLog, data, isOwn) => {
         media.appendChild(figure);
       });
     } else if (data.media_type === "video") {
-      media = document.createElement("div");
-      media.className = `media-frame${data.view_once ? " view-once-media" : ""}`;
-      media.dataset.messageId = data.message_id || "";
-      media.dataset.viewOnce = data.view_once ? "1" : "0";
-      const video = document.createElement("video");
-      video.controls = true;
-      if (data.view_once) {
-        video.setAttribute("controlsList", "nodownload");
-        video.disablePictureInPicture = true;
+      if (!isOwn && !data.view_once) {
+        media = createChatVideoGate(data.media_url, data.content || "Video message");
+      } else {
+        media = document.createElement("div");
+        media.className = `media-frame${data.view_once ? " view-once-media" : ""}`;
+        media.dataset.messageId = data.message_id || "";
+        media.dataset.viewOnce = data.view_once ? "1" : "0";
+        const video = document.createElement("video");
+        video.controls = true;
+        video.preload = "metadata";
+        video.playsInline = true;
+        if (data.view_once) {
+          video.setAttribute("controlsList", "nodownload");
+          video.disablePictureInPicture = true;
+        }
+        video.src = data.media_url;
+        media.appendChild(video);
       }
-      video.src = data.media_url;
-      media.appendChild(video);
     } else if (data.media_type === "audio") {
       media = createVoiceNoteElement(data.media_url, {
         viewOnce: Boolean(data.view_once),
@@ -323,7 +347,7 @@ const appendChatMessage = (chatLog, data, isOwn) => {
       media.download = "";
       media.textContent = "Download file";
     }
-    if (data.media_type !== "file" && data.media_type !== "image" && !data.view_once) {
+    if (data.media_type !== "file" && data.media_type !== "image" && !data.view_once && !media?.classList.contains("chat-video-gate")) {
       downloadLink = document.createElement("a");
       downloadLink.className = "media-download";
       downloadLink.href = `${data.media_url}${data.media_url.includes("?") ? "&" : "?"}download=1`;
@@ -578,6 +602,7 @@ if (typeof chatConfig !== "undefined") {
     const typingIndicator = document.querySelector("[data-chat-typing]");
     const viewOnceInput = document.getElementById("view-once");
     const expireInput = document.getElementById("expire-one-minute");
+    const autoDownloadVideos = document.getElementById("chat-auto-download");
     let replyToId = null;
     let longPressTimer = null;
     let voiceStream = null;
@@ -639,6 +664,83 @@ if (typeof chatConfig !== "undefined") {
     const notifyChat = (message) => {
       showRealtimeToast(message);
     };
+
+    const downloadedVideoUrls = new Set();
+    const downloadChatVideo = (gate) => {
+      if (!gate || gate.dataset.downloading === "1" || gate.dataset.downloaded === "1") return;
+      const url = gate.dataset.chatVideoUrl;
+      if (!url) return;
+      const button = gate.querySelector("[data-chat-video-download]");
+      const progress = gate.querySelector("[data-chat-video-progress]");
+      const status = gate.querySelector("[data-chat-video-status]");
+      gate.dataset.downloading = "1";
+      if (button) { button.disabled = true; button.textContent = "Downloading…"; }
+      if (progress) { progress.hidden = false; progress.value = 0; }
+      if (status) status.textContent = "Starting download…";
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", url);
+      xhr.responseType = "blob";
+      xhr.addEventListener("progress", (event) => {
+        if (!event.lengthComputable) {
+          if (status) status.textContent = "Downloading…";
+          return;
+        }
+        const percentage = Math.round((event.loaded / event.total) * 100);
+        if (progress) progress.value = percentage;
+        if (status) status.textContent = `Downloading… ${percentage}%`;
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status < 200 || xhr.status >= 300 || !xhr.response) {
+          gate.dataset.downloading = "0";
+          if (button) { button.disabled = false; button.textContent = "↓ Try download again"; }
+          if (status) status.textContent = "Download could not finish.";
+          return;
+        }
+        const objectUrl = URL.createObjectURL(xhr.response);
+        downloadedVideoUrls.add(objectUrl);
+        const video = document.createElement("video");
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = "auto";
+        video.src = objectUrl;
+        gate.dataset.downloaded = "1";
+        gate.replaceChildren(video);
+        video.play().catch(() => {});
+      });
+      xhr.addEventListener("error", () => {
+        gate.dataset.downloading = "0";
+        if (button) { button.disabled = false; button.textContent = "↓ Try download again"; }
+        if (status) status.textContent = "Download interrupted.";
+      });
+      xhr.send();
+    };
+
+    const downloadWaitingVideos = (root = document) => {
+      if (!autoDownloadVideos?.checked) return;
+      root.querySelectorAll?.("[data-chat-video-gate]").forEach(downloadChatVideo);
+    };
+    if (autoDownloadVideos) {
+      autoDownloadVideos.checked = localStorage.getItem("riseChatAutoDownloadVideos") === "1";
+      autoDownloadVideos.addEventListener("change", () => {
+        localStorage.setItem("riseChatAutoDownloadVideos", autoDownloadVideos.checked ? "1" : "0");
+        if (autoDownloadVideos.checked) downloadWaitingVideos();
+      });
+      downloadWaitingVideos();
+      if (chatLog) {
+        new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => {
+          if (!(node instanceof Element)) return;
+          if (node.matches("[data-chat-video-gate]")) downloadChatVideo(node);
+          else downloadWaitingVideos(node);
+        }))).observe(chatLog, { childList: true, subtree: true });
+        chatLog.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-chat-video-download]");
+          if (!button) return;
+          event.preventDefault();
+          event.stopPropagation();
+          downloadChatVideo(button.closest("[data-chat-video-gate]"));
+        });
+      }
+    }
 
     const syncChatBottomSpace = () => {
       if (!chatForm) return;
@@ -711,22 +813,50 @@ if (typeof chatConfig !== "undefined") {
       } else {
         formData.append("recipient_id", chatConfig.targetUserId);
       }
-      const response = await fetch("/chat/upload", {
-        method: "POST",
-        body: formData,
+      const previewFile = files.find((file) => file.type.startsWith("video/"));
+      let pending = null;
+      let pendingUrl = "";
+      let pendingProgress = null;
+      let pendingStatus = null;
+      if (previewFile && chatLog) {
+        pending = document.createElement("div");
+        pending.className = "chat-message own chat-upload-pending";
+        pendingUrl = URL.createObjectURL(previewFile);
+        const video = document.createElement("video");
+        video.src = pendingUrl;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        pendingProgress = document.createElement("progress");
+        pendingProgress.max = 100;
+        pendingProgress.value = 0;
+        pendingStatus = document.createElement("small");
+        pendingStatus.textContent = "Uploading video… 0%";
+        pending.append(video, pendingProgress, pendingStatus);
+        chatLog.appendChild(pending);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+      const result = await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/chat/upload");
+        xhr.responseType = "json";
+        xhr.upload.addEventListener("progress", (event) => {
+          if (!event.lengthComputable) return;
+          const percentage = Math.round((event.loaded / event.total) * 100);
+          if (pendingProgress) pendingProgress.value = percentage;
+          if (pendingStatus) pendingStatus.textContent = percentage < 100 ? `Uploading video… ${percentage}%` : "Processing video…";
+        });
+        xhr.addEventListener("load", () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: xhr.response || {} }));
+        xhr.addEventListener("error", () => resolve({ ok: false, data: { error: "Upload interrupted." } }));
+        xhr.send(formData);
       });
-      if (!response.ok) {
-        let message = "File could not be sent.";
-        try {
-          const errorData = await response.json();
-          message = errorData.error || message;
-        } catch (error) {
-          // Keep the generic message when the response is not JSON.
-        }
-        notifyChat(message);
+      if (pending) pending.remove();
+      if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+      if (!result.ok) {
+        notifyChat(result.data?.error || "File could not be sent.");
         return false;
       }
-      const data = await response.json();
+      const data = result.data;
       appendChatMessage(chatLog, data, data.sender_id === chatConfig.currentUserId);
       if (chatLog) {
         chatLog.scrollTop = chatLog.scrollHeight;
@@ -1751,6 +1881,7 @@ if (typeof chatConfig !== "undefined") {
     }
 
     window.addEventListener("beforeunload", () => {
+      downloadedVideoUrls.forEach((url) => URL.revokeObjectURL(url));
       voiceCancelled = true;
       if (voiceRecorder && voiceRecorder.state !== "inactive") {
         voiceRecorder.stop();

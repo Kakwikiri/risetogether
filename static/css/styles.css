@@ -682,6 +682,110 @@ body {
   }
 }
 
+/* Video transfer feedback and compact media presentation. */
+.messages-people-sidebar {
+  align-self: start !important;
+  align-content: start;
+  grid-auto-rows: max-content;
+  height: auto !important;
+  min-height: 0;
+}
+.messages-people-sidebar > :last-child { position: static !important; }
+
+.chat-video-gate {
+  position: relative;
+  width: min(100%, 320px);
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  color: #fff;
+  background: #101615;
+  border: 0;
+  border-radius: 10px;
+}
+.chat-video-gate__blur {
+  position: absolute;
+  inset: -14px;
+  background:
+    radial-gradient(circle at 70% 25%, rgba(25, 191, 174, 0.55), transparent 42%),
+    linear-gradient(135deg, #183934, #18201f 55%, #355d55);
+  filter: blur(13px);
+  transform: scale(1.08);
+}
+.chat-video-gate__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.8rem;
+  text-align: center;
+  background: rgba(4, 18, 15, 0.45);
+}
+.chat-video-gate__content strong { max-width: 26ch; }
+.chat-video-gate__content small,
+.chat-video-gate__content span { color: rgba(255, 255, 255, 0.82); font-size: 0.78rem; }
+.chat-video-gate progress { width: min(220px, 100%); accent-color: var(--brand); }
+.chat-video-gate video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+.chat-upload-pending {
+  width: min(78%, 340px) !important;
+  padding: 0.3rem !important;
+  overflow: hidden;
+}
+.chat-upload-pending video { display: block; width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; background: #000; }
+.chat-upload-pending progress { width: 100%; accent-color: var(--brand); }
+.chat-upload-pending small { display: block; padding: 0.2rem 0.25rem; color: var(--muted); }
+
+.composer-card.is-uploading { padding: 0.7rem; }
+.composer-upload-status { display: grid; gap: 0.4rem; padding: 0.65rem; color: var(--ink); background: var(--panel-soft); border-bottom: 1px solid var(--line); }
+.composer-upload-status progress { width: 100%; accent-color: var(--brand); }
+.composer-upload-status span { color: var(--muted); font-size: 0.82rem; }
+
+.video-only-layout .post-card .media-frame:has(> video) {
+  display: grid;
+  place-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.4rem auto;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.video-only-layout .post-card .media-frame > video {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 70dvh;
+  margin: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+:root:not([data-theme="dark"]) .video-quick-actions .icon-button,
+:root:not([data-theme="dark"]) .chat-tools .icon-button,
+:root:not([data-theme="dark"]) .chat-message-actions .icon-button {
+  color: #111;
+  background: #fff;
+  border-color: #53635f;
+}
+
+@media (max-width: 900px) {
+  body[data-authenticated="1"] .content { overflow-x: clip !important; }
+  .family-detail-card { overflow: visible; }
+  .video-quick-actions {
+    position: sticky;
+    top: 112px;
+    z-index: 44;
+    background: var(--panel);
+  }
+}
+
 .profile-live-badge {
   display: inline-flex;
   align-items: center;
@@ -10035,4 +10139,43 @@ body[data-page="main.home"][data-authenticated="0"] .landing-actions { margin-to
     max-height: calc(100dvh - 1rem);
     border-radius: 16px;
   }
+}
+
+/* Keep these transfer/layout repairs last so older responsive rules cannot undo them. */
+.messages-people-sidebar {
+  align-self: start !important;
+  align-content: start !important;
+  grid-auto-rows: max-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+.messages-people-sidebar > :last-child { position: static !important; }
+.video-only-layout .post-card .media-frame:has(> video) {
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 0.4rem auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.video-only-layout .post-card .media-frame > video {
+  display: block !important;
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: 70dvh !important;
+  margin: auto !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+}
+@media (max-width: 900px) {
+  body[data-authenticated="1"] .content { overflow-x: clip !important; }
+  .family-detail-card { overflow: visible !important; }
+  .family-tabbar,
+  .feed-filter-bar,
+  .profile-page > .profile-tabbar { position: sticky !important; top: 64px !important; }
+  .video-quick-actions { position: sticky !important; top: 112px; z-index: 44; background: var(--panel); }
 }

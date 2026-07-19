@@ -667,6 +667,10 @@ document.addEventListener("DOMContentLoaded", () => {
     shortcut.addEventListener("click", (event) => {
       event.preventDefault();
       const composer = document.querySelector("[data-mobile-composer]");
+      if (!composer) {
+        window.location.assign(shortcut.href);
+        return;
+      }
       composer?.querySelector("[data-composer-open]")?.click();
       const input = composer?.querySelector("[data-media-input]");
       if (!input) return;
@@ -674,6 +678,63 @@ document.addEventListener("DOMContentLoaded", () => {
       input.accept = "video/*";
       input.click();
       window.setTimeout(() => { input.accept = originalAccept; }, 1200);
+    });
+  });
+
+  const composeRequest = new URLSearchParams(window.location.search).get("compose");
+  if (composeRequest === "video") {
+    const composer = document.querySelector("[data-mobile-composer]");
+    composer?.querySelector("[data-composer-open]")?.click();
+    const input = composer?.querySelector("[data-media-input]");
+    if (input) input.accept = "video/*";
+  }
+
+  document.querySelectorAll("form[data-composer-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      const mediaInput = form.querySelector("[data-media-input]");
+      const hasVideo = [...(mediaInput?.files || [])].some((file) => file.type.startsWith("video/"));
+      if (!hasVideo || !window.XMLHttpRequest || !form.reportValidity()) return;
+      event.preventDefault();
+      const composer = form.closest("[data-mobile-composer]");
+      const submitter = event.submitter || form.querySelector('[type="submit"]');
+      if (submitter) submitter.disabled = true;
+      form.hidden = true;
+      composer?.classList.remove("is-expanded");
+      composer?.classList.add("is-uploading");
+      const status = document.createElement("div");
+      status.className = "composer-upload-status";
+      status.innerHTML = '<strong>Uploading video…</strong><progress max="100" value="0"></progress><span>0%</span>';
+      composer?.appendChild(status);
+      const bar = status.querySelector("progress");
+      const label = status.querySelector("span");
+      const title = status.querySelector("strong");
+      const restore = (message) => {
+        status.remove();
+        form.hidden = false;
+        composer?.classList.remove("is-uploading");
+        composer?.classList.add("is-expanded");
+        if (submitter) submitter.disabled = false;
+        showToast(message || "Video upload was interrupted.");
+      };
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", form.action);
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+      xhr.upload.addEventListener("progress", (uploadEvent) => {
+        if (!uploadEvent.lengthComputable) return;
+        const percentage = Math.round((uploadEvent.loaded / uploadEvent.total) * 100);
+        if (bar) bar.value = percentage;
+        if (label) label.textContent = `${percentage}%`;
+        if (title && percentage >= 100) title.textContent = "Processing video…";
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 400) {
+          restore("Video could not be posted. Please check its size and duration.");
+          return;
+        }
+        window.location.assign(xhr.responseURL || form.action);
+      });
+      xhr.addEventListener("error", () => restore("Video upload was interrupted."));
+      xhr.send(new FormData(form));
     });
   });
 

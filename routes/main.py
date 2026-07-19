@@ -311,6 +311,8 @@ def home():
             ]
         if feed_filter == "videos":
             posts = [post for post in posts if post.media_type == "video"]
+            if request.args.get("sort") == "trending":
+                posts.sort(key=trend_score, reverse=True)
         elif feed_filter == "families":
             posts = [post for post in posts if post.family_id is not None]
         elif feed_filter == "highlights":

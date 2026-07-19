@@ -64,7 +64,7 @@
       {% if family and message.sender_id != current_user.id %}
       <span class="chat-user"><img src="{{ user_avatar_url(message.sender) }}" alt="" />{{ message.sender.username }}{{ rise_badges(rise_user_badges(message.sender, family)) }}</span>
       {% endif %}
-      {% if message.content and message.media_type != 'call' %}
+      {% if message.content and message.media_type != 'call' and not (message.media_type == 'video' and message.sender_id != current_user.id and not message.view_once) %}
         {% if message.content.startswith('My location: https://www.google.com/maps?q=') %}
         {% set location_url = message.content.replace('My location: ', '') %}
         {% set location_query = location_url.split('q=')[-1] %}
@@ -91,10 +91,15 @@
         </div>
         {% elif message.media_type == 'video' %}
         {% if message.sender_id != current_user.id and not message.view_once %}
-        <div class="chat-video-download-card">
-          <span class="chat-video-download-icon" aria-hidden="true">▶</span>
-          <div><strong>Video message</strong><small>Save it to your phone before the sender deletes it.</small></div>
-          <a class="button secondary" href="{{ url_for('api.serve_upload', filename=message.media_url, download=1) }}" download>Download video</a>
+        <div class="chat-video-gate" data-chat-video-gate data-chat-video-url="{{ url_for('api.serve_upload', filename=message.media_url) }}">
+          <div class="chat-video-gate__blur" aria-hidden="true"></div>
+          <div class="chat-video-gate__content">
+            <strong>{{ message.content|truncate(72) if message.content else 'Video message' }}</strong>
+            <small>Download before playing</small>
+            <button class="button" type="button" data-chat-video-download>↓ Download video</button>
+            <progress max="100" value="0" data-chat-video-progress hidden></progress>
+            <span data-chat-video-status></span>
+          </div>
         </div>
         {% else %}
         <div class="media-frame {% if message.view_once %}view-once-media{% endif %}" data-message-id="{{ message.id }}" data-view-once="{{ 1 if message.view_once else 0 }}">
@@ -170,6 +175,7 @@
       <div class="chat-privacy-controls">
         <label><input id="view-once" type="checkbox" /> View once</label>
         <label><input id="expire-one-minute" type="checkbox" /> 1 min</label>
+        <label><input id="chat-auto-download" type="checkbox" /> Auto-download videos</label>
       </div>
     </div>
     <button class="send-button" type="submit" aria-label="Send">➤</button>
