@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-guidance-admin-voice";
+  const APP_VERSION = "20260725-onboarding-inbox-groups";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -838,6 +838,48 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     });
   });
+
+  const signupForm = document.querySelector(".signup-form-grid");
+  if (signupForm) {
+    const email = signupForm.querySelector('input[type="email"]');
+    const password = signupForm.querySelector("#password");
+    const confirmation = signupForm.querySelector("#confirm-password");
+    const message = signupForm.querySelector("[data-signup-validation]");
+    const showSignupError = (text) => {
+      if (!message) return;
+      message.textContent = text;
+      message.hidden = !text;
+    };
+    const validateSignup = () => {
+      confirmation?.setCustomValidity("");
+      email?.setCustomValidity("");
+      if (email?.value && !email.validity.valid) {
+        email.setCustomValidity("Enter a valid email address, such as name@example.com.");
+        showSignupError(email.validationMessage);
+        return email;
+      }
+      if (confirmation?.value && password?.value !== confirmation.value) {
+        confirmation.setCustomValidity("The two passwords do not match.");
+        showSignupError(confirmation.validationMessage);
+        return confirmation;
+      }
+      showSignupError("");
+      return null;
+    };
+    email?.addEventListener("input", validateSignup);
+    password?.addEventListener("input", validateSignup);
+    confirmation?.addEventListener("input", validateSignup);
+    signupForm.addEventListener("submit", (event) => {
+      const invalidField = validateSignup();
+      if (invalidField || !signupForm.checkValidity()) {
+        event.preventDefault();
+        const firstInvalid = invalidField || signupForm.querySelector(":invalid");
+        if (firstInvalid && !message?.textContent) showSignupError(firstInvalid.validationMessage);
+        firstInvalid?.focus();
+        signupForm.reportValidity();
+      }
+    });
+  }
 
   const passwordFields = document.querySelector("[data-password-fields]");
   const passwordToggle = document.querySelector("[data-toggle-password-fields]");

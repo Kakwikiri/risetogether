@@ -323,11 +323,24 @@ def home():
             if suggestion_pool:
                 start = datetime.utcnow().date().toordinal() % len(suggestion_pool)
                 encouragement_suggestions = (suggestion_pool[start:] + suggestion_pool[:start])[:3]
-        daily_reasons = [
-            {"text": item.message, "url": item.action_url or url_for("main.notifications")}
-            for item in Notification.query.filter_by(user_id=current_user.id, seen=False)
-            .order_by(Notification.updated_at.desc()).limit(3).all()
-        ]
+        daily_reasons = []
+        daily_reason_keys = set()
+        for item in (
+            Notification.query.filter_by(user_id=current_user.id, seen=False)
+            .order_by(Notification.updated_at.desc()).limit(30).all()
+        ):
+            # A grouped reaction may coexist with an older single-reaction row.
+            # Show only the newest reason for the same destination/category.
+            key = (item.category, item.action_url or "")
+            if key in daily_reason_keys:
+                continue
+            daily_reason_keys.add(key)
+            daily_reasons.append({
+                "text": item.message,
+                "url": item.action_url or url_for("main.notifications"),
+            })
+            if len(daily_reasons) == 3:
+                break
         if not daily_reasons and encouragement_suggestions:
             daily_reasons.append({
                 "text": "Someone in your Family asked for encouragement.",
@@ -413,6 +426,11 @@ def home():
             return_suggestions=return_suggestions,
             return_summary=return_summary,
             goal_prompt=goal_prompt,
+            show_onboarding=(
+                not families
+                and current_user.created_at is not None
+                and current_user.created_at >= datetime.utcnow() - timedelta(days=14)
+            ),
         )
     return render_template("landing.html")
 
@@ -2139,6 +2157,31 @@ def dismiss_return_suggestion(user_id):
         db.session.add(dismissal)
     dismissal.dismissed_until = datetime.utcnow() + timedelta(days=30)
     db.session.commit()
+    return redirect(request.referrer or url_for("main.home"))
+
+
+@main_bp.route("/check-in/dismiss-all", methods=["POST"])
+@login_required
+def dismiss_all_return_suggestions():
+    hidden_ids = {
+        row.blocker_id for row in Block.query.filter_by(blocked_id=current_user.id).all()
+    } | {
+        row.blocked_id for row in Block.query.filter_by(blocker_id=current_user.id).all()
+    }
+    suggestions = return_suggestions_for(current_user, hidden_ids)
+    dismissed_until = datetime.utcnow() + timedelta(days=30)
+    for target in suggestions:
+        dismissal = ReturnSuggestionDismissal.query.filter_by(
+            viewer_id=current_user.id, inactive_user_id=target.id,
+        ).first()
+        if not dismissal:
+            dismissal = ReturnSuggestionDismissal(
+                viewer_id=current_user.id, inactive_user_id=target.id,
+            )
+            db.session.add(dismissal)
+        dismissal.dismissed_until = dismissed_until
+    db.session.commit()
+    flash("Those check-in suggestions are hidden for now.", "info")
     return redirect(request.referrer or url_for("main.home"))
 
 

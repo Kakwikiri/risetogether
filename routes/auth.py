@@ -211,6 +211,9 @@ def signup():
                 return render_signup()
             flash("Please complete all fields.", "warning")
             return render_signup()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            flash("Enter a valid email address, such as name@example.com.", "warning")
+            return render_signup()
         if len(full_name) < 2 or len(full_name) > 120:
             flash("Please enter your full name using 2 to 120 characters.", "warning")
             return render_signup()

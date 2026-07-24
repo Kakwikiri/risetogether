@@ -41,6 +41,7 @@
         </button>
       </div></label>
       <label class="auth-field" for="confirm-password"><span>Retype password</span><div class="password-field"><input id="confirm-password" type="password" name="confirm_password" required autocomplete="new-password" minlength="8" /><button type="button" class="password-toggle" aria-label="Show password">Show</button></div></label>
+      <p class="signup-validation-message alert warning" data-signup-validation role="alert" aria-live="polite" hidden></p>
       <button class="button full-width signup-submit" type="submit">Create my account</button>
     </form>
     <a class="button secondary full-width google-button" href="{{ url_for('auth.google_login') }}">
