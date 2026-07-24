@@ -33,6 +33,7 @@ FEATURE_FLAG_DEFINITIONS = {
     "verification_badges": ("Verification badges", True),
     "anonymous_support_posts": ("Anonymous support posts", False),
     "media_autoplay": ("Media autoplay", True),
+    "video_notes": ("Premium video notes", False),
     "family_leaderboards": ("Family leaderboards", True),
 }
 SETTING_PREFIX = "feature_flag."

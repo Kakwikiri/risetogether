@@ -1090,6 +1090,46 @@ body {
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.36);
 }
 
+.new-user-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  margin: 0.75rem;
+  padding: 1rem;
+  background: var(--brand-soft);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line));
+  border-radius: var(--radius-md);
+}
+.new-user-guide h3, .new-user-guide p { margin: 0; }
+.new-user-guide ol { grid-column: 1 / -1; margin: 0; padding-left: 1.25rem; }
+
+@media (max-width: 680px) {
+  .video-only-layout .post-actions {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .video-only-layout .post-actions .reaction-form {
+    display: grid;
+    flex: 1 0 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .video-only-layout .reaction-choice { min-width: 0; }
+  .video-only-layout .reaction-form button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.3rem;
+  }
+  .video-only-layout .reaction-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .new-user-guide { grid-template-columns: 1fr; margin: 0; border-radius: 0; }
+  .new-user-guide ol { grid-column: auto; }
+}
+
 html {
   scroll-behavior: smooth;
 }

@@ -1956,11 +1956,18 @@ def send_friend_request(user_id):
 @main_bp.route("/friend/request/<int:request_id>/<action>", methods=["POST"])
 @login_required
 def respond_friend_request(request_id, action):
-    friend_request = FriendRequest.query.filter_by(
-        id=request_id, receiver_id=current_user.id, status="pending"
-    ).first_or_404()
     if action not in {"accept", "decline"}:
         flash("Invalid friend request action.", "warning")
+        return redirect(url_for("main.people"))
+    friend_request = FriendRequest.query.filter_by(id=request_id).first()
+    if not friend_request or friend_request.receiver_id != current_user.id:
+        flash("That friend request is no longer available.", "warning")
+        return redirect(url_for("main.people"))
+    if friend_request.status == "accepted" and action == "accept":
+        flash("You are already friends.", "info")
+        return redirect(url_for("main.people"))
+    if friend_request.status != "pending":
+        flash("That friend request has already been answered.", "info")
         return redirect(url_for("main.people"))
     from datetime import datetime
 

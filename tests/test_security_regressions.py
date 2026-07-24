@@ -540,6 +540,7 @@ class SecurityRegressionTests(unittest.TestCase):
             "verification_badges",
             "anonymous_support_posts",
             "media_autoplay",
+            "video_notes",
             "family_leaderboards",
             "family_xp", "point_transfers", "referral_rewards", "contribution_campaigns",
             "premium_membership", "premium_families", "premium_profiles",
@@ -553,6 +554,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertFalse(defaults["anonymous_support_posts"])
         self.assertTrue(defaults["verification_badges"])
         self.assertTrue(defaults["family_leaderboards"])
+        self.assertFalse(defaults["video_notes"])
 
     def test_feature_flag_admin_route_is_super_admin_only(self):
         source = (ROOT / "routes" / "moderation.py").read_text()

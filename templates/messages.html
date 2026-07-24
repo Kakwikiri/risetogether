@@ -47,7 +47,7 @@
         <a class="message-profile-link" href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"><strong>{{ item.user.profile.display_name }}{{ rise_badges(rise_user_badges(item.user)) }}</strong></a>
         <a class="message-conversation-link" href="{{ url_for('chat.direct_chat', user_id=item.user.id) }}"><p>{{ item.message.content }}</p></a>
       </div>
-      <span>{{ item.message.created_at.strftime('%H:%M') }}</span>
+      <span data-message-created-at="{{ item.message.created_at.isoformat() }}Z">{{ item.message.created_at.strftime('%H:%M') }}</span>
       {% if item.unread %}<span class="message-unread-count" aria-label="{{ item.unread }} unread {{ 'message' if item.unread == 1 else 'messages' }}">{{ '9+' if item.unread > 9 else item.unread }}</span>{% endif %}
     </article>
     {% else %}

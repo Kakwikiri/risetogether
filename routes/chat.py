@@ -12,6 +12,7 @@ from feature_flags import is_feature_enabled
 from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
 from models import Block, Family, FamilyMember, FamilyMemberRestriction, FriendRequest, LiveSession, Message, MessageAttachment, MessageDeletion, MessageReaction, Notification, PushSubscription, User
+from premium import recording_limit_seconds, user_has_premium
 
 chat_bp = Blueprint("chat", __name__)
 connected_users = {}
@@ -278,7 +279,9 @@ def serialize_message(message):
         "view_once": message.view_once,
         "delivered": message.delivered,
         "read_at": message.read_at.isoformat() if message.read_at else None,
-        "created_at": message.created_at.strftime("%Y-%m-%d %H:%M"),
+        # Database timestamps are UTC. The explicit suffix lets every device
+        # render the same moment in its own local time zone.
+        "created_at": f"{message.created_at.isoformat()}Z",
     }
 
 
@@ -565,6 +568,10 @@ def upload_message_file():
     media_kind = request.form.get("media_kind", "").strip()
     recipient_id = request.form.get("recipient_id")
     family_id = request.form.get("family_id")
+    if media_kind == "video" and (
+        not is_feature_enabled("video_notes") or not user_has_premium(current_user)
+    ):
+        return jsonify({"error": "Video notes are currently available to Premium members only."}), 403
     if len(media_files) > 6:
         return jsonify({"error": "Choose up to 6 photos at once."}), 400
     if len(media_files) > 1 and any(get_media_type(item.filename) != "image" for item in media_files):
@@ -587,7 +594,6 @@ def upload_message_file():
         if not filename:
             for saved_filename in saved_media:
                 delete_media_if_unreferenced(saved_filename)
-            from premium import recording_limit_seconds
             limit_minutes = max(1, recording_limit_seconds(media_kind or get_media_type(item.filename)) // 60)
             return jsonify({"error": f"Upload failed. Recordings must be valid and {limit_minutes} minutes or shorter."}), 400
         saved_media.append(filename)

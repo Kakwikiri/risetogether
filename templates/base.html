@@ -1,9 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f766e" />
+    <meta name="theme-color" content="#0a0f0d" />
+    <script>
+      (() => {
+        const theme = localStorage.getItem("theme") || "dark";
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#0a0f0d" : "#0f766e";
+      })();
+    </script>
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="app-badge-count" content="{{ app_badge_count }}" />
     <meta name="feature-media-autoplay" content="{{ '1' if feature_enabled('media_autoplay') else '0' }}" />
@@ -60,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260719-clean-media-tags"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260724-dark-chat-fixes"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260719-clean-media-tags"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260724-dark-chat-fixes"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260719-video-progress"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260724-dark-chat-fixes"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}

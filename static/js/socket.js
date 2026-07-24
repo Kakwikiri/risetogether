@@ -1,6 +1,6 @@
 const socket = io({
   reconnection: true,
-  reconnectionAttempts: Infinity,
+  reconnectionAttempts: 8,
   reconnectionDelay: 500,
   reconnectionDelayMax: 5000,
   timeout: 20000,
@@ -128,14 +128,18 @@ const createVoiceNoteElement = (url, options = {}) => {
 const isLocationMessage = (content = "") => content.startsWith("My location: https://www.google.com/maps?q=");
 
 const messageDateKey = (createdAt = "") => {
-  const raw = String(createdAt || "");
-  return raw.includes(" ") ? raw.split(" ")[0] : new Date().toISOString().slice(0, 10);
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return new Date().toLocaleDateString("en-CA");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const messageTimeText = (createdAt = "") => {
-  const raw = String(createdAt || "");
-  if (raw.includes(" ")) return raw.split(" ").slice(1).join(" ") || raw;
-  return raw;
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return String(createdAt || "");
+  return new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
 const messageDayLabel = (dateKey = "") => {
@@ -153,6 +157,13 @@ const messageDayLabel = (dateKey = "") => {
   }
   return messageDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 };
+
+document.querySelectorAll("[data-message-created-at]").forEach((element) => {
+  const createdAt = element.dataset.messageCreatedAt;
+  element.textContent = messageTimeText(createdAt);
+  const message = element.closest("[data-message-id]");
+  if (message) message.dataset.messageDate = messageDateKey(createdAt);
+});
 
 const ensureDateSeparator = (chatLog, dateKey) => {
   if (!chatLog || !dateKey || chatLog.querySelector(`[data-chat-date="${dateKey}"]`)) return;
@@ -803,6 +814,7 @@ if (typeof chatConfig !== "undefined") {
       const formData = new FormData();
       const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
       files.forEach((file) => formData.append("file", file));
+      if (csrfToken) formData.append("csrf_token", csrfToken);
       formData.append("content", content);
       if (options.mediaKind) formData.append("media_kind", options.mediaKind);
       if (replyToId) formData.append("reply_to_id", replyToId);

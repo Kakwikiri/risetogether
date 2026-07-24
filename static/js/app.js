@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260719-photo-grid-layout";
+  const APP_VERSION = "20260724-dark-chat-fixes";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -35,18 +35,25 @@ document.addEventListener("DOMContentLoaded", () => {
     window.visualViewport.addEventListener("scroll", syncVisualViewportHeight);
   }
 
-  const savedTheme = localStorage.getItem("theme") || "light";
+  const savedTheme = localStorage.getItem("theme") || "dark";
   document.documentElement.dataset.theme = savedTheme;
-  const themeToggle = document.querySelector("[data-theme-toggle]");
-  if (themeToggle) {
-    themeToggle.textContent = savedTheme === "dark" ? "Light" : "Dark";
+  const themeToggles = document.querySelectorAll("[data-theme-toggle]");
+  const syncThemeControls = (theme) => {
+    themeToggles.forEach((toggle) => {
+      toggle.textContent = theme === "dark" ? "Light" : "Dark";
+    });
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.content = theme === "dark" ? "#0a0f0d" : "#0f766e";
+  };
+  syncThemeControls(savedTheme);
+  themeToggles.forEach((themeToggle) => {
     themeToggle.addEventListener("click", () => {
       const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
       document.documentElement.dataset.theme = nextTheme;
       localStorage.setItem("theme", nextTheme);
-      themeToggle.textContent = nextTheme === "dark" ? "Light" : "Dark";
+      syncThemeControls(nextTheme);
     });
-  }
+  });
 
   const toast = document.querySelector("[data-toast]");
   const pageBack = document.querySelector("[data-page-back]");
