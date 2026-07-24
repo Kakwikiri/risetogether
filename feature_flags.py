@@ -8,6 +8,7 @@ from models import SiteSetting
 
 FEATURE_FLAG_DEFINITIONS = {
     "daily_checkins": ("Daily check-ins", True),
+    "goals": ("Goals and progress reminders", True),
     "personal_points": ("Personal points", True),
     "family_points": ("Family points", True),
     "family_xp": ("Family XP", True),

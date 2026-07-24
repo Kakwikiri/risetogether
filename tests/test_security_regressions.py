@@ -529,6 +529,7 @@ class SecurityRegressionTests(unittest.TestCase):
     def test_feature_flag_registry_has_all_stage_two_flags(self):
         expected = {
             "daily_checkins",
+            "goals",
             "personal_points",
             "family_points",
             "streaks",

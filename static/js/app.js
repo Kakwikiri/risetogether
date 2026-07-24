@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260724-dark-chat-fixes";
+  const APP_VERSION = "20260724-launch-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -1570,9 +1570,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const showVideoFallback = (video) => {
     const frame = video.closest(".media-frame");
     if (!frame || frame.querySelector(".video-fallback")) return;
+    const compactContext = frame.closest(".chat-log, .post-detail");
     frame.classList.add("video-unsupported");
     const fallback = document.createElement("div");
     fallback.className = "video-fallback";
+    fallback.classList.toggle("video-fallback--compact", Boolean(compactContext));
     const downloadUrl = video.dataset.downloadUrl || video.currentSrc || video.src;
     fallback.innerHTML = `
       <strong>Video format not supported on this browser</strong>

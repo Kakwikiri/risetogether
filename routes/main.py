@@ -40,6 +40,7 @@ from models import (
     Follow,
     FriendRequest,
     Goal,
+    GoalProgress,
     Notification,
     Message,
     PointTransaction,
@@ -274,6 +275,37 @@ def home():
         )
         posts = [post for post in posts if can_view_post(post)]
         families = [membership.family for membership in current_user.family_memberships]
+        goal_prompt = None
+        if is_feature_enabled("goals"):
+            active_goal = (
+                Goal.query.filter_by(owner_user_id=current_user.id, status="active")
+                .order_by(Goal.created_at.desc())
+                .first()
+            )
+            if not active_goal:
+                goal_prompt = {
+                    "kind": "create",
+                    "title": "Turn an intention into a goal",
+                    "message": "Choose one meaningful next step. You can keep it private.",
+                    "url": url_for("goals.create_goal"),
+                    "action": "Create a goal",
+                }
+            else:
+                latest_progress = active_goal.progress_entries.order_by(
+                    GoalProgress.created_at.desc()
+                ).first()
+                updated_today = (
+                    latest_progress is not None
+                    and latest_progress.created_at.date() == datetime.utcnow().date()
+                )
+                if not updated_today:
+                    goal_prompt = {
+                        "kind": "progress",
+                        "title": f"Take a moment for “{active_goal.title}”",
+                        "message": "What small progress can you record today? Honest steps count.",
+                        "url": url_for("goals.goal_detail", goal_id=active_goal.id),
+                        "action": "Update progress",
+                    }
         encouragement_suggestions = []
         if memberships and is_feature_enabled("anonymous_support_posts"):
             suggestion_pool = (
@@ -380,6 +412,7 @@ def home():
             daily_reasons=daily_reasons,
             return_suggestions=return_suggestions,
             return_summary=return_summary,
+            goal_prompt=goal_prompt,
         )
     return render_template("landing.html")
 

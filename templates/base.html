@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260724-dark-chat-fixes"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260724-launch-polish"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260724-dark-chat-fixes"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260724-launch-polish"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260724-dark-chat-fixes"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260724-launch-polish"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -122,7 +122,7 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
-        <a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>
+        {% if feature_enabled('goals') %}<a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>{% endif %}
         <details class="desktop-nav-more">
           <summary data-icon="＋">More</summary>
           <div class="desktop-nav-more-panel">
