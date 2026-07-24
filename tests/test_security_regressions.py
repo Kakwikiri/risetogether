@@ -185,7 +185,7 @@ class SecurityRegressionTests(unittest.TestCase):
             "quiz_slots", "extra_themes", "advanced_statistics", "custom_badge_frame",
             "celebration_certificates", "certificate_sunrise", "certificate_unity",
             "certificate_excellence", "certificate_legacy",
-            "extra_admins", "extra_moderators", "family_calendar", "resource_library",
+            "extra_admins", "extra_moderators", "voice_room_capacity", "family_calendar", "resource_library",
             "capacity_75", "capacity_100", "capacity_150", "capacity_250", "capacity_500",
         }
         self.assertEqual(set(UPGRADE_CATALOG), expected)

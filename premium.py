@@ -29,6 +29,8 @@ ECONOMY_DEFAULTS = {
     "premium_family_admins": 10,
     "premium_family_moderators": 20,
     "premium_family_capacity": 500,
+    "family_voice_free_devices": 3,
+    "family_voice_expanded_devices": 8,
     "premium_monthly_price": 5,
     "premium_yearly_price": 50,
     "premium_family_monthly_price": 12,

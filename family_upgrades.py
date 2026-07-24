@@ -17,6 +17,7 @@ UPGRADE_CATALOG = {
     "certificate_legacy": {"name": "Legacy certificate", "cost": 500, "required_level": 5, "description": "A distinguished dark-and-gold certificate for major milestones."},
     "extra_admins": {"name": "More Family admins", "cost": 350, "required_level": 4, "description": "Add two more Family admin places."},
     "extra_moderators": {"name": "More Family moderators", "cost": 300, "required_level": 3, "description": "Add five more Family moderator places."},
+    "voice_room_capacity": {"name": "Larger Family voice room", "cost": 300, "required_level": 3, "description": "Increase the Family voice room from the free device limit to the expanded limit."},
     "family_calendar": {"name": "Family calendar", "cost": 750, "description": "Shared planning calendar.", "implemented": False},
     "resource_library": {"name": "Resource library", "cost": 900, "description": "Space for pinned Family resources.", "implemented": False},
     "capacity_75": {"name": "Capacity: 75 members", "cost": 400, "required_level": 2, "description": "Increase member capacity from 50 to 75.", "capacity": 75},
@@ -104,6 +105,20 @@ def open_quiz_limit(family_id):
 
 def pinned_announcement_limit(family_id):
     return 3 if family_has_upgrade(family_id, "pinned_announcements") else 1
+
+
+def family_voice_device_limit(family_id):
+    def configured_limit(key, default, minimum, maximum):
+        setting = SiteSetting.query.get(key)
+        try:
+            value = int(setting.value) if setting and setting.value else default
+        except (TypeError, ValueError):
+            value = default
+        return max(minimum, min(maximum, value))
+
+    free_limit = configured_limit("family_voice_free_devices", 3, 2, 20)
+    expanded_limit = configured_limit("family_voice_expanded_devices", 8, free_limit, 30)
+    return expanded_limit if family_has_upgrade(family_id, "voice_room_capacity") else free_limit
 
 
 def next_capacity_target(current_capacity):

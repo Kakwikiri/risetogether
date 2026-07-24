@@ -10468,6 +10468,45 @@ body[data-page="main.people"] .panel-sidebar .friend-row-actions {
 body[data-page="main.people"] .panel-sidebar .friend-row-actions form { margin: 0; }
 .feedback-page { display: grid; gap: 0.75rem; max-width: 760px; margin-inline: auto; }
 .feedback-intro h1, .feedback-intro p { margin-top: 0; }
+.new-user-guide-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.sidebar-action-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.sidebar-action-card span { color: var(--brand-dark); font-weight: 850; }
+.feature-new-badge {
+  margin-left: auto;
+  padding: 0.1rem 0.35rem;
+  color: #052e2b;
+  background: #5eead4;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.sidebar-action-card:hover,
+.sidebar-action-card:focus-visible { background: var(--soft); border-color: var(--brand); }
+body[data-page="main.people"] .people-suggestions .friend-row {
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+}
+body[data-page="main.people"] .people-suggestions .friend-row > form,
+body[data-page="main.people"] .people-suggestions .friend-row > button {
+  grid-column: 2;
+  width: fit-content;
+  margin: 0;
+}
+body[data-page="main.people"] .people-suggestions .connection-button {
+  min-width: 104px;
+  min-height: 38px;
+  padding: 0.4rem 0.7rem;
+  white-space: nowrap;
+}
 @media (max-width: 680px) {
   body[data-page="main.people"] .panel-sidebar .friend-row {
     grid-template-columns: 42px minmax(0, 1fr) !important;

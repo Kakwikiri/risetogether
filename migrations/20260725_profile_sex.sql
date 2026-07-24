@@ -1,0 +1,2 @@
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS sex VARCHAR(24) NOT NULL DEFAULT 'prefer_not_to_say';

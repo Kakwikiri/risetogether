@@ -7,7 +7,7 @@ from flask_login import current_user, login_required
 from flask_socketio import emit, join_room, leave_room
 
 from extensions import db, socketio
-from family_upgrades import pinned_announcement_limit
+from family_upgrades import family_voice_device_limit, pinned_announcement_limit
 from feature_flags import is_feature_enabled
 from helpers import delete_media_if_unreferenced, get_ice_servers, get_media_type, save_media, user_avatar_url, validate_upload
 from notifications_service import queue_device_push, smart_notify
@@ -23,7 +23,6 @@ active_calls = {}
 active_calls_lock = Lock()
 family_voice_participants = {}
 CALL_TIMEOUT_SECONDS = 45
-FAMILY_VOICE_ROOM_LIMIT = 8
 
 
 def parse_user_id(value):
@@ -536,7 +535,7 @@ def family_voice_room(family_id):
         "family_voice_room.html",
         family=family,
         ice_servers=get_ice_servers(),
-        room_limit=FAMILY_VOICE_ROOM_LIMIT,
+        room_limit=family_voice_device_limit(family.id),
     )
 
 
@@ -1072,10 +1071,11 @@ def join_family_voice(data):
         emit("family_voice_error", {"message": "Only Family members can join this voice room."}, room=request.sid)
         return
     participants = family_voice_participants.setdefault(family_id, {})
-    if request.sid not in participants and len(participants) >= FAMILY_VOICE_ROOM_LIMIT:
+    room_limit = family_voice_device_limit(family_id)
+    if request.sid not in participants and len(participants) >= room_limit:
         emit(
             "family_voice_error",
-            {"message": f"This voice room is full ({FAMILY_VOICE_ROOM_LIMIT} devices)."},
+            {"message": f"This voice room is full ({room_limit} devices)."},
             room=request.sid,
         )
         return

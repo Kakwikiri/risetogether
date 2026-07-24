@@ -44,8 +44,9 @@
     {% if not families %}
     <aside class="new-user-guide" aria-labelledby="new-user-guide-title">
       <div><p class="eyebrow">Start here</p><h3 id="new-user-guide-title">Welcome to RiseTogether</h3><p>Joining a Family gives you a smaller community, shared challenges, and a Family chat.</p></div>
-      <ol><li><a href="{{ url_for('family.families') }}">Find and join a Family</a></li><li>Share a story or supportive reaction</li><li>Connect with people you trust</li></ol>
+      <ol><li><a class="content-action-link" href="{{ url_for('family.families') }}">Find and join a Family</a></li><li>Share a story or supportive reaction</li><li>Connect with people you trust</li></ol>
       <a class="button" href="{{ url_for('family.families') }}">Explore Families</a>
+      <div class="new-user-guide-actions"><button class="button secondary compact-action" type="button" data-onboarding-later>Later</button><button class="button ghost compact-action" type="button" data-onboarding-skip>Skip guide</button></div>
     </aside>
     {% endif %}
     {% if return_summary %}<section class="welcome-back-card"><div class="split-header"><div><p class="eyebrow">Welcome back</p><h3>Welcome back, {{ current_user.profile.display_name or current_user.username }}.</h3></div><form action="{{ url_for('main.dismiss_welcome_back') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="text-button" type="submit">Dismiss</button></form></div><p>While you were away:</p><div class="welcome-back-list">{% for checkin in return_summary.checkins %}<article id="checkin-{{ checkin.id }}"><span><strong>{{ checkin.sender.profile.display_name or checkin.sender.username }}</strong> checked on you.</span><p>{{ checkin.message }}</p><div class="inline-actions">{% if not checkin.thanked_at %}<form action="{{ url_for('main.thank_return_checkin', checkin_id=checkin.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="text-button" type="submit">Thank them</button></form>{% endif %}<a href="{{ url_for('chat.direct_chat', user_id=checkin.sender_id) }}">Reply privately</a></div></article>{% endfor %}{% for row in return_summary.family_activity %}<a href="{{ url_for('family.family_detail', family_id=row.family.id) }}#family-challenges">{{ row.family.name }} recorded {{ row.count }} challenge {{ 'completion' if row.count == 1 else 'completions' }}.</a>{% endfor %}{% if return_summary.encouragement_count %}<a href="{{ url_for('family.families') }}">{{ return_summary.encouragement_count }} {{ 'person sent' if return_summary.encouragement_count == 1 else 'people sent' }} you encouragement.</a>{% endif %}{% if not return_summary.checkins and not return_summary.family_activity and not return_summary.encouragement_count %}<p class="muted-meta">There are no missed updates to catch up on. It is simply good to see you.</p>{% endif %}</div></section>{% endif %}
@@ -205,14 +206,16 @@
     </div>
   </section>
   <aside class="panel panel-sidebar">
-    <div class="card" id="community-highlights">
+    <a class="card sidebar-action-card" id="community-highlights" href="{{ url_for('family.families') }}">
       <h3>Community highlights</h3>
       <p>Join families, send supportive reactions, and connect in real time.</p>
-    </div>
-    <div class="card" id="kindness-challenge">
+      <span>Explore Families →</span>
+    </a>
+    <a class="card sidebar-action-card" id="kindness-challenge" href="{{ url_for('main.home', filter='kindness') }}">
       <h3>Kindness challenge</h3>
       <p>React to one post, leave one thoughtful comment, and check in on one person today.</p>
-    </div>
+      <span>Open kindness feed →</span>
+    </a>
     <div class="card" id="available-families">
       <h3>Available families</h3>
       <ul>

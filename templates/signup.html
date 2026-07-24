@@ -26,6 +26,7 @@
         {% endfor %}
       </select></label>
       <label class="auth-field" for="birth-date"><span>Date of birth</span><input id="birth-date" type="date" name="birth_date" required autocomplete="bday" /><small class="muted-meta">Private · used only for age-appropriate content</small></label>
+      <label class="auth-field" for="sex"><span>Sex</span><select id="sex" name="sex" required><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="prefer_not_to_say">Prefer not to say</option></select><small class="muted-meta">Private · not displayed on your profile</small></label>
       <label class="auth-field" for="password"><span>Password</span><div class="password-field">
         <input
           id="password"
@@ -39,6 +40,7 @@
           Show
         </button>
       </div></label>
+      <label class="auth-field" for="confirm-password"><span>Retype password</span><div class="password-field"><input id="confirm-password" type="password" name="confirm_password" required autocomplete="new-password" minlength="8" /><button type="button" class="password-toggle" aria-label="Show password">Show</button></div></label>
       <button class="button full-width signup-submit" type="submit">Create my account</button>
     </form>
     <a class="button secondary full-width google-button" href="{{ url_for('auth.google_login') }}">

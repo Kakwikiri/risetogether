@@ -847,8 +847,8 @@ def manage_help_request(request_id, action):
         return redirect(url_for("main.home"))
     help_request = HelpRequest.query.get_or_404(request_id)
     if action == "delete":
-        if not is_platform_owner(current_user):
-            flash("Only the platform owner can permanently delete a help request.", "danger")
+        if current_user.admin_role != "super_admin":
+            flash("Only a Super Admin can permanently delete a help request.", "danger")
             return redirect(url_for("moderation.admin_help_requests"))
         record_admin_audit(
             "help_request_deleted", target_user=help_request.user,
@@ -859,7 +859,20 @@ def manage_help_request(request_id, action):
         flash("Help request deleted.", "success")
         return redirect(url_for("moderation.admin_help_requests"))
     if action in {"open", "reviewed", "closed"}:
+        notify_reviewed = (
+            action == "reviewed"
+            and help_request.status != "reviewed"
+            and help_request.user_id is not None
+        )
         help_request.status = action
+        if notify_reviewed:
+            smart_notify(
+                user_id=help_request.user_id,
+                category="admin",
+                message=f"Your request “{help_request.subject}” was reviewed.",
+                action_url=url_for("moderation.help_request"),
+                dedupe_key=f"help-reviewed:{help_request.id}",
+            )
         db.session.commit()
         flash("Help request updated.", "success")
     return redirect(url_for("moderation.admin_help_requests"))
@@ -888,6 +901,8 @@ def admin_settings():
         "family_level_6_xp",
         "family_level_7_xp",
         "family_level_rising_interval",
+        "family_voice_free_devices",
+        "family_voice_expanded_devices",
     ]
     if request.method == "POST":
         try:
@@ -896,6 +911,8 @@ def admin_settings():
                 for level in range(2, 8)
             ]
             rising_interval = int(request.form.get("family_level_rising_interval", ""))
+            voice_free_devices = int(request.form.get("family_voice_free_devices", "3"))
+            voice_expanded_devices = int(request.form.get("family_voice_expanded_devices", "8"))
         except (TypeError, ValueError):
             flash("Family level thresholds must be whole numbers.", "warning")
             return redirect(url_for("moderation.admin_settings"))
@@ -903,8 +920,10 @@ def admin_settings():
             any(configured_thresholds[index] <= configured_thresholds[index - 1] for index in range(1, 7))
             or configured_thresholds[-1] > 10_000_000
             or not 100 <= rising_interval <= 10_000_000
+            or not 2 <= voice_free_devices <= 20
+            or not max(3, voice_free_devices) <= voice_expanded_devices <= 30
         ):
-            flash("Family level thresholds must increase at every level, and the rising interval must be at least 100 XP.", "warning")
+            flash("Check the Family level and voice-room limits. Expanded voice capacity must be at least the free capacity.", "warning")
             return redirect(url_for("moderation.admin_settings"))
         for key in keys:
             if key == "smtp_use_ssl":

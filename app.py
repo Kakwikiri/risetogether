@@ -284,6 +284,7 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_goal_progress BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_last_seen BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(24) NOT NULL DEFAULT 'prefer_not_to_say'",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",
         "CREATE TABLE IF NOT EXISTS post_media (id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(32) NOT NULL DEFAULT 'image', position INTEGER NOT NULL, CONSTRAINT uq_post_media_position UNIQUE(post_id, position))",
@@ -488,7 +489,7 @@ def inject_navigation_counts():
     from badges import family_badges, user_badges
     from family_upgrades import family_has_upgrade
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
-    from models import Message, Notification
+    from models import Message, Notification, SiteSetting
     from notifications_service import important_unread_count, unread_private_message_count
     from premium import family_has_premium, recording_limit_seconds, user_has_premium
 
@@ -502,6 +503,11 @@ def inject_navigation_counts():
         unread_messages = unread_private_message_count(current_user.id)
         app_badge_count = unread_messages + important_unread_count(current_user.id)
     feature_flags = get_feature_flags()
+    feature_versions = {
+        row.key.removeprefix("feature_flag."): (row.updated_at.isoformat() if row.updated_at else "default")
+        for row in SiteSetting.query.filter(SiteSetting.key.like("feature_flag.%")).all()
+        if (row.value or "").strip().lower() in {"1", "true", "yes", "on"}
+    }
     return {
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
@@ -514,6 +520,7 @@ def inject_navigation_counts():
         "family_avatar_url": family_avatar_url,
         "feature_flags": feature_flags,
         "feature_enabled": lambda name: feature_flags.get(name, False),
+        "feature_version": lambda name: feature_versions.get(name, "default"),
         "family_has_upgrade": family_has_upgrade,
         "user_has_premium": user_has_premium,
         "family_has_premium": family_has_premium,

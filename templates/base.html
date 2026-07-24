@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260724-final-polish-2"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-guidance-admin-voice"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260724-final-polish-2"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-guidance-admin-voice"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260724-final-polish-2"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-guidance-admin-voice"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -122,19 +122,19 @@
         <a href="{{ url_for('main.profile', username=current_user.username) }}"
           data-icon="◉"><span>Profile</span></a
         >
-        {% if feature_enabled('goals') %}<a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎"><span>Goals</span></a>{% endif %}
+        {% if feature_enabled('goals') %}<a href="{{ url_for('goals.goals_dashboard') }}" data-icon="◎" data-feature-discovery="goals" data-feature-version="{{ feature_version('goals') }}"><span>Goals</span></a>{% endif %}
         <details class="desktop-nav-more">
           <summary data-icon="＋">More</summary>
           <div class="desktop-nav-more-panel">
         <a href="{{ url_for('main.settings') }}" data-icon="⚙"><span>Settings</span></a>
-        {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡"><span>Daily check-in</span></a>{% endif %}
-        {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗"><span>Streaks</span></a>{% endif %}
+        {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡" data-feature-discovery="daily_checkins" data-feature-version="{{ feature_version('daily_checkins') }}"><span>Daily check-in</span></a>{% endif %}
+        {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗" data-feature-discovery="streaks" data-feature-version="{{ feature_version('streaks') }}"><span>Streaks</span></a>{% endif %}
         <a href="{{ url_for('main.memories') }}" data-icon="♡"><span>Memories</span></a>
         <a href="{{ url_for('main.impact') }}" data-icon="↗"><span>My impact</span></a>
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}
-        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇"><span>Premium</span></a>{% endif %}
+        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇" data-feature-discovery="premium_membership" data-feature-version="{{ feature_version('premium_membership') }}"><span>Premium</span></a>{% endif %}
         {% if feature_enabled('referral_rewards') %}<a href="{{ url_for('main.referral_invites') }}" data-icon="↗"><span>Invite & earn</span></a>{% endif %}
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         <a href="{{ url_for('moderation.product_feedback') }}" data-icon="✎"><span>Share feedback</span></a>
@@ -158,6 +158,7 @@
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" data-icon="⇥" data-logout><span>Logout</span></a>
         <button class="share-app-button" type="button" data-share-app>Share app</button>
+        <button class="install-button" type="button" hidden>Install app</button>
           </div>
         </details>
         {% else %}

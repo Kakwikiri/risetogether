@@ -117,6 +117,7 @@ class Profile(db.Model):
     display_name = db.Column(db.String(120), nullable=False)
     bio = db.Column(db.Text, default="")
     birth_date = db.Column(db.Date, nullable=True)
+    sex = db.Column(db.String(24), default="prefer_not_to_say", nullable=False)
     interests = db.Column(db.Text, default="", nullable=False)
     avatar = db.Column(db.String(255), default="")
     privacy_posts = db.Column(db.String(20), default="public")

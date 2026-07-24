@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260724-final-polish-2";
+  const APP_VERSION = "20260725-guidance-admin-voice";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -53,6 +53,32 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem("theme", nextTheme);
       syncThemeControls(nextTheme);
     });
+  });
+
+  const onboardingGuide = document.querySelector(".new-user-guide");
+  if (onboardingGuide) {
+    const skipped = localStorage.getItem("risetogether-onboarding-skipped") === "1";
+    const laterUntil = Number(localStorage.getItem("risetogether-onboarding-later-until") || 0);
+    if (skipped || laterUntil > Date.now()) onboardingGuide.hidden = true;
+    onboardingGuide.querySelector("[data-onboarding-later]")?.addEventListener("click", () => {
+      localStorage.setItem("risetogether-onboarding-later-until", String(Date.now() + 3 * 86400000));
+      onboardingGuide.hidden = true;
+    });
+    onboardingGuide.querySelector("[data-onboarding-skip]")?.addEventListener("click", () => {
+      localStorage.setItem("risetogether-onboarding-skipped", "1");
+      onboardingGuide.hidden = true;
+    });
+  }
+
+  document.querySelectorAll("[data-feature-discovery]").forEach((link) => {
+    const key = `risetogether-feature-seen:${link.dataset.featureDiscovery}:${link.dataset.featureVersion || "default"}`;
+    if (!localStorage.getItem(key)) {
+      const badge = document.createElement("small");
+      badge.className = "feature-new-badge";
+      badge.textContent = "New";
+      link.appendChild(badge);
+    }
+    link.addEventListener("click", () => localStorage.setItem(key, "1"), { once: true });
   });
 
   const toast = document.querySelector("[data-toast]");

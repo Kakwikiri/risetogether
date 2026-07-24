@@ -202,7 +202,9 @@ def signup():
         email = request.form.get("email", "").strip().lower()
         country = request.form.get("country", "").strip()
         birth_date, birth_date_error = parse_birth_date(request.form.get("birth_date"))
+        sex = request.form.get("sex", "prefer_not_to_say").strip()
         password = request.form.get("password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
         if not full_name or not username or not email or not password or not country or not birth_date:
             if birth_date_error:
                 flash(birth_date_error, "warning")
@@ -223,6 +225,11 @@ def signup():
         if len(password) < 8:
             flash("Password must be at least 8 characters.", "warning")
             return render_signup()
+        if password != confirm_password:
+            flash("The two passwords do not match.", "warning")
+            return render_signup()
+        if sex not in {"female", "male", "prefer_not_to_say"}:
+            sex = "prefer_not_to_say"
         existing = User.query.filter(
             (User.username == username) | (User.email == email)
         ).first()
@@ -236,7 +243,7 @@ def signup():
             user.admin_role = "super_admin"
         db.session.add(user)
         db.session.commit()
-        profile = Profile(user_id=user.id, display_name=full_name, birth_date=birth_date)
+        profile = Profile(user_id=user.id, display_name=full_name, birth_date=birth_date, sex=sex)
         db.session.add(profile)
         from referrals import register_referral_signup
         register_referral_signup(user, referral_token)
