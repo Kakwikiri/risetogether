@@ -204,8 +204,7 @@
     {% endfor %}
     </div>
   </section>
-  {% if not video_only %}
-  <aside class="panel panel-sidebar">
+  <aside class="panel panel-sidebar" data-scroll-companion>
     <div class="card" id="community-highlights">
       <h3>Community highlights</h3>
       <p>Join families, send supportive reactions, and connect in real time.</p>
@@ -243,6 +242,5 @@
       </ul>
     </div>
   </aside>
-  {% endif %}
 </div>
 {% endblock %}

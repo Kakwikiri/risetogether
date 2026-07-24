@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260724-launch-polish";
+  const APP_VERSION = "20260724-final-polish";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -54,6 +54,17 @@ document.addEventListener("DOMContentLoaded", () => {
       syncThemeControls(nextTheme);
     });
   });
+
+  const scrollCompanion = document.querySelector("[data-scroll-companion]");
+  if (scrollCompanion) {
+    let previousPageY = window.scrollY;
+    window.addEventListener("scroll", () => {
+      if (window.innerWidth <= 900) return;
+      const movement = window.scrollY - previousPageY;
+      previousPageY = window.scrollY;
+      scrollCompanion.scrollTop += movement;
+    }, { passive: true });
+  }
 
   const toast = document.querySelector("[data-toast]");
   const pageBack = document.querySelector("[data-page-back]");

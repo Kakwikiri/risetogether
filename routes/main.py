@@ -627,10 +627,13 @@ def welcome_back_summary(user):
         EncouragementRequest.user_id == user.id,
         EncouragementResponse.created_at >= since,
     ).count()
+    visible_family_activity = [row for row in family_activity if row["family"]]
+    if not checkins and not visible_family_activity and not encouragement_count:
+        return None
     return {
         "since": since,
         "checkins": checkins,
-        "family_activity": [row for row in family_activity if row["family"]],
+        "family_activity": visible_family_activity,
         "encouragement_count": encouragement_count,
     }
 
@@ -740,6 +743,29 @@ def daily_checkins():
         checkin.privacy = privacy
         checkin.family_id = family_id
         db.session.add(checkin)
+        day_start = datetime.combine(today, datetime.min.time())
+        feed_post = Post.query.filter(
+            Post.user_id == current_user.id,
+            Post.post_type == "daily_checkin",
+            Post.created_at >= day_start,
+        ).order_by(Post.created_at.desc()).first()
+        if privacy == "public":
+            public_copy = f"Daily check-in · Feeling {CHECKIN_MOODS[mood].lower()}."
+            if note:
+                public_copy += f"\n\n{note}"
+            if feed_post:
+                feed_post.content = public_copy
+                feed_post.is_hidden = False
+            else:
+                db.session.add(Post(
+                    user_id=current_user.id,
+                    content=public_copy,
+                    audience="public",
+                    purpose="feeling",
+                    post_type="daily_checkin",
+                ))
+        elif feed_post:
+            db.session.delete(feed_post)
         if len(note) >= 10:
             db.session.flush()
             record_streak_activity(
