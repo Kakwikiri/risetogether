@@ -10448,7 +10448,7 @@ body[data-page="main.home"][data-authenticated="0"] .landing-actions { margin-to
 .goal-progress-entry a:hover { border-color: var(--brand); background: var(--brand-soft); }
 body[data-page="main.people"] .panel-sidebar .friend-row {
   display: grid !important;
-  grid-template-columns: 48px minmax(0, 1fr) auto !important;
+  grid-template-columns: 48px minmax(0, 1fr) !important;
   align-items: center !important;
   gap: 0.6rem !important;
 }
@@ -10459,25 +10459,15 @@ body[data-page="main.people"] .panel-sidebar .friend-identity-link {
   border: 0;
 }
 body[data-page="main.people"] .panel-sidebar .friend-row-actions {
-  grid-column: 3;
+  grid-column: 2;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.35rem;
 }
 body[data-page="main.people"] .panel-sidebar .friend-row-actions form { margin: 0; }
 .feedback-page { display: grid; gap: 0.75rem; max-width: 760px; margin-inline: auto; }
 .feedback-intro h1, .feedback-intro p { margin-top: 0; }
-@media (min-width: 901px) {
-  body[data-page="main.home"] .panel-sidebar {
-    position: sticky !important;
-    top: 0.75rem !important;
-    align-self: start !important;
-    max-height: calc(100vh - 1.5rem);
-    overflow-y: auto;
-    scrollbar-width: thin;
-  }
-  body[data-page="main.home"] .panel-sidebar > :last-child { position: static !important; }
-}
 @media (max-width: 680px) {
   body[data-page="main.people"] .panel-sidebar .friend-row {
     grid-template-columns: 42px minmax(0, 1fr) !important;
