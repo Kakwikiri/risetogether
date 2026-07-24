@@ -1,0 +1,30 @@
+{% extends 'base.html' %} {% block content %}
+<main class="feedback-page">
+  <section class="card feedback-intro">
+    <p class="eyebrow">Help shape RiseTogether</p>
+    <h1>Tell us about your experience</h1>
+    <p>Share what is working, what feels confusing, or what would make RiseTogether more useful. Every submission is reviewed by the admin team.</p>
+  </section>
+  <section class="card form-card">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label>What would you like to share?
+        <select name="feedback_type" required>
+          <option value="experience">My experience</option>
+          <option value="feature">A feature idea</option>
+          <option value="improvement">Something to improve</option>
+          <option value="problem">A problem I found</option>
+        </select>
+      </label>
+      <label>Short title
+        <input type="text" name="title" minlength="3" maxlength="120" required placeholder="For example: Make Family discovery easier" />
+      </label>
+      <label>Tell us more
+        <textarea name="message" rows="7" minlength="10" maxlength="3000" required placeholder="What happened, what did you expect, and what would improve the experience?"></textarea>
+      </label>
+      <p class="muted-meta">Please do not include passwords, payment details, or other sensitive information.</p>
+      <button class="button" type="submit">Send feedback</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

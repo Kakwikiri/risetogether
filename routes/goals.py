@@ -26,6 +26,12 @@ MEASUREMENT_TYPES = {"number": "Number", "percentage": "Percentage", "binary": "
 GOAL_REACTIONS = {"support": "Support", "understand": "I Understand", "keep_going": "Keep Going", "inspire": "You Inspire Me"}
 
 
+@goals_bp.before_request
+def require_goals_feature():
+    if not is_feature_enabled("goals"):
+        return render_template("coming_soon.html", feature_name="Goals"), 404
+
+
 def family_membership(family_id, user_id=None):
     return FamilyMember.query.filter_by(family_id=family_id, user_id=user_id or current_user.id).first()
 
@@ -71,7 +77,6 @@ def goals_dashboard():
     goals = Goal.query.filter(or_(
         Goal.owner_user_id == current_user.id,
         (Goal.scope == "family") & (Goal.family_id.in_(family_ids or [-1])) & (Goal.visibility.in_(["family", "public"])),
-        Goal.visibility == "public",
     )).order_by(Goal.status.asc(), Goal.created_at.desc()).limit(150).all()
     goals = [goal for goal in goals if goal_can_view(goal)]
     return render_template("goals.html", goals=goals, today=date.today())

@@ -804,6 +804,33 @@ def help_request():
     return render_template("help_request.html")
 
 
+@mod_bp.route("/feedback", methods=["GET", "POST"])
+@login_required
+def product_feedback():
+    if request.method == "POST":
+        feedback_type = request.form.get("feedback_type", "experience").strip()
+        title = request.form.get("title", "").strip()
+        message = request.form.get("message", "").strip()
+        allowed_types = {
+            "experience": "Experience",
+            "feature": "Feature idea",
+            "improvement": "Improvement",
+            "problem": "Problem",
+        }
+        if feedback_type not in allowed_types or len(title) < 3 or len(title) > 120 or len(message) < 10 or len(message) > 3000:
+            flash("Choose a feedback type and add a clear title and description.", "warning")
+            return redirect(url_for("moderation.product_feedback"))
+        db.session.add(HelpRequest(
+            user_id=current_user.id,
+            subject=f"[{allowed_types[feedback_type]}] {title}",
+            message=message,
+        ))
+        db.session.commit()
+        flash("Thank you. Your feedback has been sent to the RiseTogether team.", "success")
+        return redirect(url_for("main.home"))
+    return render_template("feedback.html")
+
+
 @mod_bp.route("/admin/help")
 @login_required
 def admin_help_requests():
