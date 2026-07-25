@@ -1762,10 +1762,40 @@ a {
 .feature-rollout-row label { display: grid; gap: 0.3rem; }
 .feature-rollout-row input,
 .feature-rollout-row select { width: 100%; min-height: 46px; }
+.rollout-account-picker { position: relative; display: grid; gap: 0.45rem; min-width: 0; }
+.rollout-selected-accounts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rollout-account-chip {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: var(--soft);
+  cursor: pointer;
+}
+.rollout-search-results {
+  position: absolute;
+  top: 4.6rem;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.rollout-search-results button { display: grid; width: 100%; padding: 0.65rem; border: 0; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.rollout-search-results button:hover { background: var(--soft); }
+.rollout-search-results small { color: var(--muted); }
 .username-availability[data-available="true"] { color: var(--brand-dark); }
 .username-availability[data-available="false"] { color: var(--danger); }
 .username-suggestions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .public-goals-section { display: grid; gap: 1rem; margin-top: 2rem; }
+@media (min-width: 1180px) {
+  body[data-page="goals.goals_dashboard"] .public-goals-section { display: none; }
+}
 @media (max-width: 760px) {
   .feature-rollout-row { grid-template-columns: 1fr; }
 }

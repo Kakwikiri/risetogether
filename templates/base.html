@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-account-picker-goal-discovery"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260726-rollout-search-goal-rail"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-account-picker-goal-discovery"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260726-rollout-search-goal-rail"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-account-picker-goal-discovery"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260726-rollout-search-goal-rail"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -126,7 +126,7 @@
         <details class="desktop-nav-more">
           <summary data-icon="＋">More</summary>
           <div class="desktop-nav-more-panel">
-        <a href="{{ url_for('main.settings') }}" data-icon="⚙"><span>Settings</span></a>
+        <a href="{{ url_for('main.settings') }}" data-icon="⚙"><span>Account settings</span></a>
         {% if feature_enabled('daily_checkins') %}<a href="{{ url_for('main.daily_checkins') }}" data-icon="♡" data-feature-discovery="daily_checkins" data-feature-version="{{ feature_version('daily_checkins') }}"><span>Daily check-in</span></a>{% endif %}
         {% if feature_enabled('streaks') %}<a href="{{ url_for('main.streak_dashboard') }}" data-icon="↗" data-feature-discovery="streaks" data-feature-version="{{ feature_version('streaks') }}"><span>Streaks</span></a>{% endif %}
         <a href="{{ url_for('main.memories') }}" data-icon="♡"><span>Memories</span></a>
@@ -151,7 +151,7 @@
         {% if current_user.admin_role == 'super_admin' %}
         <a href="{{ url_for('moderation.admin_audit_log') }}" data-icon="☷"><span>Audit</span></a>
         <a href="{{ url_for('moderation.admin_point_transactions') }}" data-icon="✦"><span>Point ledger</span></a>
-        <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Settings</span></a>
+        <a href="{{ url_for('moderation.admin_settings') }}" data-icon="◇"><span>Platform settings</span></a>
         <a href="{{ url_for('moderation.admin_feature_flags') }}" data-icon="⚑"><span>Features</span></a>
         <a href="{{ url_for('moderation.admin_economy') }}" data-icon="◇"><span>Economy</span></a>
         {% endif %}
@@ -256,6 +256,10 @@
         {% elif request.endpoint and request.endpoint.startswith('goals.') %}
         <a href="{{ url_for('goals.goals_dashboard') }}"><strong>Your goals</strong><small>Review meaningful progress</small></a>
         <a href="{{ url_for('goals.create_goal') }}"><strong>Create a goal</strong><small>Begin one clear next step</small></a>
+        {% if request.endpoint == 'goals.goals_dashboard' %}
+        {% for goal in public_active_goals[:5] %}<a href="{{ url_for('goals.goal_detail', goal_id=goal.id, source='community') }}"><strong>{{ goal.title|truncate(42) }}</strong><small>{{ goal.owner.profile.display_name or goal.owner.username }} · {{ ((goal.current_progress / goal.target_amount) * 100)|round|int }}% complete</small></a>{% endfor %}
+        {% for goal in public_completed_goals[:3] %}<a href="{{ url_for('goals.goal_detail', goal_id=goal.id, source='community') }}"><strong>{{ goal.title|truncate(42) }}</strong><small>{{ goal.owner.profile.display_name or goal.owner.username }} · Completed</small></a>{% endfor %}
+        {% endif %}
         {% elif request.endpoint == 'main.settings' %}
         <a href="#device-notifications"><strong>Device notifications</strong><small>Control alerts on this device</small></a>
         <a href="{{ url_for('main.privacy_policy') }}"><strong>Privacy</strong><small>See how your choices are protected</small></a>

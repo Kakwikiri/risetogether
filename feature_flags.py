@@ -38,6 +38,37 @@ FEATURE_FLAG_DEFINITIONS = {
     "video_notes": ("Premium video notes", False),
     "family_leaderboards": ("Family leaderboards", True),
 }
+FEATURE_FLAG_DESCRIPTIONS = {
+    "daily_checkins": "Private or public emotional check-ins and supportive responses.",
+    "goals": "Personal and Family goals, progress updates, milestones and encouragement.",
+    "personal_points": "Points earned by an individual through verified activity.",
+    "family_points": "Shared Family points used for approved Family upgrades.",
+    "family_xp": "Permanent Family experience used to calculate Family levels.",
+    "streaks": "Optional consistency tracking with grace days and milestones.",
+    "achievement_posts": "Lets completed achievements be shared as feed posts.",
+    "family_levels": "Displays Family growth levels calculated from permanent XP.",
+    "family_upgrades": "Allows Families to unlock capacity and collaboration improvements.",
+    "point_transfers": "Allows permitted point gifts and transfers with safety limits.",
+    "referral_rewards": "Rewards qualified invitations after genuine activity requirements.",
+    "contribution_campaigns": "Lets members combine points toward a Family upgrade.",
+    "premium_membership": "Master access switch for paid or manually granted Premium.",
+    "premium_families": "Premium capacity and convenience for eligible Families.",
+    "premium_profiles": "Premium profile frame and supporter presentation. Requires Premium membership and an active subscription.",
+    "premium_storage": "Reserved control for larger Premium storage; keep off until storage accounting is enabled.",
+    "premium_upload_limits": "Larger media sizes and longer recordings for active Premium accounts.",
+    "premium_themes": "Reserved control for Premium visual themes.",
+    "premium_analytics": "Reserved control for advanced Premium account insights.",
+    "premium_challenges": "Reserved control for additional Premium challenge tools.",
+    "premium_verification_applications": "Allows Premium users to submit verification for manual review; Premium never guarantees approval.",
+    "premium_beta_testing": "Shows Super Admin tools for granting test subscriptions without payment.",
+    "weekly_reports": "Creates a weekly Family summary of progress and recognition.",
+    "enhanced_notifications": "Adds richer grouped and contextual notifications.",
+    "verification_badges": "Displays manually approved user, organization and Family badges.",
+    "anonymous_support_posts": "Allows identity-protected requests for Family encouragement.",
+    "media_autoplay": "Allows eligible feed media to play automatically.",
+    "video_notes": "Allows active Premium accounts to record and send video notes.",
+    "family_leaderboards": "Shows Family learning or challenge rankings when enough activity exists.",
+}
 SETTING_PREFIX = "feature_flag."
 ROLLOUT_PREFIX = "feature_rollout."
 ROLLOUT_USERS_PREFIX = "feature_rollout_users."

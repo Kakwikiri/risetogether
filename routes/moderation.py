@@ -8,6 +8,7 @@ from flask_login import current_user, fresh_login_required, login_required
 from extensions import db
 from feature_flags import (
     FEATURE_FLAG_DEFINITIONS,
+    FEATURE_FLAG_DESCRIPTIONS,
     feature_rollout_key,
     feature_rollout_users_key,
     get_feature_rollouts,
@@ -1047,6 +1048,7 @@ def admin_feature_flags():
     return render_template(
         "admin_feature_flags.html",
         definitions=FEATURE_FLAG_DEFINITIONS,
+        descriptions=FEATURE_FLAG_DESCRIPTIONS,
         flags=get_feature_flags(),
         rollouts=rollouts,
         rollout_usernames={
@@ -1057,9 +1059,6 @@ def admin_feature_flags():
             )
             for name, rollout in rollouts.items()
         },
-        account_usernames=[
-            user.username for user in User.query.filter_by(is_banned=False).order_by(User.username).all()
-        ],
     )
 
 

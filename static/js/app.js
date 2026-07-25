@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-account-picker-goal-discovery";
+  const APP_VERSION = "20260726-rollout-search-goal-rail";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -139,8 +139,85 @@ document.addEventListener("DOMContentLoaded", () => {
     link.addEventListener("click", () => localStorage.setItem(key, "1"), { once: true });
   });
 
+  document.querySelectorAll("[data-rollout-picker]").forEach((picker) => {
+    const search = picker.querySelector("[data-rollout-search]");
+    const value = picker.querySelector("[data-rollout-value]");
+    const selected = picker.querySelector("[data-rollout-selected]");
+    const results = picker.querySelector("[data-rollout-results]");
+    const usernames = new Set(
+      (value.value || "").split(",").map((item) => item.trim()).filter(Boolean),
+    );
+    let timer = null;
+    const syncValue = () => { value.value = [...usernames].join(", "); };
+    const renderSelected = () => {
+      selected.replaceChildren();
+      usernames.forEach((username) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "rollout-account-chip";
+        chip.textContent = `@${username} ×`;
+        chip.setAttribute("aria-label", `Remove ${username}`);
+        chip.addEventListener("click", () => {
+          usernames.delete(username);
+          syncValue();
+          renderSelected();
+        });
+        selected.appendChild(chip);
+      });
+    };
+    const choose = (username) => {
+      usernames.add(username);
+      syncValue();
+      renderSelected();
+      search.value = "";
+      results.hidden = true;
+      search.focus();
+    };
+    search.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      const query = search.value.trim();
+      if (!query) {
+        results.hidden = true;
+        return;
+      }
+      timer = window.setTimeout(async () => {
+        const response = await fetch(`${picker.dataset.searchUrl}?q=${encodeURIComponent(query)}`, {
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        results.replaceChildren();
+        (payload.results || []).forEach((user) => {
+          if (usernames.has(user.username)) return;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.innerHTML = `<strong></strong><small></small>`;
+          button.querySelector("strong").textContent = user.display_name;
+          button.querySelector("small").textContent = `@${user.username}`;
+          button.addEventListener("click", () => choose(user.username));
+          results.appendChild(button);
+        });
+        if (!results.children.length) {
+          const empty = document.createElement("p");
+          empty.textContent = "No matching account.";
+          results.appendChild(empty);
+        }
+        results.hidden = false;
+      }, 250);
+    });
+    document.addEventListener("click", (event) => {
+      if (!picker.contains(event.target)) results.hidden = true;
+    });
+    renderSelected();
+  });
+
   const toast = document.querySelector("[data-toast]");
   const pageBack = document.querySelector("[data-page-back]");
+  const goalBack = document.querySelector(".goal-back-link");
+  if (goalBack && new URLSearchParams(window.location.search).get("source") === "community") {
+    goalBack.href = `${goalBack.href.split("#")[0]}#community-goals`;
+    const label = goalBack.querySelector("span");
+    if (label) label.textContent = "Community goals";
+  }
   const updateNotice = document.querySelector("[data-update-notice]");
   const updateNow = document.querySelector("[data-update-now]");
   const updateLater = document.querySelector("[data-update-later]");

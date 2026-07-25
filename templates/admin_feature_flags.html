@@ -14,6 +14,7 @@
       <div class="feature-flag-row feature-rollout-row">
         <span>
           <strong>{{ definition[0] }}</strong>
+          <small class="feature-description">{{ descriptions[name] }}</small>
           <small>{{ name }} · safe default {{ 'on' if definition[1] else 'off' }}</small>
         </span>
         <label>Access
@@ -23,14 +24,16 @@
             <option value="everyone" {% if rollouts[name].mode == 'everyone' %}selected{% endif %}>Everyone</option>
           </select>
         </label>
-        <label>Test accounts
-          <input name="users_{{ name }}" value="{{ rollout_usernames[name] }}" placeholder="Start typing a username" list="rollout-usernames" autocomplete="off" />
-          <small>Enter usernames separated by commas. Used only when Selected accounts is chosen.</small>
-        </label>
+        <div class="rollout-account-picker" data-rollout-picker data-search-url="{{ url_for('api.search_users') }}">
+          <label>Test accounts<input type="search" placeholder="Type a name or @username" autocomplete="off" data-rollout-search /></label>
+          <input type="hidden" name="users_{{ name }}" value="{{ rollout_usernames[name] }}" data-rollout-value />
+          <div class="rollout-selected-accounts" data-rollout-selected></div>
+          <div class="rollout-search-results" data-rollout-results hidden></div>
+          <small>Search and select accounts. Remove a chip to revoke test access.</small>
+        </div>
       </div>
       {% endfor %}
     </div>
-    <datalist id="rollout-usernames">{% for username in account_usernames %}<option value="{{ username }}">{% endfor %}</datalist>
     <button class="button" type="submit">Save feature flags</button>
   </form>
 </section>
