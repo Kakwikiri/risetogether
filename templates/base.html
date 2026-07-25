@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-onboarding-inbox-groups"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-guided-tour-admin-reactions"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-onboarding-inbox-groups"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-guided-tour-admin-reactions"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-onboarding-inbox-groups"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-guided-tour-admin-reactions"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -106,10 +106,10 @@
       {% endif %}
       <nav class="nav-links" id="primary-navigation" aria-label="Primary navigation">
         {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.home') }}" data-icon="⌂" data-for-you-link><span>For you</span><span class="nav-badge" data-new-post-nav-count hidden></span></a>
+        <a href="{{ url_for('main.home') }}" data-icon="⌂" data-for-you-link data-tour-for-you><span>For you</span><span class="nav-badge" data-new-post-nav-count hidden></span></a>
         <a href="{{ url_for('main.people') }}" data-icon="☻"><span>People</span></a>
-        <a href="{{ url_for('family.families') }}" data-icon="⌁"><span>Families</span></a>
-        <a href="{{ url_for('chat.inbox') }}" aria-label="Messages"
+        <a href="{{ url_for('family.families') }}" data-icon="⌁" data-tour-families><span>Families</span></a>
+        <a href="{{ url_for('chat.inbox') }}" aria-label="Messages" data-tour-messages
           data-icon="✉"><span>Messages</span> {% if unread_messages %}<span class="nav-badge" data-message-badge
             >{{ '9+' if unread_messages > 9 else unread_messages }}</span
           >{% endif %}</a
@@ -274,10 +274,10 @@
     {% endif %}
     {% if current_user.is_authenticated and request.endpoint not in ['chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room'] %}
     <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
-      <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="For you"><span aria-hidden="true">⌂</span><small>For you</small></a>
+      <a href="{{ url_for('main.home') }}" class="{% if request.endpoint == 'main.home' %}is-active{% endif %}" aria-label="For you" data-tour-for-you><span aria-hidden="true">⌂</span><small>For you</small></a>
       <a href="{{ url_for('main.people') }}" class="{% if request.endpoint == 'main.people' %}is-active{% endif %}" aria-label="People"><span aria-hidden="true">☻</span><small>People</small></a>
-      <a href="{{ url_for('family.families') }}" class="{% if request.endpoint in ['family.families', 'family.family_detail'] %}is-active{% endif %}" aria-label="Families"><span aria-hidden="true">♡</span><small>Families</small></a>
-      <a href="{{ url_for('chat.inbox') }}" class="{% if request.endpoint == 'chat.inbox' %}is-active{% endif %}" aria-label="Messages"><span aria-hidden="true">✉</span><small>Messages</small>{% if unread_messages %}<b class="mobile-nav-badge" data-message-badge>{{ '9+' if unread_messages > 9 else unread_messages }}</b>{% endif %}</a>
+      <a href="{{ url_for('family.families') }}" class="{% if request.endpoint in ['family.families', 'family.family_detail'] %}is-active{% endif %}" aria-label="Families" data-tour-families><span aria-hidden="true">♡</span><small>Families</small></a>
+      <a href="{{ url_for('chat.inbox') }}" class="{% if request.endpoint == 'chat.inbox' %}is-active{% endif %}" aria-label="Messages" data-tour-messages><span aria-hidden="true">✉</span><small>Messages</small>{% if unread_messages %}<b class="mobile-nav-badge" data-message-badge>{{ '9+' if unread_messages > 9 else unread_messages }}</b>{% endif %}</a>
       <a href="{{ url_for('main.notifications') }}" class="{% if request.endpoint == 'main.notifications' %}is-active{% endif %}" aria-label="Notifications"><span aria-hidden="true">●</span><small>Alerts</small>{% if unread_notifications %}<b class="mobile-nav-badge" data-notification-badge>{{ '9+' if unread_notifications > 9 else unread_notifications }}</b>{% endif %}</a>
     </nav>
     {% endif %}

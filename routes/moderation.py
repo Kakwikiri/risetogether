@@ -506,7 +506,12 @@ def admin_reports():
     if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     reports = Report.query.order_by(Report.created_at.desc()).all()
-    return render_template("admin_reports.html", reports=reports, is_platform_owner_view=is_platform_owner(current_user))
+    return render_template(
+        "admin_reports.html", reports=reports,
+        is_platform_owner_view=(
+            is_platform_owner(current_user) or current_user.admin_role == "super_admin"
+        ),
+    )
 
 
 @mod_bp.route("/admin/encouragement-reports")
@@ -837,7 +842,12 @@ def admin_help_requests():
     if not require_admin_role("admin"):
         return redirect(url_for("main.home"))
     requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).all()
-    return render_template("admin_help.html", requests=requests, is_platform_owner_view=is_platform_owner(current_user))
+    return render_template(
+        "admin_help.html", requests=requests,
+        is_platform_owner_view=(
+            is_platform_owner(current_user) or current_user.admin_role == "super_admin"
+        ),
+    )
 
 
 @mod_bp.route("/admin/help/<int:request_id>/<action>", methods=["POST"])
@@ -847,7 +857,7 @@ def manage_help_request(request_id, action):
         return redirect(url_for("main.home"))
     help_request = HelpRequest.query.get_or_404(request_id)
     if action == "delete":
-        if current_user.admin_role != "super_admin":
+        if current_user.admin_role != "super_admin" and not is_platform_owner(current_user):
             flash("Only a Super Admin can permanently delete a help request.", "danger")
             return redirect(url_for("moderation.admin_help_requests"))
         record_admin_audit(
@@ -1222,8 +1232,8 @@ def manage_report(report_id, action):
         return redirect(url_for("main.home"))
     report = Report.query.get_or_404(report_id)
     if action == "delete_report":
-        if not is_platform_owner(current_user):
-            flash("Only the platform owner can permanently delete a report record.", "danger")
+        if current_user.admin_role != "super_admin" and not is_platform_owner(current_user):
+            flash("Only a Super Admin can permanently delete a report record.", "danger")
             return redirect(url_for("moderation.admin_reports"))
         record_admin_audit(
             "report_record_deleted", target_user=report.reported_user,

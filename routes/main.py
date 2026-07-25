@@ -470,13 +470,22 @@ def get_reaction_counts(post):
 
 
 def grouped_reaction_message(post):
-    reactor_count = Reaction.query.filter(
+    reactions = Reaction.query.filter(
         Reaction.post_id == post.id,
         Reaction.user_id != post.user_id,
-    ).count()
-    if reactor_count == 1:
-        return "Someone reacted to your post."
-    return f"{reactor_count} people reacted to your post."
+    ).order_by(Reaction.created_at.desc()).all()
+    if not reactions:
+        return ""
+    latest_user = reactions[0].user
+    latest_name = (
+        latest_user.profile.display_name
+        if latest_user.profile and latest_user.profile.display_name
+        else latest_user.username
+    )
+    if len(reactions) == 1:
+        return f"{latest_name} reacted to your post."
+    others = len(reactions) - 1
+    return f"{latest_name} and {others} {'other' if others == 1 else 'others'} reacted to your post."
 
 
 def notify_post_author_about_reactions(post, allow_create=True):

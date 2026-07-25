@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-onboarding-inbox-groups";
+  const APP_VERSION = "20260725-guided-tour-admin-reactions";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -57,17 +57,81 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const onboardingGuide = document.querySelector(".new-user-guide");
   if (onboardingGuide) {
-    const skipped = localStorage.getItem("risetogether-onboarding-skipped") === "1";
-    const laterUntil = Number(localStorage.getItem("risetogether-onboarding-later-until") || 0);
+    const onboardingUser = onboardingGuide.dataset.onboardingUser || "guest";
+    const skippedKey = `risetogether-onboarding-skipped:${onboardingUser}`;
+    const laterKey = `risetogether-onboarding-later-until:${onboardingUser}`;
+    const tourKey = `risetogether-onboarding-tour:${onboardingUser}`;
+    const skipped = localStorage.getItem(skippedKey) === "1";
+    const laterUntil = Number(localStorage.getItem(laterKey) || 0);
     if (skipped || laterUntil > Date.now()) onboardingGuide.hidden = true;
     onboardingGuide.querySelector("[data-onboarding-later]")?.addEventListener("click", () => {
-      localStorage.setItem("risetogether-onboarding-later-until", String(Date.now() + 3 * 86400000));
+      localStorage.setItem(laterKey, String(Date.now() + 3 * 86400000));
       onboardingGuide.hidden = true;
+      document.querySelector("[data-onboarding-tour]")?.remove();
     });
     onboardingGuide.querySelector("[data-onboarding-skip]")?.addEventListener("click", () => {
-      localStorage.setItem("risetogether-onboarding-skipped", "1");
+      localStorage.setItem(skippedKey, "1");
+      localStorage.setItem(tourKey, "complete");
       onboardingGuide.hidden = true;
+      document.querySelector("[data-onboarding-tour]")?.remove();
     });
+
+    const tour = document.querySelector("[data-onboarding-tour]");
+    if (tour && !skipped && laterUntil <= Date.now() && localStorage.getItem(tourKey) !== "complete") {
+      const steps = [
+        { selector: "[data-tour-for-you]", title: "Your personal feed", copy: "See stories, check-ins, goals, and encouragement chosen for you." },
+        { selector: "[data-tour-families]", title: "Join a Family", copy: "Find a smaller community where you can chat and grow together." },
+        { selector: "[data-tour-messages]", title: "Private messages", copy: "Continue trusted one-to-one conversations here." },
+        { selector: "[data-tour-share]", title: "Share something meaningful", copy: "Post a small win, a thought, a photo, or a video when you are ready." },
+      ];
+      const title = tour.querySelector("[data-tour-title]");
+      const copy = tour.querySelector("[data-tour-copy]");
+      const progress = tour.querySelector("[data-tour-progress]");
+      const next = tour.querySelector("[data-tour-next]");
+      const tooltip = tour.querySelector(".onboarding-tour-card");
+      let index = 0;
+      let target = null;
+      const finishTour = () => {
+        target?.classList.remove("is-tour-target");
+        localStorage.setItem(tourKey, "complete");
+        tour.remove();
+      };
+      const showStep = () => {
+        target?.classList.remove("is-tour-target");
+        const step = steps[index];
+        target = [...document.querySelectorAll(step.selector)].find(
+          (candidate) => candidate.getClientRects().length,
+        ) || null;
+        if (!target) {
+          index += 1;
+          if (index >= steps.length) return finishTour();
+          return showStep();
+        }
+        target.classList.add("is-tour-target");
+        target.addEventListener("click", finishTour, { once: true });
+        title.textContent = step.title;
+        copy.textContent = step.copy;
+        progress.textContent = `${index + 1} of ${steps.length}`;
+        next.textContent = index === steps.length - 1 ? "Finish" : "Next";
+        const rect = target.getBoundingClientRect();
+        const cardWidth = Math.min(340, window.innerWidth - 24);
+        const cardHeight = tooltip.offsetHeight || 190;
+        const below = rect.bottom + 16;
+        tooltip.style.top = `${below + cardHeight < window.innerHeight ? below : Math.max(12, rect.top - cardHeight - 16)}px`;
+        tooltip.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - cardWidth - 12)}px`;
+        target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      };
+      next?.addEventListener("click", () => {
+        index += 1;
+        if (index >= steps.length) finishTour();
+        else showStep();
+      });
+      tour.querySelector("[data-tour-skip]")?.addEventListener("click", finishTour);
+      window.addEventListener("resize", showStep, { passive: true });
+      showStep();
+    } else {
+      tour?.remove();
+    }
   }
 
   document.querySelectorAll("[data-feature-discovery]").forEach((link) => {
@@ -146,6 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!trigger) return;
       trigger.dataset.confirmed = "true";
       if (trigger.tagName === "A") window.location.assign(trigger.href);
+      else if (trigger.tagName === "FORM") trigger.requestSubmit();
       else if (trigger.form) trigger.form.requestSubmit(trigger);
       window.setTimeout(() => delete trigger.dataset.confirmed, 0);
     });
@@ -825,6 +890,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelectorAll(".password-toggle").forEach((button) => {
+    button.addEventListener("pointerdown", (event) => event.preventDefault());
     button.addEventListener("click", () => {
       const field = button.closest(".password-field");
       const input = field ? field.querySelector("input") : null;
@@ -836,6 +902,9 @@ document.addEventListener("DOMContentLoaded", () => {
         "aria-label",
         isPassword ? "Hide password" : "Show password",
       );
+      input.focus({ preventScroll: true });
+      const end = input.value.length;
+      input.setSelectionRange?.(end, end);
     });
   });
 
