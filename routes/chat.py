@@ -395,19 +395,14 @@ def emit_notification(user_id, notification):
 @chat_bp.route("/messages")
 @login_required
 def inbox():
-    if not PushSubscription.query.filter_by(user_id=current_user.id, active=True).first():
-        _notification, created = smart_notify(
-            user_id=current_user.id,
-            category="reminders",
-            message="Turn on device notifications so important messages can reach you while RiseTogether is closed.",
-            action_url=url_for("main.settings") + "#device-notifications",
-            dedupe_key=f"device-notifications:{current_user.id}",
-            reminder=True,
-            push=False,
-            important=False,
-        )
-        if created:
-            db.session.commit()
+    stale_device_reminder = Notification.query.filter_by(
+        user_id=current_user.id,
+        dedupe_key=f"device-notifications:{current_user.id}",
+        seen=False,
+    ).first()
+    if stale_device_reminder:
+        stale_device_reminder.seen = True
+        db.session.commit()
     direct_messages = visible_message_filter(Message.query.filter(
         (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id)
     )).order_by(Message.created_at.desc()).all()

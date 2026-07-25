@@ -51,8 +51,9 @@ class NotificationChatPolishTests(unittest.TestCase):
         self.assertNotIn("data-push-enable", messages)
         self.assertIn('id="device-notifications"', settings)
         self.assertIn('button.textContent = "Enabled"', app_js)
-        self.assertIn('dedupe_key=f"device-notifications:', chat_routes)
-        self.assertIn('url_for("main.settings") + "#device-notifications"', chat_routes)
+        self.assertNotIn('message="Turn on device notifications', chat_routes)
+        self.assertIn('body: JSON.stringify(subscription)', app_js)
+        self.assertIn('stale_device_reminder', chat_routes)
 
     def test_friend_point_gifts_and_family_certificate_upgrade_are_connected(self):
         main = (ROOT / "routes/main.py").read_text()

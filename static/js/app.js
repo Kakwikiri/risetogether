@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-guided-tour-admin-reactions";
+  const APP_VERSION = "20260725-device-aware-polished-prompts";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -88,7 +88,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const copy = tour.querySelector("[data-tour-copy]");
       const progress = tour.querySelector("[data-tour-progress]");
       const next = tour.querySelector("[data-tour-next]");
-      const tooltip = tour.querySelector(".onboarding-tour-card");
       let index = 0;
       let target = null;
       const finishTour = () => {
@@ -113,12 +112,6 @@ document.addEventListener("DOMContentLoaded", () => {
         copy.textContent = step.copy;
         progress.textContent = `${index + 1} of ${steps.length}`;
         next.textContent = index === steps.length - 1 ? "Finish" : "Next";
-        const rect = target.getBoundingClientRect();
-        const cardWidth = Math.min(340, window.innerWidth - 24);
-        const cardHeight = tooltip.offsetHeight || 190;
-        const below = rect.bottom + 16;
-        tooltip.style.top = `${below + cardHeight < window.innerHeight ? below : Math.max(12, rect.top - cardHeight - 16)}px`;
-        tooltip.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - cardWidth - 12)}px`;
         target.scrollIntoView({ block: "nearest", behavior: "smooth" });
       };
       next?.addEventListener("click", () => {
@@ -500,6 +493,11 @@ document.addEventListener("DOMContentLoaded", () => {
     navigator.serviceWorker.ready.then(async (registration) => {
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(subscription),
+        });
         markPushEnabled();
         document.querySelectorAll("[data-push-prompt]").forEach((prompt) => { prompt.hidden = true; });
       }

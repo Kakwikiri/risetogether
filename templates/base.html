@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-guided-tour-admin-reactions"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260725-device-aware-polished-prompts"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-guided-tour-admin-reactions"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260725-device-aware-polished-prompts"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-guided-tour-admin-reactions"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260725-device-aware-polished-prompts"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -172,9 +172,9 @@
     <button class="nav-scrim" type="button" data-nav-scrim aria-label="Close menu" tabindex="-1" hidden></button>
     <div class="toast" data-toast data-tone="info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <div class="app-update-notice" data-update-notice hidden>
-      <span>A new version of RiseTogether is available.</span>
-      <button class="button" type="button" data-update-now>Update now</button>
-      <button class="button secondary" type="button" data-update-later>Later</button>
+      <span class="app-prompt-icon" aria-hidden="true">↻</span>
+      <div><strong>RiseTogether just got better</strong><small>A fresh version is ready. Update without losing your place.</small></div>
+      <div class="app-prompt-actions"><button class="button" type="button" data-update-now>Update</button><button class="text-button" type="button" data-update-later>Later</button></div>
     </div>
     <dialog class="ui-modal confirmation-modal" data-confirmation-modal aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
       <form method="dialog" class="ui-modal__card">
@@ -215,17 +215,15 @@
     <div class="install-panel" data-install-panel hidden>
       <div class="install-card">
         <button class="install-close" type="button" data-install-close aria-label="Close install help">×</button>
-        <img src="{{ url_for('static', filename='images/icon-192-v2.png') }}" alt="" />
+        <div class="install-brand"><img src="{{ url_for('static', filename='images/icon-192-v2.png') }}" alt="" /><span aria-hidden="true">＋</span></div>
         <div>
-          <h2>Install RiseTogether</h2>
+          <p class="eyebrow">Keep RiseTogether close</p>
+          <h2>Install the app</h2>
           <p data-install-message>
-            Use your browser menu and choose Install app or Add to Home Screen.
+            Add RiseTogether to your home screen for a focused, full-screen experience.
           </p>
-          <ol>
-            <li>Open the browser menu.</li>
-            <li>Choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</li>
-            <li>Open RiseTogether from your phone or desktop home screen.</li>
-          </ol>
+          <div class="install-benefits"><span>✓ Opens like an app</span><span>✓ Faster return</span><span>✓ No browser clutter</span></div>
+          <p class="install-instruction">Open your browser menu and choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</p>
         </div>
       </div>
     </div>
