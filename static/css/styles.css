@@ -1765,6 +1765,9 @@ a {
 .feature-rollout-row select { width: 100%; min-height: 46px; }
 .rollout-account-picker { position: relative; display: grid; gap: 0.45rem; min-width: 0; }
 .rollout-targets { display: grid; gap: 0.8rem; min-width: 0; }
+.feature-rollout-group { display: grid; gap: 0.8rem; margin-top: 1.4rem; }
+.feature-rollout-group > header { padding: 0 0.25rem; }
+.feature-rollout-group > header h3 { margin: 0.15rem 0; }
 .feature-title-line { display: flex !important; grid-template-columns: 1fr auto; align-items: center; gap: 0.45rem; }
 .feature-info {
   position: relative;

@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260726-family-rollouts-premium-test"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260726-separated-rollouts-premium-admin"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260726-family-rollouts-premium-test"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260726-separated-rollouts-premium-admin"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260726-family-rollouts-premium-test"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260726-separated-rollouts-premium-admin"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -134,7 +134,7 @@
         {% if feature_enabled('personal_points') or feature_enabled('family_points') %}
         <a href="{{ url_for('main.point_history') }}" data-icon="✦"><span>Points</span></a>
         {% endif %}
-        {% if feature_enabled('premium_membership') %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇" data-feature-discovery="premium_membership" data-feature-version="{{ feature_version('premium_membership') }}"><span>Premium</span></a>{% endif %}
+        {% if feature_enabled('premium_membership') or current_user.admin_role == 'super_admin' %}<a href="{{ url_for('main.premium_plans') }}" data-icon="◇" data-feature-discovery="premium_membership" data-feature-version="{{ feature_version('premium_membership') }}"><span>Premium</span></a>{% endif %}
         {% if feature_enabled('referral_rewards') %}<a href="{{ url_for('main.referral_invites') }}" data-icon="↗"><span>Invite & earn</span></a>{% endif %}
         <a href="{{ url_for('moderation.help_request') }}" data-icon="?"><span>Help</span></a>
         <a href="{{ url_for('moderation.product_feedback') }}" data-icon="✎"><span>Share feedback</span></a>

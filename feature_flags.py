@@ -69,6 +69,48 @@ FEATURE_FLAG_DESCRIPTIONS = {
     "video_notes": "Allows active Premium accounts to record and send video notes.",
     "family_leaderboards": "Shows Family learning or challenge rankings when enough activity exists.",
 }
+FEATURE_FLAG_GROUPS = {
+    "free": {
+        "label": "Free and core features",
+        "description": "Features available to ordinary accounts when released.",
+        "target": "user",
+        "features": (
+            "daily_checkins", "goals", "personal_points", "streaks",
+            "achievement_posts", "point_transfers", "referral_rewards",
+            "enhanced_notifications", "verification_badges",
+            "anonymous_support_posts", "media_autoplay",
+        ),
+    },
+    "premium": {
+        "label": "Personal Premium features",
+        "description": "Paid or manually granted features for individual accounts.",
+        "target": "user",
+        "features": (
+            "premium_membership", "premium_profiles", "premium_storage",
+            "premium_upload_limits", "premium_themes", "premium_analytics",
+            "premium_challenges", "premium_verification_applications",
+            "premium_beta_testing", "video_notes",
+        ),
+    },
+    "family": {
+        "label": "Family features",
+        "description": "Features granted to whole Families, never individual accounts.",
+        "target": "family",
+        "features": (
+            "family_points", "family_xp", "family_levels", "family_upgrades",
+            "contribution_campaigns", "premium_families", "weekly_reports",
+            "family_leaderboards",
+        ),
+    },
+}
+
+
+def feature_target_type(name):
+    for group in FEATURE_FLAG_GROUPS.values():
+        if name in group["features"]:
+            return group["target"]
+    return "user"
+
 SETTING_PREFIX = "feature_flag."
 ROLLOUT_PREFIX = "feature_rollout."
 ROLLOUT_USERS_PREFIX = "feature_rollout_users."

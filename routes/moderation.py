@@ -9,6 +9,7 @@ from extensions import db
 from feature_flags import (
     FEATURE_FLAG_DEFINITIONS,
     FEATURE_FLAG_DESCRIPTIONS,
+    FEATURE_FLAG_GROUPS,
     feature_rollout_families_key,
     feature_rollout_key,
     feature_rollout_users_key,
@@ -16,6 +17,7 @@ from feature_flags import (
     feature_flag_key,
     get_feature_flags,
     is_feature_enabled,
+    feature_target_type,
 )
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
@@ -336,14 +338,12 @@ def admin_economy():
 def grant_premium_subscription():
     if not require_admin_role("super_admin"):
         return redirect(url_for("main.home"))
-    if not is_feature_enabled("premium_beta_testing"):
-        flash("Enable Premium beta testing before granting test access.", "warning")
-        return redirect(url_for("moderation.admin_economy"))
     subject_type = request.form.get("subject_type", "").strip()
     identifier = request.form.get("identifier", "").strip()
-    period = request.form.get("billing_period", "").strip()
-    if subject_type not in {"personal", "family"} or period not in {"monthly", "yearly", "lifetime"}:
-        flash("Choose a valid premium subject and billing period.", "warning")
+    duration_value = request.form.get("duration_days", "30").strip()
+    allowed_durations = {"7", "30", "90", "180", "365", "lifetime"}
+    if subject_type not in {"personal", "family"} or duration_value not in allowed_durations:
+        flash("Choose a valid Premium subject and duration.", "warning")
         return redirect(url_for("moderation.admin_economy"))
     user = None
     family = None
@@ -358,7 +358,9 @@ def grant_premium_subscription():
             flash("No Family was found with that exact name.", "warning")
             return redirect(url_for("moderation.admin_economy"))
     now = datetime.utcnow()
-    expires_at = None if period == "lifetime" else now + timedelta(days=30 if period == "monthly" else 365)
+    duration_days = None if duration_value == "lifetime" else int(duration_value)
+    period = "lifetime" if duration_days is None else ("yearly" if duration_days == 365 else "monthly")
+    expires_at = None if duration_days is None else now + timedelta(days=duration_days)
     query = PremiumSubscription.query.filter_by(plan=subject_type, status="active")
     query = query.filter_by(user_id=user.id) if user else query.filter_by(family_id=family.id)
     for existing in query.all():
@@ -390,7 +392,7 @@ def grant_premium_subscription():
             db.session.add_all([rollout_setting, users_setting])
     record_admin_audit(
         "premium_beta_granted", target_user=user, target_family=family,
-        reason=f"Granted {period} {subject_type} Premium for beta testing.",
+        reason=f"Granted {duration_value} day(s) {subject_type} Premium manually.",
     )
     db.session.commit()
     flash("Premium beta access granted. No payment was recorded.", "success")
@@ -1010,6 +1012,7 @@ def admin_feature_flags():
                 for value in request.form.get(f"users_{name}", "").split(",")
                 if value.strip()
             }
+            target_type = feature_target_type(name)
             selected_users = User.query.filter(db.func.lower(User.username).in_(usernames)).all() if usernames else []
             family_ids = {
                 int(value) for value in request.form.get(f"families_{name}", "").split(",")
@@ -1018,6 +1021,11 @@ def admin_feature_flags():
             selected_families = Family.query.filter(
                 Family.id.in_(family_ids), Family.is_active == True
             ).all() if family_ids else []
+            if target_type == "user":
+                selected_families = []
+            else:
+                selected_users = []
+                usernames = set()
             missing = usernames - {user.username.lower() for user in selected_users}
             if mode == "selected" and missing:
                 flash(f"{FEATURE_FLAG_DEFINITIONS[name][0]}: users not found: {', '.join(sorted(missing))}.", "warning")
@@ -1139,6 +1147,7 @@ def admin_feature_flags():
         "admin_feature_flags.html",
         definitions=FEATURE_FLAG_DEFINITIONS,
         descriptions=FEATURE_FLAG_DESCRIPTIONS,
+        feature_groups=FEATURE_FLAG_GROUPS,
         flags=get_feature_flags(),
         rollouts=rollouts,
         rollout_usernames={

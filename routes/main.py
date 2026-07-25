@@ -2423,7 +2423,11 @@ def gift_friend_points():
 
 @main_bp.route("/premium")
 def premium_plans():
-    if not is_feature_enabled("premium_membership"):
+    is_super_admin = (
+        current_user.is_authenticated
+        and current_user.admin_role == "super_admin"
+    )
+    if not is_feature_enabled("premium_membership") and not is_super_admin:
         abort(404)
     from premium import (
         active_family_subscription, active_user_subscription, economy_setting_int,
