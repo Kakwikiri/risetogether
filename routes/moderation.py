@@ -395,7 +395,7 @@ def grant_premium_subscription():
     if user:
         personal_premium_features = (
             "premium_membership", "premium_profiles", "premium_upload_limits",
-            "premium_themes", "premium_analytics", "premium_challenges",
+            "premium_themes", "premium_analytics",
             "premium_verification_applications", "video_notes",
         )
         for feature_name in personal_premium_features:
@@ -418,6 +418,8 @@ def grant_premium_subscription():
         family_feature_names = (
             "premium_membership", "premium_families", "family_upgrades",
             "family_points", "family_xp", "family_levels", "family_leaderboards",
+            "premium_challenges", "weekly_reports", "premium_themes",
+            "premium_analytics",
         )
         for feature_name in family_feature_names:
             rollout_setting = SiteSetting.query.get(feature_rollout_key(feature_name)) or SiteSetting(
@@ -1204,6 +1206,35 @@ def admin_feature_flags():
                 if membership_mode.value != "everyone":
                     membership_mode.value = "selected"
                 db.session.add_all([membership_mode, membership_families])
+        if request.form.get("mode_premium_families") == "selected":
+            premium_family_setting = SiteSetting.query.get(
+                feature_rollout_families_key("premium_families")
+            )
+            premium_family_ids = {
+                int(value) for value in (premium_family_setting.value or "").split(",")
+                if value.strip().isdigit()
+            } if premium_family_setting else set()
+            for dependency in (
+                "premium_membership", "family_upgrades", "premium_challenges",
+                "weekly_reports", "premium_themes", "premium_analytics",
+            ):
+                dependency_mode = SiteSetting.query.get(
+                    feature_rollout_key(dependency)
+                ) or SiteSetting(key=feature_rollout_key(dependency))
+                dependency_families = SiteSetting.query.get(
+                    feature_rollout_families_key(dependency)
+                ) or SiteSetting(key=feature_rollout_families_key(dependency))
+                ids = {
+                    int(value) for value in (dependency_families.value or "").split(",")
+                    if value.strip().isdigit()
+                }
+                ids.update(premium_family_ids)
+                if dependency_mode.value != "everyone":
+                    dependency_mode.value = "selected"
+                dependency_families.value = ",".join(
+                    str(family_id) for family_id in sorted(ids)
+                )
+                db.session.add_all([dependency_mode, dependency_families])
         enabled_names = [
             name for name in FEATURE_FLAG_DEFINITIONS
             if request.form.get(f"mode_{name}") != "off"

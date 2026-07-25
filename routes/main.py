@@ -2475,8 +2475,6 @@ def update_premium_theme():
 @main_bp.route("/premium/choose/<plan>/<period>")
 @login_required
 def premium_checkout(plan, period):
-    if not is_feature_enabled("premium_membership"):
-        abort(404)
     if plan not in {"personal", "family"} or period not in {"monthly", "yearly"}:
         abort(404)
     from premium import economy_setting_int, economy_setting_text

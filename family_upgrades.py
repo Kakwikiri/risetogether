@@ -85,14 +85,19 @@ def family_has_upgrade(family_id, upgrade_key):
         return True
     if upgrade_key not in PREMIUM_FAMILY_UPGRADES:
         return False
-    from feature_flags import is_feature_enabled
-    required_flag = PREMIUM_UPGRADE_FLAGS.get(upgrade_key)
-    if required_flag and not is_feature_enabled(required_flag):
-        return False
     from models import Family
+    family = Family.query.get(family_id)
     from premium import family_has_premium
 
-    return family_has_premium(Family.query.get(family_id))
+    if not family_has_premium(family):
+        return False
+    required_flag = PREMIUM_UPGRADE_FLAGS.get(upgrade_key)
+    if required_flag:
+        from feature_flags import is_feature_enabled_for_family
+        return is_feature_enabled_for_family(required_flag, family)
+    # An active Premium Family receives each enabled, implemented Family
+    # upgrade without points or level gates.
+    return True
 
 
 def active_challenge_limit(family_id):

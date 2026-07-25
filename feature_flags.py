@@ -56,12 +56,12 @@ FEATURE_FLAG_DESCRIPTIONS = {
     "premium_profiles": "Premium profile frame and supporter presentation. Requires Premium membership and an active subscription.",
     "premium_storage": "Reserved control for larger Premium storage; keep off until storage accounting is enabled.",
     "premium_upload_limits": "Larger media sizes and longer recordings for active Premium accounts.",
-    "premium_themes": "Reserved control for Premium visual themes.",
-    "premium_analytics": "Reserved control for advanced Premium account insights.",
-    "premium_challenges": "Reserved control for additional Premium challenge tools.",
+    "premium_themes": "Four selectable Premium profile themes and Premium Family theme access.",
+    "premium_analytics": "Private Premium profile insights and advanced Family statistics.",
+    "premium_challenges": "Premium Family challenge capacity and convenience.",
     "premium_verification_applications": "Allows Premium users to submit verification for manual review; Premium never guarantees approval.",
     "premium_beta_testing": "Shows Super Admin tools for granting test subscriptions without payment.",
-    "weekly_reports": "Creates a weekly Family summary of progress and recognition.",
+    "weekly_reports": "Creates a Premium Family weekly summary of progress and recognition.",
     "enhanced_notifications": "Adds richer grouped and contextual notifications.",
     "verification_badges": "Displays manually approved user, organization and Family badges.",
     "anonymous_support_posts": "Allows identity-protected requests for Family encouragement.",
@@ -88,18 +88,25 @@ FEATURE_FLAG_GROUPS = {
         "features": (
             "premium_membership", "premium_profiles", "premium_storage",
             "premium_upload_limits", "premium_themes", "premium_analytics",
-            "premium_challenges", "premium_verification_applications",
+            "premium_verification_applications",
             "premium_beta_testing", "video_notes",
         ),
     },
-    "family": {
-        "label": "Family features",
-        "description": "Features granted to whole Families, never individual accounts.",
+    "family_free": {
+        "label": "Free Family features",
+        "description": "Core Family growth features that can be released without Premium.",
         "target": "family",
         "features": (
             "family_points", "family_xp", "family_levels", "family_upgrades",
-            "contribution_campaigns", "premium_families", "weekly_reports",
-            "family_leaderboards",
+            "contribution_campaigns", "family_leaderboards",
+        ),
+    },
+    "family_premium": {
+        "label": "Premium Family features",
+        "description": "Benefits for Families with an active Premium Family subscription.",
+        "target": "family",
+        "features": (
+            "premium_families", "premium_challenges", "weekly_reports",
         ),
     },
 }
@@ -232,11 +239,17 @@ def is_feature_enabled_for_family(name, family):
     if not feature_flag_exists(name) or not family:
         return False
     rollout = get_feature_rollouts()[name]
+    member_user_ids = {
+        row.user_id for row in FamilyMember.query.filter_by(family_id=family.id).all()
+    }
     return (
         rollout["mode"] == "everyone"
         or (
             rollout["mode"] == "selected"
-            and family.id in rollout["family_ids"]
+            and (
+                family.id in rollout["family_ids"]
+                or bool(member_user_ids & rollout["user_ids"])
+            )
         )
     )
 
