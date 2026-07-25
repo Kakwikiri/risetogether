@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-feature-rollouts-people-suggestions";
+  const APP_VERSION = "20260725-account-picker-goal-discovery";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tourKey = `risetogether-onboarding-tour:${onboardingUser}`;
     const skipped = localStorage.getItem(skippedKey) === "1";
     const laterUntil = Number(localStorage.getItem(laterKey) || 0);
-    if (skipped || laterUntil > Date.now()) onboardingGuide.hidden = true;
+    onboardingGuide.hidden = skipped || laterUntil > Date.now();
     onboardingGuide.querySelector("[data-onboarding-later]")?.addEventListener("click", () => {
       localStorage.setItem(laterKey, String(Date.now() + 3 * 86400000));
       onboardingGuide.hidden = true;
@@ -913,6 +913,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const password = signupForm.querySelector("#password");
     const confirmation = signupForm.querySelector("#confirm-password");
     const message = signupForm.querySelector("[data-signup-validation]");
+    const username = signupForm.querySelector("[data-username-check-url]");
+    const usernameStatus = signupForm.querySelector("[data-username-availability]");
+    const usernameSuggestions = signupForm.querySelector("[data-username-suggestions]");
+    let usernameTimer = null;
+    username?.addEventListener("input", () => {
+      window.clearTimeout(usernameTimer);
+      usernameStatus.textContent = "";
+      usernameSuggestions?.replaceChildren();
+      if (username.value.length < 2) return;
+      usernameTimer = window.setTimeout(async () => {
+        const response = await fetch(`${username.dataset.usernameCheckUrl}?username=${encodeURIComponent(username.value)}`);
+        const payload = await response.json();
+        usernameStatus.textContent = payload.message || "";
+        usernameStatus.dataset.available = payload.available ? "true" : "false";
+        (payload.suggestions || []).forEach((suggestion) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "text-button";
+          button.textContent = suggestion;
+          button.addEventListener("click", () => {
+            username.value = suggestion;
+            username.dispatchEvent(new Event("input", { bubbles: true }));
+            username.focus();
+          });
+          usernameSuggestions?.appendChild(button);
+        });
+      }, 300);
+    });
     const showSignupError = (text) => {
       if (!message) return;
       message.textContent = text;

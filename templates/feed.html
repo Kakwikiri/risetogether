@@ -42,7 +42,7 @@
     </aside>
     {% endif %}
     {% if show_onboarding %}
-    <aside class="new-user-guide" aria-labelledby="new-user-guide-title" data-onboarding-user="{{ current_user.id }}">
+    <aside class="new-user-guide" aria-labelledby="new-user-guide-title" data-onboarding-user="{{ current_user.id }}" hidden>
       <div><p class="eyebrow">Start here</p><h3 id="new-user-guide-title">Welcome to RiseTogether</h3><p>Joining a Family gives you a smaller community, shared challenges, and a Family chat.</p></div>
       <ol><li><a class="content-action-link" href="{{ url_for('family.families') }}">Find and join a Family</a></li><li>Share a story or supportive reaction</li><li>Connect with people you trust</li></ol>
       <a class="button" href="{{ url_for('family.families') }}">Explore Families</a>

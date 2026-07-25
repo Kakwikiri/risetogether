@@ -24,12 +24,13 @@
           </select>
         </label>
         <label>Test accounts
-          <input name="users_{{ name }}" value="{{ rollout_usernames[name] }}" placeholder="username1, username2" />
+          <input name="users_{{ name }}" value="{{ rollout_usernames[name] }}" placeholder="Start typing a username" list="rollout-usernames" autocomplete="off" />
           <small>Enter usernames separated by commas. Used only when Selected accounts is chosen.</small>
         </label>
       </div>
       {% endfor %}
     </div>
+    <datalist id="rollout-usernames">{% for username in account_usernames %}<option value="{{ username }}">{% endfor %}</datalist>
     <button class="button" type="submit">Save feature flags</button>
   </form>
 </section>

@@ -369,6 +369,23 @@ def grant_premium_subscription():
         granted_by_id=current_user.id,
     )
     db.session.add(subscription)
+    if user:
+        for feature_name in ("premium_membership", "premium_profiles", "premium_upload_limits"):
+            rollout_setting = SiteSetting.query.get(feature_rollout_key(feature_name)) or SiteSetting(
+                key=feature_rollout_key(feature_name)
+            )
+            users_setting = SiteSetting.query.get(feature_rollout_users_key(feature_name)) or SiteSetting(
+                key=feature_rollout_users_key(feature_name)
+            )
+            selected_ids = {
+                int(value) for value in (users_setting.value or "").split(",")
+                if value.strip().isdigit()
+            }
+            selected_ids.add(user.id)
+            if rollout_setting.value != "everyone":
+                rollout_setting.value = "selected"
+            users_setting.value = ",".join(str(user_id) for user_id in sorted(selected_ids))
+            db.session.add_all([rollout_setting, users_setting])
     record_admin_audit(
         "premium_beta_granted", target_user=user, target_family=family,
         reason=f"Granted {period} {subject_type} Premium for beta testing.",
@@ -1040,6 +1057,9 @@ def admin_feature_flags():
             )
             for name, rollout in rollouts.items()
         },
+        account_usernames=[
+            user.username for user in User.query.filter_by(is_banned=False).order_by(User.username).all()
+        ],
     )
 
 

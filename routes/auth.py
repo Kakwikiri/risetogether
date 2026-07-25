@@ -8,13 +8,13 @@ from urllib.parse import urljoin
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import confirm_login, current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
 from age_safety import parse_birth_date
-from models import PasswordResetToken, Profile, SiteSetting, User
+from models import Notification, PasswordResetToken, Profile, SiteSetting, User
 from ownership import is_platform_owner_username
 
 auth_bp = Blueprint("auth", __name__)
@@ -50,6 +50,37 @@ COUNTRIES = [
     "Australia",
     "Other",
 ]
+
+
+def clear_legacy_device_reminder(user_id):
+    Notification.query.filter_by(
+        user_id=user_id,
+        dedupe_key=f"device-notifications:{user_id}",
+        seen=False,
+    ).update({"seen": True})
+    db.session.commit()
+
+
+@auth_bp.route("/signup/username-availability")
+def username_availability():
+    username = request.args.get("username", "").strip()
+    if not SAFE_USERNAME_RE.fullmatch(username):
+        return jsonify({"available": False, "message": "Use 2–80 letters, numbers, or underscores.", "suggestions": []})
+    taken = User.query.filter(db.func.lower(User.username) == username.lower()).first() is not None
+    suggestions = []
+    if taken:
+        base = username[:72]
+        for number in range(2, 100):
+            candidate = f"{base}{number}"
+            if not User.query.filter(db.func.lower(User.username) == candidate.lower()).first():
+                suggestions.append(candidate)
+            if len(suggestions) == 3:
+                break
+    return jsonify({
+        "available": not taken,
+        "message": "Username is available." if not taken else "That username is already taken.",
+        "suggestions": suggestions,
+    })
 
 
 def render_signup(**context):
@@ -234,7 +265,7 @@ def signup():
         if sex not in {"female", "male", "prefer_not_to_say"}:
             sex = "prefer_not_to_say"
         existing = User.query.filter(
-            (User.username == username) | (User.email == email)
+            (db.func.lower(User.username) == username.lower()) | (db.func.lower(User.email) == email)
         ).first()
         if existing:
             flash("Username or email already exists.", "danger")
@@ -253,6 +284,7 @@ def signup():
         db.session.commit()
         session.pop("referral_token", None)
         login_user(user)
+        clear_legacy_device_reminder(user.id)
         flash("Welcome to RiseTogether! Your safe community starts here.", "success")
         return redirect(url_for("main.home"))
     return render_signup(referral_token=referral_token)
@@ -282,6 +314,7 @@ def login():
             session.clear()
             logout_user()
             login_user(user, remember=remember)
+            clear_legacy_device_reminder(user.id)
             flash("Logged in successfully.", "success")
             return redirect(url_for("main.home"))
         flash("Invalid email or password.", "danger")
@@ -545,6 +578,7 @@ def google_callback():
         flash("This account has been banned. Please contact an admin.", "danger")
         return redirect(url_for("auth.login"))
     login_user(user)
+    clear_legacy_device_reminder(user.id)
     if created_user:
         session.pop("referral_token", None)
     flash("Logged in with Google.", "success")

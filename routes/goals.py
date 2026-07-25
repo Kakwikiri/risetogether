@@ -79,7 +79,16 @@ def goals_dashboard():
         (Goal.scope == "family") & (Goal.family_id.in_(family_ids or [-1])) & (Goal.visibility.in_(["family", "public"])),
     )).order_by(Goal.status.asc(), Goal.created_at.desc()).limit(150).all()
     goals = [goal for goal in goals if goal_can_view(goal)]
-    return render_template("goals.html", goals=goals, today=date.today())
+    public_goals = Goal.query.filter(
+        Goal.visibility == "public",
+        Goal.owner_user_id != current_user.id,
+        Goal.status.in_(["active", "completed"]),
+    ).order_by(Goal.status.asc(), Goal.completed_at.desc(), Goal.created_at.desc()).limit(40).all()
+    return render_template(
+        "goals.html", goals=goals, today=date.today(),
+        public_active_goals=[goal for goal in public_goals if goal.status == "active"][:12],
+        public_completed_goals=[goal for goal in public_goals if goal.status == "completed"][:12],
+    )
 
 
 @goals_bp.route("/goals/create", methods=["GET", "POST"])
