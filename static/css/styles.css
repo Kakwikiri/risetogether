@@ -1119,6 +1119,7 @@ body {
   z-index: 500;
   background: rgba(2, 8, 6, 0.72);
 }
+.onboarding-tour[hidden] { display: none !important; }
 .onboarding-tour-card {
   position: fixed;
   z-index: 502;
@@ -1747,6 +1748,13 @@ a {
   font-size: 0.78rem;
 }
 .install-card .install-instruction { margin: 0; color: var(--ink); }
+.family-voice-room-switcher {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.family-voice-room-switcher .button { text-align: center; }
 
 @media (max-width: 680px) {
   .onboarding-tour-card { bottom: calc(5.3rem + env(safe-area-inset-bottom)); }

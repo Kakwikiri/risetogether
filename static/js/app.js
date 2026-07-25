@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260725-device-aware-polished-prompts";
+  const APP_VERSION = "20260725-tour-reports-two-voice-rooms";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const tour = document.querySelector("[data-onboarding-tour]");
     if (tour && !skipped && laterUntil <= Date.now() && localStorage.getItem(tourKey) !== "complete") {
+      tour.hidden = false;
       const steps = [
         { selector: "[data-tour-for-you]", title: "Your personal feed", copy: "See stories, check-ins, goals, and encouragement chosen for you." },
         { selector: "[data-tour-families]", title: "Join a Family", copy: "Find a smaller community where you can chat and grow together." },

@@ -512,7 +512,14 @@ def family_chat(family_id):
     return render_template(
         "chat.html", other=None, messages=messages, family=family,
         older_before_id=older_before_id, viewing_older=viewing_older,
-        family_voice_count=len(family_voice_participants.get(family.id, {})),
+        family_voice_counts={
+            room_number: len(family_voice_participants.get((family.id, room_number), {}))
+            for room_number in (1, 2)
+        },
+        family_voice_count=sum(
+            len(family_voice_participants.get((family.id, room_number), {}))
+            for room_number in (1, 2)
+        ),
     )
 
 
@@ -526,11 +533,19 @@ def family_voice_room(family_id):
     if not membership:
         flash("Join this family before opening its voice room.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
+    room_number = request.args.get("room", default=1, type=int)
+    if room_number not in {1, 2}:
+        room_number = 1
     return render_template(
         "family_voice_room.html",
         family=family,
         ice_servers=get_ice_servers(),
         room_limit=family_voice_device_limit(family.id),
+        room_number=room_number,
+        room_counts={
+            number: len(family_voice_participants.get((family.id, number), {}))
+            for number in (1, 2)
+        },
     )
 
 
@@ -1024,39 +1039,47 @@ def on_join_room(data):
 
 
 def leave_family_voice_room(sid):
-    for family_id, participants in list(family_voice_participants.items()):
+    for room_key, participants in list(family_voice_participants.items()):
         participant = participants.pop(sid, None)
         if not participant:
             continue
+        family_id, room_number = room_key
+        voice_room = f"family-voice-{family_id}-{room_number}"
         socketio.emit(
             "family_voice_participant_left",
-            {"socket_id": sid, "user_id": participant["user_id"]},
-            room=f"family-voice-{family_id}",
+            {"socket_id": sid, "user_id": participant["user_id"], "room_number": room_number},
+            room=voice_room,
         )
         socketio.emit(
             "family_voice_presence",
-            {"family_id": family_id, "participants": [
+            {"family_id": family_id, "room_number": room_number, "participants": [
                 {"socket_id": socket_id, **row}
                 for socket_id, row in participants.items()
             ]},
-            room=f"family-voice-{family_id}",
+            room=voice_room,
         )
+        family_participants = [
+            {"socket_id": socket_id, **row}
+            for number in (1, 2)
+            for socket_id, row in family_voice_participants.get((family_id, number), {}).items()
+        ]
         socketio.emit(
             "family_voice_presence",
-            {"family_id": family_id, "participants": [
-                {"socket_id": socket_id, **row}
-                for socket_id, row in participants.items()
-            ]},
+            {"family_id": family_id, "participants": family_participants},
             room=f"family-{family_id}",
         )
         if not participants:
-            family_voice_participants.pop(family_id, None)
+            family_voice_participants.pop(room_key, None)
         break
 
 
 @socketio.on("join_family_voice")
 def join_family_voice(data):
     family_id = parse_user_id((data or {}).get("family_id"))
+    room_number = parse_user_id((data or {}).get("room_number")) or 1
+    if room_number not in {1, 2}:
+        emit("family_voice_error", {"message": "Choose voice room 1 or 2."}, room=request.sid)
+        return
     membership = (
         FamilyMember.query.filter_by(family_id=family_id, user_id=current_user.id).first()
         if family_id
@@ -1065,7 +1088,8 @@ def join_family_voice(data):
     if not membership:
         emit("family_voice_error", {"message": "Only Family members can join this voice room."}, room=request.sid)
         return
-    participants = family_voice_participants.setdefault(family_id, {})
+    room_key = (family_id, room_number)
+    participants = family_voice_participants.setdefault(room_key, {})
     room_limit = family_voice_device_limit(family_id)
     if request.sid not in participants and len(participants) >= room_limit:
         emit(
@@ -1083,33 +1107,35 @@ def join_family_voice(data):
         "user_id": current_user.id,
         "username": current_user.username,
     }
-    room = f"family-voice-{family_id}"
+    room = f"family-voice-{family_id}-{room_number}"
     join_room(room)
     emit(
         "family_voice_joined",
-        {"family_id": family_id, "participants": existing, "socket_id": request.sid},
+        {"family_id": family_id, "room_number": room_number, "participants": existing, "socket_id": request.sid},
         room=request.sid,
     )
     emit(
         "family_voice_participant_joined",
-        {"socket_id": request.sid, "user_id": current_user.id, "username": current_user.username},
+        {"socket_id": request.sid, "user_id": current_user.id, "username": current_user.username, "room_number": room_number},
         room=room,
         include_self=False,
     )
     socketio.emit(
         "family_voice_presence",
-        {"family_id": family_id, "participants": [
+        {"family_id": family_id, "room_number": room_number, "participants": [
             {"socket_id": socket_id, **participant}
             for socket_id, participant in participants.items()
         ]},
         room=room,
     )
+    family_participants = [
+        {"socket_id": socket_id, **row}
+        for number in (1, 2)
+        for socket_id, row in family_voice_participants.get((family_id, number), {}).items()
+    ]
     socketio.emit(
         "family_voice_presence",
-        {"family_id": family_id, "participants": [
-            {"socket_id": socket_id, **participant}
-            for socket_id, participant in participants.items()
-        ]},
+        {"family_id": family_id, "participants": family_participants},
         room=f"family-{family_id}",
     )
 
@@ -1118,9 +1144,10 @@ def join_family_voice(data):
 def family_voice_signal(data):
     payload = data or {}
     family_id = parse_user_id(payload.get("family_id"))
+    room_number = parse_user_id(payload.get("room_number")) or 1
     target_sid = str(payload.get("target_socket_id") or "")
     signal = payload.get("signal")
-    participants = family_voice_participants.get(family_id, {}) if family_id else {}
+    participants = family_voice_participants.get((family_id, room_number), {}) if family_id else {}
     if request.sid not in participants or target_sid not in participants or not isinstance(signal, dict):
         return
     emit(
@@ -1129,6 +1156,7 @@ def family_voice_signal(data):
             "source_socket_id": request.sid,
             "user_id": current_user.id,
             "username": current_user.username,
+            "room_number": room_number,
             "signal": signal,
         },
         room=target_sid,
@@ -1138,7 +1166,8 @@ def family_voice_signal(data):
 @socketio.on("leave_family_voice")
 def leave_family_voice(data=None):
     family_id = parse_user_id((data or {}).get("family_id"))
-    room = f"family-voice-{family_id}" if family_id else None
+    room_number = parse_user_id((data or {}).get("room_number")) or 1
+    room = f"family-voice-{family_id}-{room_number}" if family_id else None
     leave_family_voice_room(request.sid)
     if room:
         leave_room(room)

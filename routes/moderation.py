@@ -1244,8 +1244,18 @@ def manage_report(report_id, action):
         flash("Report record deleted. Its reported content was not changed.", "success")
         return redirect(url_for("moderation.admin_reports"))
     if action == "reviewed":
+        was_reviewed = report.status == "reviewed"
         report.status = "reviewed"
         record_admin_audit("report_reviewed", target_user=report.reported_user, target_content_id=report.post_id)
+        if not was_reviewed:
+            smart_notify(
+                user_id=report.reporter_id,
+                category="admin",
+                message="Your report was reviewed by the RiseTogether safety team.",
+                action_url=url_for("main.notifications"),
+                dedupe_key=f"report-reviewed:{report.id}",
+                important=False,
+            )
         flash("Report marked reviewed.", "success")
     elif action == "delete_post" and report.post:
         post_id = report.post.id

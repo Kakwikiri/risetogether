@@ -2051,6 +2051,7 @@ if (typeof familyVoiceConfig !== "undefined") {
     const sendSignal = (targetSocketId, signal) => {
       socket.emit("family_voice_signal", {
         family_id: familyVoiceConfig.familyId,
+        room_number: familyVoiceConfig.roomNumber,
         target_socket_id: targetSocketId,
         signal,
       });
@@ -2133,7 +2134,7 @@ if (typeof familyVoiceConfig !== "undefined") {
     };
 
     const cleanup = (notifyServer = true) => {
-      if (notifyServer && joined) socket.emit("leave_family_voice", { family_id: familyVoiceConfig.familyId });
+      if (notifyServer && joined) socket.emit("leave_family_voice", { family_id: familyVoiceConfig.familyId, room_number: familyVoiceConfig.roomNumber });
       joined = false;
       peers.forEach((state) => state.connection.close());
       peers.clear();
@@ -2157,7 +2158,7 @@ if (typeof familyVoiceConfig !== "undefined") {
           video: false,
         });
         if (status) status.textContent = "Connecting to the Family voice room…";
-        socket.emit("join_family_voice", { family_id: familyVoiceConfig.familyId });
+        socket.emit("join_family_voice", { family_id: familyVoiceConfig.familyId, room_number: familyVoiceConfig.roomNumber });
       } catch (error) {
         showError("Microphone access is required. Allow it in your browser settings and try again.");
       }
@@ -2192,6 +2193,7 @@ if (typeof familyVoiceConfig !== "undefined") {
     });
     socket.on("family_voice_presence", (payload) => {
       if (!joined) return;
+      if (payload?.room_number && payload.room_number !== familyVoiceConfig.roomNumber) return;
       const activeIds = new Set();
       (payload?.participants || []).forEach((participant) => {
         if (!participant?.socket_id || participant.socket_id === socket.id) return;

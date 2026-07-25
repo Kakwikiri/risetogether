@@ -3,11 +3,16 @@
   <header class="family-voice-room__header">
     <a class="icon-button" href="{{ url_for('chat.family_chat', family_id=family.id) }}" aria-label="Back to {{ family.name }} chat">‹</a>
     <div>
-      <p class="eyebrow">Family voice room</p>
+      <p class="eyebrow">Family voice room {{ room_number }}</p>
       <h1>{{ family.name }}</h1>
       <p id="family-voice-status">Join when you are ready. Your microphone stays off until you choose to enter.</p>
     </div>
   </header>
+  <nav class="family-voice-room-switcher" aria-label="Family voice rooms">
+    {% for number in (1, 2) %}
+    <a class="button {{ 'secondary' if number != room_number else '' }}" href="{{ url_for('chat.family_voice_room', family_id=family.id, room=number) }}" aria-current="{{ 'page' if number == room_number else 'false' }}">Room {{ number }} · {{ room_counts[number] }} connected</a>
+    {% endfor %}
+  </nav>
   <div class="family-voice-room__body">
     <div class="family-voice-orb" aria-hidden="true">◌</div>
     <strong data-family-voice-count>0 people connected</strong>
@@ -25,6 +30,7 @@
 <script>
   const familyVoiceConfig = {
     familyId: {{ family.id }},
+    roomNumber: {{ room_number }},
     currentUserId: {{ current_user.id }},
     currentUsername: {{ current_user.username|tojson }},
     iceServers: {{ ice_servers|tojson }}
