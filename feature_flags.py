@@ -228,6 +228,19 @@ def is_feature_enabled(name, user=None):
     return get_effective_feature_flags(user)[name]
 
 
+def is_feature_enabled_for_family(name, family):
+    if not feature_flag_exists(name) or not family:
+        return False
+    rollout = get_feature_rollouts()[name]
+    return (
+        rollout["mode"] == "everyone"
+        or (
+            rollout["mode"] == "selected"
+            and family.id in rollout["family_ids"]
+        )
+    )
+
+
 def feature_required(name):
     if not feature_flag_exists(name):
         raise ValueError(f"Unknown feature flag: {name}")

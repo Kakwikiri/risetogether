@@ -2455,6 +2455,23 @@ def premium_plans():
     )
 
 
+@main_bp.route("/premium/theme", methods=["POST"])
+@login_required
+def update_premium_theme():
+    from premium import user_has_premium
+
+    if not is_feature_enabled("premium_themes") or not user_has_premium(current_user):
+        abort(403)
+    theme = request.form.get("premium_theme", "").strip()
+    if theme not in {"aurora", "sunset", "royal", "midnight"}:
+        flash("Choose a valid Premium theme.", "warning")
+        return redirect(url_for("main.premium_plans"))
+    current_user.profile.premium_theme = theme
+    db.session.commit()
+    flash("Your Premium profile theme was updated.", "success")
+    return redirect(url_for("main.profile", username=current_user.username))
+
+
 @main_bp.route("/premium/choose/<plan>/<period>")
 @login_required
 def premium_checkout(plan, period):

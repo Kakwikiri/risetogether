@@ -135,6 +135,7 @@ class Profile(db.Model):
     show_checkins = db.Column(db.Boolean, default=False, nullable=False)
     show_goal_progress = db.Column(db.Boolean, default=False, nullable=False)
     show_last_seen = db.Column(db.Boolean, default=True, nullable=False)
+    premium_theme = db.Column(db.String(24), default="aurora", nullable=False)
 
 
 class RiseBadgeAssignment(db.Model):
@@ -425,6 +426,7 @@ class PremiumSubscription(db.Model):
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+    archived_at = db.Column(db.DateTime, nullable=True, index=True)
     user = db.relationship(
         "User", foreign_keys=[user_id],
         backref=db.backref("premium_subscriptions", lazy="dynamic", cascade="all, delete-orphan"),

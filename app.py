@@ -285,6 +285,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS show_last_seen BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(24) NOT NULL DEFAULT 'prefer_not_to_say'",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS premium_theme VARCHAR(24) NOT NULL DEFAULT 'aurora'",
+        "ALTER TABLE premium_subscriptions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",
         "CREATE TABLE IF NOT EXISTS post_media (id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(32) NOT NULL DEFAULT 'image', position INTEGER NOT NULL, CONSTRAINT uq_post_media_position UNIQUE(post_id, position))",
@@ -489,19 +491,25 @@ def inject_navigation_counts():
     from badges import family_badges, user_badges
     from family_upgrades import family_has_upgrade
     from helpers import family_avatar_url, get_media_type, is_hevc_upload, user_avatar_url
-    from models import Message, Notification, SiteSetting
+    from models import HelpRequest, Message, Notification, Report, SiteSetting
     from notifications_service import important_unread_count, unread_private_message_count
     from premium import family_has_premium, recording_limit_seconds, user_has_premium
 
     unread_notifications = 0
     unread_messages = 0
     app_badge_count = 0
+    pending_admin_reports = 0
+    pending_admin_requests = 0
     if current_user.is_authenticated:
         unread_notifications = Notification.query.filter_by(
             user_id=current_user.id, seen=False
         ).count()
         unread_messages = unread_private_message_count(current_user.id)
         app_badge_count = unread_messages + important_unread_count(current_user.id)
+        role = getattr(current_user, "admin_role", "") or ""
+        if role in {"moderator", "admin", "super_admin"} or current_user.is_admin:
+            pending_admin_reports = Report.query.filter_by(status="open").count()
+            pending_admin_requests = HelpRequest.query.filter_by(status="open").count()
     feature_flags = get_effective_feature_flags()
     feature_versions = {
         row.key.removeprefix("feature_flag."): (row.updated_at.isoformat() if row.updated_at else "default")
@@ -512,6 +520,8 @@ def inject_navigation_counts():
         "unread_notifications": unread_notifications,
         "unread_messages": unread_messages,
         "app_badge_count": app_badge_count,
+        "pending_admin_reports": pending_admin_reports,
+        "pending_admin_requests": pending_admin_requests,
         "is_hevc_upload": is_hevc_upload,
         "get_media_type": get_media_type,
         "chat_day_label": chat_day_label,

@@ -68,16 +68,16 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}?v=20260726-separated-rollouts-premium-admin"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=20260726-premium-experience-admin-alerts"
     />
     <script
       defer
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"
     ></script>
-    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260726-separated-rollouts-premium-admin"></script>
+    <script defer src="{{ url_for('static', filename='js/app.js') }}?v=20260726-premium-experience-admin-alerts"></script>
     <script
       defer
-      src="{{ url_for('static', filename='js/socket.js') }}?v=20260726-separated-rollouts-premium-admin"
+      src="{{ url_for('static', filename='js/socket.js') }}?v=20260726-premium-experience-admin-alerts"
     ></script>
   </head>
   {% set contextual_layout_endpoints = ['main.home', 'main.people', 'family.families', 'family.family_detail', 'chat.inbox', 'chat.direct_chat', 'chat.family_chat', 'chat.family_voice_room', 'main.profile'] %}
@@ -140,13 +140,13 @@
         <a href="{{ url_for('moderation.product_feedback') }}" data-icon="✎"><span>Share feedback</span></a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('moderation.admin_dashboard') }}" data-icon="▣"><span>{{ 'Super Admin' if current_user.admin_role == 'super_admin' else 'Admin' }}</span></a>
-        <a href="{{ url_for('moderation.admin_reports') }}" data-icon="!"><span>Reports</span></a>
+        <a href="{{ url_for('moderation.admin_reports') }}" data-icon="!"><span>Reports</span>{% if pending_admin_reports %}<span class="nav-badge">{{ '9+' if pending_admin_reports > 9 else pending_admin_reports }}</span>{% endif %}</a>
+        <a href="{{ url_for('moderation.admin_help_requests') }}" data-icon="?"><span>Requests</span>{% if pending_admin_requests %}<span class="nav-badge">{{ '9+' if pending_admin_requests > 9 else pending_admin_requests }}</span>{% endif %}</a>
         <a href="{{ url_for('moderation.admin_referrals') }}" data-icon="↗"><span>Referrals</span></a>
         {% if feature_enabled('anonymous_support_posts') %}<a href="{{ url_for('moderation.admin_encouragement_reports') }}" data-icon="♡"><span>Support reports</span></a>{% endif %}
         {% if current_user.admin_role in ['super_admin', 'admin'] %}
         <a href="{{ url_for('moderation.admin_users') }}" data-icon="⚙"><span>Users</span></a>
         <a href="{{ url_for('moderation.admin_families') }}" data-icon="⌂"><span>Families</span></a>
-        <a href="{{ url_for('moderation.admin_help_requests') }}" data-icon="?"><span>Requests</span></a>
         {% endif %}
         {% if current_user.admin_role == 'super_admin' %}
         <a href="{{ url_for('moderation.admin_audit_log') }}" data-icon="☷"><span>Audit</span></a>

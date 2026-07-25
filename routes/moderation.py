@@ -314,7 +314,26 @@ def admin_economy():
         key: economy_setting_text(f"payment_provider.{key}", "false") == "true"
         for key in PAYMENT_PROVIDER_OPTIONS
     }
-    subscriptions = PremiumSubscription.query.order_by(
+    now = datetime.utcnow()
+    archive_cutoff = now - timedelta(days=60)
+    subscription_rows = PremiumSubscription.query.filter(
+        PremiumSubscription.archived_at == None
+    ).all()
+    changed_history = False
+    for row in subscription_rows:
+        if row.status == "active" and row.expires_at and row.expires_at <= now:
+            row.status = "expired"
+            row.auto_renew = False
+            changed_history = True
+        inactive_since = row.expires_at or row.updated_at
+        if row.status != "active" and inactive_since and inactive_since < archive_cutoff:
+            row.archived_at = now
+            changed_history = True
+    if changed_history:
+        db.session.commit()
+    subscriptions = PremiumSubscription.query.filter(
+        PremiumSubscription.archived_at == None
+    ).order_by(
         PremiumSubscription.purchased_at.desc()
     ).limit(100).all()
     verification_applications = VerificationApplication.query.filter_by(status="pending").order_by(
@@ -374,7 +393,12 @@ def grant_premium_subscription():
     )
     db.session.add(subscription)
     if user:
-        for feature_name in ("premium_membership", "premium_profiles", "premium_upload_limits"):
+        personal_premium_features = (
+            "premium_membership", "premium_profiles", "premium_upload_limits",
+            "premium_themes", "premium_analytics", "premium_challenges",
+            "premium_verification_applications", "video_notes",
+        )
+        for feature_name in personal_premium_features:
             rollout_setting = SiteSetting.query.get(feature_rollout_key(feature_name)) or SiteSetting(
                 key=feature_rollout_key(feature_name)
             )
@@ -386,6 +410,50 @@ def grant_premium_subscription():
                 if value.strip().isdigit()
             }
             selected_ids.add(user.id)
+            if rollout_setting.value != "everyone":
+                rollout_setting.value = "selected"
+            users_setting.value = ",".join(str(user_id) for user_id in sorted(selected_ids))
+            db.session.add_all([rollout_setting, users_setting])
+    if family:
+        family_feature_names = (
+            "premium_membership", "premium_families", "family_upgrades",
+            "family_points", "family_xp", "family_levels", "family_leaderboards",
+        )
+        for feature_name in family_feature_names:
+            rollout_setting = SiteSetting.query.get(feature_rollout_key(feature_name)) or SiteSetting(
+                key=feature_rollout_key(feature_name)
+            )
+            families_setting = SiteSetting.query.get(
+                feature_rollout_families_key(feature_name)
+            ) or SiteSetting(key=feature_rollout_families_key(feature_name))
+            selected_family_ids = {
+                int(value) for value in (families_setting.value or "").split(",")
+                if value.strip().isdigit()
+            }
+            selected_family_ids.add(family.id)
+            if rollout_setting.value != "everyone":
+                rollout_setting.value = "selected"
+            families_setting.value = ",".join(
+                str(family_id) for family_id in sorted(selected_family_ids)
+            )
+            db.session.add_all([rollout_setting, families_setting])
+        member_ids = {
+            membership.user_id for membership in FamilyMember.query.filter_by(
+                family_id=family.id
+            ).all()
+        }
+        for feature_name in ("premium_themes", "premium_analytics", "premium_challenges"):
+            rollout_setting = SiteSetting.query.get(feature_rollout_key(feature_name)) or SiteSetting(
+                key=feature_rollout_key(feature_name)
+            )
+            users_setting = SiteSetting.query.get(feature_rollout_users_key(feature_name)) or SiteSetting(
+                key=feature_rollout_users_key(feature_name)
+            )
+            selected_ids = {
+                int(value) for value in (users_setting.value or "").split(",")
+                if value.strip().isdigit()
+            }
+            selected_ids.update(member_ids)
             if rollout_setting.value != "everyone":
                 rollout_setting.value = "selected"
             users_setting.value = ",".join(str(user_id) for user_id in sorted(selected_ids))
@@ -413,6 +481,26 @@ def cancel_premium_subscription(subscription_id):
     )
     db.session.commit()
     flash("Premium access cancelled.", "success")
+    return redirect(url_for("moderation.admin_economy"))
+
+
+@mod_bp.route("/admin/economy/subscriptions/<int:subscription_id>/archive", methods=["POST"])
+@fresh_login_required
+def archive_premium_subscription(subscription_id):
+    if not require_admin_role("super_admin"):
+        return redirect(url_for("main.home"))
+    subscription = PremiumSubscription.query.get_or_404(subscription_id)
+    if subscription_is_active(subscription):
+        flash("Cancel active Premium before archiving it.", "warning")
+        return redirect(url_for("moderation.admin_economy"))
+    subscription.archived_at = datetime.utcnow()
+    record_admin_audit(
+        "premium_history_archived", target_user=subscription.user,
+        target_family=subscription.family,
+        reason="Hidden from the active subscription history; audit record retained.",
+    )
+    db.session.commit()
+    flash("Subscription archived. Its audit record was safely retained.", "success")
     return redirect(url_for("moderation.admin_economy"))
 
 
@@ -869,7 +957,7 @@ def product_feedback():
 @mod_bp.route("/admin/help")
 @login_required
 def admin_help_requests():
-    if not require_admin_role("admin"):
+    if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).all()
     return render_template(
@@ -883,7 +971,7 @@ def admin_help_requests():
 @mod_bp.route("/admin/help/<int:request_id>/<action>", methods=["POST"])
 @login_required
 def manage_help_request(request_id, action):
-    if not require_admin_role("admin"):
+    if not require_admin_role("moderator"):
         return redirect(url_for("main.home"))
     help_request = HelpRequest.query.get_or_404(request_id)
     if action == "delete":

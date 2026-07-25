@@ -90,19 +90,19 @@ def user_has_premium(user=None):
     user = user or (current_user if has_request_context() and current_user.is_authenticated else None)
     return bool(
         user
-        and is_feature_enabled("premium_membership")
-        and is_feature_enabled("premium_profiles")
+        and is_feature_enabled("premium_membership", user=user)
+        and is_feature_enabled("premium_profiles", user=user)
         and active_user_subscription(user.id)
     )
 
 
 def family_has_premium(family):
-    from feature_flags import is_feature_enabled
+    from feature_flags import is_feature_enabled_for_family
 
     return bool(
         family
-        and is_feature_enabled("premium_membership")
-        and is_feature_enabled("premium_families")
+        and is_feature_enabled_for_family("premium_membership", family)
+        and is_feature_enabled_for_family("premium_families", family)
         and active_family_subscription(family.id)
     )
 

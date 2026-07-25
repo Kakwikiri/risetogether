@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260726-separated-rollouts-premium-admin";
+  const APP_VERSION = "20260726-premium-experience-admin-alerts";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -219,6 +219,75 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!picker.contains(event.target)) results.hidden = true;
     });
     renderSelected();
+  });
+
+  document.querySelectorAll("[data-premium-grant-picker]").forEach((form) => {
+    const type = form.querySelector("[data-premium-subject-type]");
+    const search = form.querySelector("[data-premium-subject-search]");
+    const value = form.querySelector("[data-premium-subject-value]");
+    const selected = form.querySelector("[data-premium-subject-selected]");
+    const results = form.querySelector("[data-premium-subject-results]");
+    const label = form.querySelector("[data-premium-search-label]");
+    let timer = null;
+    const clear = () => {
+      search.value = "";
+      value.value = "";
+      selected.replaceChildren();
+      results.replaceChildren();
+      results.hidden = true;
+      label.textContent = type.value === "family" ? "Search Family" : "Search account";
+      search.placeholder = type.value === "family" ? "Type a Family name" : "Type a name or @username";
+    };
+    type.addEventListener("change", clear);
+    search.addEventListener("input", () => {
+      value.value = "";
+      selected.replaceChildren();
+      window.clearTimeout(timer);
+      const query = search.value.trim();
+      if (!query) return clear();
+      timer = window.setTimeout(async () => {
+        const familyMode = type.value === "family";
+        const endpoint = familyMode ? form.dataset.familySearch : form.dataset.userSearch;
+        const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`, {
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        results.replaceChildren();
+        (payload.results || []).forEach((item) => {
+          const title = familyMode ? item.name : item.display_name;
+          const identifier = familyMode ? item.name : item.username;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.innerHTML = "<strong></strong><small></small>";
+          button.querySelector("strong").textContent = title;
+          button.querySelector("small").textContent = familyMode ? item.meta : `@${item.username}`;
+          button.addEventListener("click", () => {
+            value.value = identifier;
+            search.value = "";
+            selected.replaceChildren();
+            const chip = document.createElement("span");
+            chip.className = "rollout-account-chip";
+            chip.textContent = `${familyMode ? "" : "@"}${identifier} ✓`;
+            selected.appendChild(chip);
+            results.hidden = true;
+          });
+          results.appendChild(button);
+        });
+        if (!results.children.length) {
+          const empty = document.createElement("p");
+          empty.textContent = familyMode ? "No matching Family." : "No matching account.";
+          results.appendChild(empty);
+        }
+        results.hidden = false;
+      }, 250);
+    });
+    form.addEventListener("submit", (event) => {
+      if (!value.value) {
+        event.preventDefault();
+        search.focus();
+      }
+    });
+    clear();
   });
 
   const toast = document.querySelector("[data-toast]");
