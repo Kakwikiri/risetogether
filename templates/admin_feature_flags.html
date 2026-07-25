@@ -4,20 +4,30 @@
     <div>
       <p class="eyebrow">Super Admin</p>
       <h2>Feature flags</h2>
-      <p class="muted-meta">Turn features on or off without deleting code or redeploying Render.</p>
+      <p class="muted-meta">Keep a feature off, test it safely with selected accounts, or release it to everyone without redeploying Render.</p>
     </div>
   </div>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="feature-flag-list">
       {% for name, definition in definitions.items() %}
-      <label class="feature-flag-row">
+      <div class="feature-flag-row feature-rollout-row">
         <span>
           <strong>{{ definition[0] }}</strong>
           <small>{{ name }} · safe default {{ 'on' if definition[1] else 'off' }}</small>
         </span>
-        <input type="checkbox" name="{{ name }}" value="1" {% if flags[name] %}checked{% endif %} />
-      </label>
+        <label>Access
+          <select name="mode_{{ name }}">
+            <option value="off" {% if rollouts[name].mode == 'off' %}selected{% endif %}>Off</option>
+            <option value="selected" {% if rollouts[name].mode == 'selected' %}selected{% endif %}>Selected accounts</option>
+            <option value="everyone" {% if rollouts[name].mode == 'everyone' %}selected{% endif %}>Everyone</option>
+          </select>
+        </label>
+        <label>Test accounts
+          <input name="users_{{ name }}" value="{{ rollout_usernames[name] }}" placeholder="username1, username2" />
+          <small>Enter usernames separated by commas. Used only when Selected accounts is chosen.</small>
+        </label>
+      </div>
       {% endfor %}
     </div>
     <button class="button" type="submit">Save feature flags</button>

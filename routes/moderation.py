@@ -8,6 +8,9 @@ from flask_login import current_user, fresh_login_required, login_required
 from extensions import db
 from feature_flags import (
     FEATURE_FLAG_DEFINITIONS,
+    feature_rollout_key,
+    feature_rollout_users_key,
+    get_feature_rollouts,
     feature_flag_key,
     get_feature_flags,
     is_feature_enabled,
@@ -205,11 +208,17 @@ def admin_economy():
         return redirect(url_for("main.home"))
     if request.method == "POST":
         for name in ECONOMY_FEATURE_FLAGS:
+            enabled = request.form.get(name) == "1"
             setting = SiteSetting.query.get(feature_flag_key(name)) or SiteSetting(
                 key=feature_flag_key(name)
             )
-            setting.value = "true" if request.form.get(name) == "1" else "false"
+            setting.value = "true" if enabled else "false"
             db.session.add(setting)
+            rollout_setting = SiteSetting.query.get(feature_rollout_key(name)) or SiteSetting(
+                key=feature_rollout_key(name)
+            )
+            rollout_setting.value = "everyone" if enabled else "off"
+            db.session.add(rollout_setting)
         for key, default in ECONOMY_DEFAULTS.items():
             try:
                 value = int(request.form.get(key, default))
@@ -974,13 +983,33 @@ def admin_feature_flags():
         return redirect(url_for("main.home"))
     if request.method == "POST":
         for name in FEATURE_FLAG_DEFINITIONS:
+            mode = request.form.get(f"mode_{name}", "off")
+            if mode not in {"off", "selected", "everyone"}:
+                mode = "off"
+            usernames = {
+                value.strip().lstrip("@").lower()
+                for value in request.form.get(f"users_{name}", "").split(",")
+                if value.strip()
+            }
+            selected_users = User.query.filter(db.func.lower(User.username).in_(usernames)).all() if usernames else []
+            missing = usernames - {user.username.lower() for user in selected_users}
+            if mode == "selected" and missing:
+                flash(f"{FEATURE_FLAG_DEFINITIONS[name][0]}: users not found: {', '.join(sorted(missing))}.", "warning")
+                return redirect(url_for("moderation.admin_feature_flags"))
             setting = SiteSetting.query.get(feature_flag_key(name)) or SiteSetting(
                 key=feature_flag_key(name)
             )
-            setting.value = "true" if request.form.get(name) == "1" else "false"
+            setting.value = "true" if mode == "everyone" else "false"
             db.session.add(setting)
+            rollout_setting = SiteSetting.query.get(feature_rollout_key(name)) or SiteSetting(key=feature_rollout_key(name))
+            rollout_setting.value = mode
+            db.session.add(rollout_setting)
+            users_setting = SiteSetting.query.get(feature_rollout_users_key(name)) or SiteSetting(key=feature_rollout_users_key(name))
+            users_setting.value = ",".join(str(user.id) for user in selected_users)
+            db.session.add(users_setting)
         enabled_names = [
-            name for name in FEATURE_FLAG_DEFINITIONS if request.form.get(name) == "1"
+            name for name in FEATURE_FLAG_DEFINITIONS
+            if request.form.get(f"mode_{name}") != "off"
         ]
         record_admin_audit(
             "feature_flags_change",
@@ -990,10 +1019,27 @@ def admin_feature_flags():
         db.session.commit()
         flash("Feature flags updated safely.", "success")
         return redirect(url_for("moderation.admin_feature_flags"))
+    rollouts = get_feature_rollouts()
+    rollout_user_ids = {
+        user_id for rollout in rollouts.values() for user_id in rollout["user_ids"]
+    }
+    rollout_users = {
+        user.id: user.username
+        for user in User.query.filter(User.id.in_(rollout_user_ids)).all()
+    } if rollout_user_ids else {}
     return render_template(
         "admin_feature_flags.html",
         definitions=FEATURE_FLAG_DEFINITIONS,
         flags=get_feature_flags(),
+        rollouts=rollouts,
+        rollout_usernames={
+            name: ", ".join(
+                rollout_users[user_id]
+                for user_id in sorted(rollout["user_ids"])
+                if user_id in rollout_users
+            )
+            for name, rollout in rollouts.items()
+        },
     )
 
 

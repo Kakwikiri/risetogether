@@ -13,7 +13,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import db, login_manager, socketio
-from feature_flags import get_feature_flags
+from feature_flags import get_effective_feature_flags
 from ownership import is_platform_owner_username, platform_owner_username
 from security import csrf_token, init_csrf
 
@@ -502,7 +502,7 @@ def inject_navigation_counts():
         ).count()
         unread_messages = unread_private_message_count(current_user.id)
         app_badge_count = unread_messages + important_unread_count(current_user.id)
-    feature_flags = get_feature_flags()
+    feature_flags = get_effective_feature_flags()
     feature_versions = {
         row.key.removeprefix("feature_flag."): (row.updated_at.isoformat() if row.updated_at else "default")
         for row in SiteSetting.query.filter(SiteSetting.key.like("feature_flag.%")).all()

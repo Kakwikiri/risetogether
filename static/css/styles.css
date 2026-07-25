@@ -1755,6 +1755,14 @@ a {
   margin-bottom: 1rem;
 }
 .family-voice-room-switcher .button { text-align: center; }
+.feature-rollout-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.6fr) minmax(240px, 1fr);
+  align-items: start;
+}
+.feature-rollout-row label { display: grid; gap: 0.3rem; }
+@media (max-width: 760px) {
+  .feature-rollout-row { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 680px) {
   .onboarding-tour-card { bottom: calc(5.3rem + env(safe-area-inset-bottom)); }

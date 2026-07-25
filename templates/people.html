@@ -118,10 +118,8 @@
       {% endfor %}
     </section>
     <section class="card people-suggestions">
-      <h3>People you may know</h3>
-      {% set suggestions = namespace(count=0) %}
-      {% for user in users %}
-      {% if suggestions.count < 5 and friendship_states.get(user.id) != 'friend' %}
+      <div class="split-header"><h3>People you may know</h3>{% if suggestion_pages > 1 %}<a class="button secondary compact-action" href="{{ url_for('main.people', q=query, suggestion_page=(suggestion_page % suggestion_pages) + 1) }}">Next</a>{% endif %}</div>
+      {% for user in suggestions %}
       <article class="friend-row">
         <img class="avatar" src="{{ user_avatar_url(user) }}" alt="" />
         <a class="friend-identity-link" href="{{ url_for('main.profile', username=user.username) }}"><strong>{{ user.profile.display_name if user.profile else user.username }}</strong><span>@{{ user.username }}</span></a>
@@ -131,10 +129,7 @@
         <form action="{{ url_for('main.send_friend_request', user_id=user.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary connection-button" type="submit">Add friend</button></form>
         {% endif %}
       </article>
-      {% set suggestions.count = suggestions.count + 1 %}
-      {% endif %}
-      {% endfor %}
-      {% if suggestions.count == 0 %}<p>No new suggestions right now.</p>{% endif %}
+      {% else %}<p>No new suggestions right now.</p>{% endfor %}
     </section>
   </aside>
 </div>

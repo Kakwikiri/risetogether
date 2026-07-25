@@ -1,6 +1,7 @@
 from functools import wraps
 
-from flask import current_app, render_template
+from flask import current_app, has_request_context, render_template
+from flask_login import current_user
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import SiteSetting
@@ -38,6 +39,8 @@ FEATURE_FLAG_DEFINITIONS = {
     "family_leaderboards": ("Family leaderboards", True),
 }
 SETTING_PREFIX = "feature_flag."
+ROLLOUT_PREFIX = "feature_rollout."
+ROLLOUT_USERS_PREFIX = "feature_rollout_users."
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -72,11 +75,57 @@ def get_feature_flags():
     return flags
 
 
-def is_feature_enabled(name):
+def feature_rollout_key(name):
+    return f"{ROLLOUT_PREFIX}{name}"
+
+
+def feature_rollout_users_key(name):
+    return f"{ROLLOUT_USERS_PREFIX}{name}"
+
+
+def get_feature_rollouts():
+    flags = get_feature_flags()
+    rollouts = {}
+    keys = [
+        key
+        for name in FEATURE_FLAG_DEFINITIONS
+        for key in (feature_rollout_key(name), feature_rollout_users_key(name))
+    ]
+    try:
+        settings = {row.key: row.value or "" for row in SiteSetting.query.filter(SiteSetting.key.in_(keys)).all()}
+    except SQLAlchemyError:
+        settings = {}
+    for name in FEATURE_FLAG_DEFINITIONS:
+        fallback = "everyone" if flags[name] else "off"
+        mode = settings.get(feature_rollout_key(name), fallback)
+        if mode not in {"off", "selected", "everyone"}:
+            mode = fallback
+        user_ids = {
+            int(value) for value in settings.get(feature_rollout_users_key(name), "").split(",")
+            if value.strip().isdigit()
+        }
+        rollouts[name] = {"mode": mode, "user_ids": user_ids}
+    return rollouts
+
+
+def get_effective_feature_flags(user=None):
+    if user is None and has_request_context() and current_user.is_authenticated:
+        user = current_user
+    user_id = getattr(user, "id", None)
+    return {
+        name: (
+            rollout["mode"] == "everyone"
+            or (rollout["mode"] == "selected" and user_id in rollout["user_ids"])
+        )
+        for name, rollout in get_feature_rollouts().items()
+    }
+
+
+def is_feature_enabled(name, user=None):
     if not feature_flag_exists(name):
         current_app.logger.warning("unknown_feature_flag name=%s", name)
         return False
-    return get_feature_flags()[name]
+    return get_effective_feature_flags(user)[name]
 
 
 def feature_required(name):

@@ -1,4 +1,5 @@
 import re
+import random
 import secrets
 from collections import Counter
 from datetime import datetime, timedelta
@@ -1810,6 +1811,20 @@ def people():
             friendship_states[other_id] = "friend"
         elif friend_request.status == "pending":
             friendship_states[other_id] = "pending"
+    suggestion_page = max(request.args.get("suggestion_page", type=int) or 1, 1)
+    suggestion_candidates = User.query.filter(
+        User.id != current_user.id,
+        User.is_hidden_from_directory == False,
+        ~User.id.in_([
+            user_id for user_id, state in friendship_states.items() if state == "friend"
+        ]),
+    ).limit(500).all()
+    suggestion_seed = f"{current_user.id}:{datetime.utcnow().date().isoformat()}"
+    random.Random(suggestion_seed).shuffle(suggestion_candidates)
+    suggestion_pages = max(1, (len(suggestion_candidates) + 9) // 10)
+    suggestion_page = ((suggestion_page - 1) % suggestion_pages) + 1
+    suggestion_start = (suggestion_page - 1) * 10
+    suggestions = suggestion_candidates[suggestion_start:suggestion_start + 10]
     return render_template(
         "people.html",
         users=users,
@@ -1817,6 +1832,9 @@ def people():
         incoming_requests=incoming_requests,
         accepted_requests=accepted_requests,
         friendship_states=friendship_states,
+        suggestions=suggestions,
+        suggestion_page=suggestion_page,
+        suggestion_pages=suggestion_pages,
     )
 
 
