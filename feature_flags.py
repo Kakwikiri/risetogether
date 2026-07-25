@@ -4,7 +4,7 @@ from flask import current_app, has_request_context, render_template
 from flask_login import current_user
 from sqlalchemy.exc import SQLAlchemyError
 
-from models import SiteSetting
+from models import FamilyMember, SiteSetting
 
 
 FEATURE_FLAG_DEFINITIONS = {
@@ -72,6 +72,7 @@ FEATURE_FLAG_DESCRIPTIONS = {
 SETTING_PREFIX = "feature_flag."
 ROLLOUT_PREFIX = "feature_rollout."
 ROLLOUT_USERS_PREFIX = "feature_rollout_users."
+ROLLOUT_FAMILIES_PREFIX = "feature_rollout_families."
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -114,13 +115,21 @@ def feature_rollout_users_key(name):
     return f"{ROLLOUT_USERS_PREFIX}{name}"
 
 
+def feature_rollout_families_key(name):
+    return f"{ROLLOUT_FAMILIES_PREFIX}{name}"
+
+
 def get_feature_rollouts():
     flags = get_feature_flags()
     rollouts = {}
     keys = [
         key
         for name in FEATURE_FLAG_DEFINITIONS
-        for key in (feature_rollout_key(name), feature_rollout_users_key(name))
+        for key in (
+            feature_rollout_key(name),
+            feature_rollout_users_key(name),
+            feature_rollout_families_key(name),
+        )
     ]
     try:
         settings = {row.key: row.value or "" for row in SiteSetting.query.filter(SiteSetting.key.in_(keys)).all()}
@@ -135,7 +144,11 @@ def get_feature_rollouts():
             int(value) for value in settings.get(feature_rollout_users_key(name), "").split(",")
             if value.strip().isdigit()
         }
-        rollouts[name] = {"mode": mode, "user_ids": user_ids}
+        family_ids = {
+            int(value) for value in settings.get(feature_rollout_families_key(name), "").split(",")
+            if value.strip().isdigit()
+        }
+        rollouts[name] = {"mode": mode, "user_ids": user_ids, "family_ids": family_ids}
     return rollouts
 
 
@@ -143,10 +156,24 @@ def get_effective_feature_flags(user=None):
     if user is None and has_request_context() and current_user.is_authenticated:
         user = current_user
     user_id = getattr(user, "id", None)
+    family_ids = set()
+    if user_id:
+        try:
+            family_ids = {
+                row.family_id for row in FamilyMember.query.filter_by(user_id=user_id).all()
+            }
+        except SQLAlchemyError:
+            family_ids = set()
     return {
         name: (
             rollout["mode"] == "everyone"
-            or (rollout["mode"] == "selected" and user_id in rollout["user_ids"])
+            or (
+                rollout["mode"] == "selected"
+                and (
+                    user_id in rollout["user_ids"]
+                    or bool(family_ids & rollout["family_ids"])
+                )
+            )
         )
         for name, rollout in get_feature_rollouts().items()
     }

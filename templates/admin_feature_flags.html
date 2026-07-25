@@ -12,9 +12,13 @@
     <div class="feature-flag-list">
       {% for name, definition in definitions.items() %}
       <div class="feature-flag-row feature-rollout-row">
-        <span>
-          <strong>{{ definition[0] }}</strong>
-          <small class="feature-description">{{ descriptions[name] }}</small>
+        <span class="feature-rollout-summary">
+          <span class="feature-title-line">
+            <strong>{{ definition[0] }}</strong>
+            <button class="feature-info" type="button" aria-label="About {{ definition[0] }}">i
+              <span role="tooltip">{{ descriptions[name] }}{% if name == 'video_notes' %} Selecting an account here also grants safe Premium test access.{% endif %}</span>
+            </button>
+          </span>
           <small>{{ name }} · safe default {{ 'on' if definition[1] else 'off' }}</small>
         </span>
         <label>Access
@@ -24,12 +28,24 @@
             <option value="everyone" {% if rollouts[name].mode == 'everyone' %}selected{% endif %}>Everyone</option>
           </select>
         </label>
-        <div class="rollout-account-picker" data-rollout-picker data-search-url="{{ url_for('api.search_users') }}">
+        <div class="rollout-targets">
+        <div class="rollout-account-picker" data-rollout-picker data-search-url="{{ url_for('api.search_users') }}" data-label-key="username" data-title-key="display_name" data-prefix="@">
           <label>Test accounts<input type="search" placeholder="Type a name or @username" autocomplete="off" data-rollout-search /></label>
           <input type="hidden" name="users_{{ name }}" value="{{ rollout_usernames[name] }}" data-rollout-value />
           <div class="rollout-selected-accounts" data-rollout-selected></div>
           <div class="rollout-search-results" data-rollout-results hidden></div>
-          <small>Search and select accounts. Remove a chip to revoke test access.</small>
+        </div>
+        <div class="rollout-account-picker" data-rollout-picker data-search-url="{{ url_for('api.search_families') }}" data-label-key="id" data-title-key="name">
+          <label>Test Families<input type="search" placeholder="Type a Family name" autocomplete="off" data-rollout-search /></label>
+          <input type="hidden" name="families_{{ name }}" value="{{ rollouts[name].family_ids|sort|join(',') }}" data-rollout-value />
+          <div class="rollout-selected-accounts" data-rollout-selected>
+            {% for family_id in rollouts[name].family_ids|sort %}{% if family_id in rollout_families %}
+            <button type="button" class="rollout-account-chip" data-rollout-initial="{{ family_id }}" data-rollout-title="{{ rollout_families[family_id] }}">{{ rollout_families[family_id] }} ×</button>
+            {% endif %}{% endfor %}
+          </div>
+          <div class="rollout-search-results" data-rollout-results hidden></div>
+        </div>
+        <small>Selected access can target individual accounts, whole Families, or both.</small>
         </div>
       </div>
       {% endfor %}

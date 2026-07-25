@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260726-rollout-search-goal-rail";
+  const APP_VERSION = "20260726-family-rollouts-premium-test";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -144,29 +144,36 @@ document.addEventListener("DOMContentLoaded", () => {
     const value = picker.querySelector("[data-rollout-value]");
     const selected = picker.querySelector("[data-rollout-selected]");
     const results = picker.querySelector("[data-rollout-results]");
-    const usernames = new Set(
+    const values = new Set(
       (value.value || "").split(",").map((item) => item.trim()).filter(Boolean),
     );
+    const titles = new Map();
+    selected.querySelectorAll("[data-rollout-initial]").forEach((chip) => {
+      titles.set(chip.dataset.rolloutInitial, chip.dataset.rolloutTitle);
+    });
     let timer = null;
-    const syncValue = () => { value.value = [...usernames].join(", "); };
+    const syncValue = () => { value.value = [...values].join(", "); };
     const renderSelected = () => {
       selected.replaceChildren();
-      usernames.forEach((username) => {
+      values.forEach((itemValue) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "rollout-account-chip";
-        chip.textContent = `@${username} ×`;
-        chip.setAttribute("aria-label", `Remove ${username}`);
+        const title = titles.get(itemValue) || itemValue;
+        chip.textContent = `${picker.dataset.prefix || ""}${title} ×`;
+        chip.setAttribute("aria-label", `Remove ${title}`);
         chip.addEventListener("click", () => {
-          usernames.delete(username);
+          values.delete(itemValue);
+          titles.delete(itemValue);
           syncValue();
           renderSelected();
         });
         selected.appendChild(chip);
       });
     };
-    const choose = (username) => {
-      usernames.add(username);
+    const choose = (itemValue, title) => {
+      values.add(String(itemValue));
+      titles.set(String(itemValue), title);
       syncValue();
       renderSelected();
       search.value = "";
@@ -186,14 +193,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const payload = await response.json();
         results.replaceChildren();
-        (payload.results || []).forEach((user) => {
-          if (usernames.has(user.username)) return;
+        (payload.results || []).forEach((item) => {
+          const itemValue = String(item[picker.dataset.labelKey || "username"]);
+          const title = item[picker.dataset.titleKey || "display_name"];
+          if (values.has(itemValue)) return;
           const button = document.createElement("button");
           button.type = "button";
           button.innerHTML = `<strong></strong><small></small>`;
-          button.querySelector("strong").textContent = user.display_name;
-          button.querySelector("small").textContent = `@${user.username}`;
-          button.addEventListener("click", () => choose(user.username));
+          button.querySelector("strong").textContent = title;
+          button.querySelector("small").textContent = item.meta || (
+            item.username ? `@${item.username}` : "Family"
+          );
+          button.addEventListener("click", () => choose(itemValue, title));
           results.appendChild(button);
         });
         if (!results.children.length) {

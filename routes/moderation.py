@@ -9,6 +9,7 @@ from extensions import db
 from feature_flags import (
     FEATURE_FLAG_DEFINITIONS,
     FEATURE_FLAG_DESCRIPTIONS,
+    feature_rollout_families_key,
     feature_rollout_key,
     feature_rollout_users_key,
     get_feature_rollouts,
@@ -18,7 +19,7 @@ from feature_flags import (
 )
 from family_levels import DEFAULT_FAMILY_LEVELS, DEFAULT_RISING_INTERVAL
 from models import (
-    AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, HelpRequest, Notification,
+    AuditLog, Block, ChallengeCompletion, EncouragementRequestReport, Family, FamilyMember, HelpRequest, Notification,
     PointSecurityEvent, PointTransaction, Post, PremiumSubscription, ReferralConversion,
     Report, RiseBadgeAssignment, SiteSetting, User, UserActivityDay, VerificationApplication,
 )
@@ -1010,6 +1011,13 @@ def admin_feature_flags():
                 if value.strip()
             }
             selected_users = User.query.filter(db.func.lower(User.username).in_(usernames)).all() if usernames else []
+            family_ids = {
+                int(value) for value in request.form.get(f"families_{name}", "").split(",")
+                if value.strip().isdigit()
+            }
+            selected_families = Family.query.filter(
+                Family.id.in_(family_ids), Family.is_active == True
+            ).all() if family_ids else []
             missing = usernames - {user.username.lower() for user in selected_users}
             if mode == "selected" and missing:
                 flash(f"{FEATURE_FLAG_DEFINITIONS[name][0]}: users not found: {', '.join(sorted(missing))}.", "warning")
@@ -1025,6 +1033,81 @@ def admin_feature_flags():
             users_setting = SiteSetting.query.get(feature_rollout_users_key(name)) or SiteSetting(key=feature_rollout_users_key(name))
             users_setting.value = ",".join(str(user.id) for user in selected_users)
             db.session.add(users_setting)
+            families_setting = SiteSetting.query.get(
+                feature_rollout_families_key(name)
+            ) or SiteSetting(key=feature_rollout_families_key(name))
+            families_setting.value = ",".join(str(family.id) for family in selected_families)
+            db.session.add(families_setting)
+
+            # A selected video-note tester must have the Premium prerequisites too.
+            # This is test access only; it does not record a payment or auto-renew.
+            if name == "video_notes" and mode == "selected":
+                now = datetime.utcnow()
+                family_member_ids = {
+                    row.user_id for row in FamilyMember.query.filter(
+                        FamilyMember.family_id.in_([family.id for family in selected_families])
+                    ).all()
+                } if selected_families else set()
+                video_test_users = {
+                    user.id: user for user in selected_users
+                }
+                if family_member_ids:
+                    video_test_users.update({
+                        user.id: user for user in User.query.filter(User.id.in_(family_member_ids)).all()
+                    })
+                for user in video_test_users.values():
+                    if not PremiumSubscription.query.filter_by(
+                        user_id=user.id, plan="personal", status="active"
+                    ).first():
+                        db.session.add(PremiumSubscription(
+                            user_id=user.id, plan="personal", billing_period="lifetime",
+                            purchased_at=now, status="active", auto_renew=False,
+                            granted_by_id=current_user.id,
+                        ))
+                for dependency in ("premium_membership", "premium_profiles", "premium_upload_limits"):
+                    dependency_mode = SiteSetting.query.get(feature_rollout_key(dependency)) or SiteSetting(
+                        key=feature_rollout_key(dependency)
+                    )
+                    dependency_users = SiteSetting.query.get(feature_rollout_users_key(dependency)) or SiteSetting(
+                        key=feature_rollout_users_key(dependency)
+                    )
+                    ids = {
+                        int(value) for value in (dependency_users.value or "").split(",")
+                        if value.strip().isdigit()
+                    }
+                    ids.update(video_test_users)
+                    if dependency_mode.value != "everyone":
+                        dependency_mode.value = "selected"
+                    dependency_users.value = ",".join(str(user_id) for user_id in sorted(ids))
+                    db.session.add_all([dependency_mode, dependency_users])
+            if name == "premium_families" and mode == "selected":
+                now = datetime.utcnow()
+                for family in selected_families:
+                    if not PremiumSubscription.query.filter_by(
+                        family_id=family.id, plan="family", status="active"
+                    ).first():
+                        db.session.add(PremiumSubscription(
+                            family_id=family.id, plan="family", billing_period="lifetime",
+                            purchased_at=now, status="active", auto_renew=False,
+                            granted_by_id=current_user.id,
+                        ))
+                membership_families = SiteSetting.query.get(
+                    feature_rollout_families_key("premium_membership")
+                ) or SiteSetting(key=feature_rollout_families_key("premium_membership"))
+                membership_family_ids = {
+                    int(value) for value in (membership_families.value or "").split(",")
+                    if value.strip().isdigit()
+                }
+                membership_family_ids.update(family.id for family in selected_families)
+                membership_families.value = ",".join(
+                    str(family_id) for family_id in sorted(membership_family_ids)
+                )
+                membership_mode = SiteSetting.query.get(
+                    feature_rollout_key("premium_membership")
+                ) or SiteSetting(key=feature_rollout_key("premium_membership"))
+                if membership_mode.value != "everyone":
+                    membership_mode.value = "selected"
+                db.session.add_all([membership_mode, membership_families])
         enabled_names = [
             name for name in FEATURE_FLAG_DEFINITIONS
             if request.form.get(f"mode_{name}") != "off"
@@ -1045,6 +1128,13 @@ def admin_feature_flags():
         user.id: user.username
         for user in User.query.filter(User.id.in_(rollout_user_ids)).all()
     } if rollout_user_ids else {}
+    rollout_family_ids = {
+        family_id for rollout in rollouts.values() for family_id in rollout["family_ids"]
+    }
+    rollout_families = {
+        family.id: family.name
+        for family in Family.query.filter(Family.id.in_(rollout_family_ids)).all()
+    } if rollout_family_ids else {}
     return render_template(
         "admin_feature_flags.html",
         definitions=FEATURE_FLAG_DEFINITIONS,
@@ -1059,6 +1149,7 @@ def admin_feature_flags():
             )
             for name, rollout in rollouts.items()
         },
+        rollout_families=rollout_families,
     )
 
 
