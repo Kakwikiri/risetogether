@@ -371,6 +371,7 @@ class Family(db.Model):
     profile_image = db.Column(db.String(255), default="")
     profile_image_public_id = db.Column(db.String(255), default="")
     banner_image = db.Column(db.String(255), default="", nullable=False)
+    banner_style = db.Column(db.String(24), default="none", nullable=False)
     theme = db.Column(db.String(32), default="classic", nullable=False)
     certificate_style = db.Column(db.String(32), default="growth", nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)

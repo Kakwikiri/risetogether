@@ -206,7 +206,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn('unique_reward_key=f"family_upgrade:{family.id}:{upgrade_key}"', family_source)
         self.assertIn("def spend_family_points", point_source)
         self.assertIn('transaction_kind="spend"', point_source)
-        self.assertIn('"activate_upgrade": {"owner", "admin"}', family_source)
+        self.assertIn('"activate_upgrade": {"owner", "admin", "moderator"}', family_source)
 
     def test_stage_seventeen_limits_and_upgrade_ui_are_enforced(self):
         family_source = (ROOT / "routes/family.py").read_text()

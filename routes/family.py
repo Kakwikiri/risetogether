@@ -321,7 +321,7 @@ FAMILY_PERMISSIONS = {
     "create_campaign": {"owner", "admin"},
     "invite_members": {"owner", "admin"},
     "delete_family": {"owner"},
-    "activate_upgrade": {"owner", "admin"},
+    "activate_upgrade": {"owner", "admin", "moderator"},
 }
 
 FAMILY_CREATION_GRANTS = {
@@ -2398,9 +2398,20 @@ def update_family_banner(family_id):
     if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "custom_banner"):
         flash("Unlock the custom banner upgrade before changing the banner.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
+    preset = request.form.get("banner_preset", "custom").strip()
+    allowed_presets = {"harmony", "sunrise", "constellation", "growth"}
+    if preset in allowed_presets:
+        previous = family.banner_image
+        family.banner_style = preset
+        family.banner_image = ""
+        db.session.commit()
+        if previous:
+            cleanup_family_image(previous)
+        flash("Family banner design applied.", "success")
+        return redirect(url_for("family.family_detail", family_id=family.id))
     banner = request.files.get("banner_image")
     if not banner or not banner.filename:
-        flash("Choose a banner image.", "warning")
+        flash("Choose a built-in banner or upload an image.", "warning")
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     valid, message = validate_family_image_upload(banner)
     if not valid:
@@ -2412,6 +2423,7 @@ def update_family_banner(family_id):
         return redirect(url_for("family.family_upgrades", family_id=family.id))
     previous = family.banner_image
     family.banner_image = filename
+    family.banner_style = "custom"
     db.session.commit()
     if previous and previous != filename:
         cleanup_family_image(previous)
