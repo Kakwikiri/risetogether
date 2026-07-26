@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260726-family-tools-consolidated";
+  const APP_VERSION = "20260726-compact-premium-frames";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;

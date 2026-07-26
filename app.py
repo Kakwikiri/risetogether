@@ -286,6 +286,8 @@ def ensure_schema_compatibility():
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS birth_date DATE",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(24) NOT NULL DEFAULT 'prefer_not_to_say'",
         "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS premium_theme VARCHAR(24) NOT NULL DEFAULT 'aurora'",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS premium_frame VARCHAR(24) NOT NULL DEFAULT 'gold'",
+        "ALTER TABLE families ADD COLUMN IF NOT EXISTS frame_style VARCHAR(24) NOT NULL DEFAULT 'growth'",
         "ALTER TABLE premium_subscriptions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP",
         "ALTER TABLE posts ADD COLUMN IF NOT EXISTS age_rating VARCHAR(16) NOT NULL DEFAULT 'general'",
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_post_age_rating') THEN ALTER TABLE posts ADD CONSTRAINT ck_post_age_rating CHECK (age_rating IN ('general','adult')); END IF; END $$",

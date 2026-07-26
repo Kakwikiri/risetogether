@@ -136,6 +136,7 @@ class Profile(db.Model):
     show_goal_progress = db.Column(db.Boolean, default=False, nullable=False)
     show_last_seen = db.Column(db.Boolean, default=True, nullable=False)
     premium_theme = db.Column(db.String(24), default="aurora", nullable=False)
+    premium_frame = db.Column(db.String(24), default="gold", nullable=False)
 
 
 class RiseBadgeAssignment(db.Model):
@@ -373,6 +374,7 @@ class Family(db.Model):
     banner_image = db.Column(db.String(255), default="", nullable=False)
     banner_style = db.Column(db.String(24), default="none", nullable=False)
     theme = db.Column(db.String(32), default="classic", nullable=False)
+    frame_style = db.Column(db.String(24), default="growth", nullable=False)
     certificate_style = db.Column(db.String(32), default="growth", nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

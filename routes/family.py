@@ -2453,6 +2453,28 @@ def update_family_theme(family_id):
     return redirect(url_for("family.family_detail", family_id=family.id))
 
 
+@family_bp.route("/family/<int:family_id>/frame", methods=["POST"])
+@login_required
+def update_family_frame(family_id):
+    family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    if not is_feature_enabled("family_upgrades") and not family_has_premium(family):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    member = family_member_for_current_user(family)
+    if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "custom_badge_frame"):
+        flash("Unlock Family frames before changing the design.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    frame = request.form.get("frame_style", "").strip()
+    if frame not in {"growth", "sunrise", "royal", "ocean"}:
+        flash("Choose a valid Family frame.", "warning")
+        return redirect(url_for("family.family_upgrades", family_id=family.id))
+    family.frame_style = frame
+    db.session.commit()
+    flash("Family picture frame updated.", "success")
+    return redirect(url_for("family.family_detail", family_id=family.id))
+
+
 @family_bp.route("/family/<int:family_id>/certificate-style", methods=["POST"])
 @login_required
 def update_family_certificate_style(family_id):

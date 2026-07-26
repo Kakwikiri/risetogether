@@ -1,6 +1,6 @@
 {% extends 'base.html' %} {% from 'components/ui.html' import progress_bar, avatar_stack, family_level_badge, point_badge, rise_badges, post_media_gallery, reaction_bar, purpose_support with context %} {% block content %}
 <div class="family-desktop-layout"><main>
-<section class="card family-detail-card family-theme-{{ (family.theme or 'classic') if feature_enabled('family_upgrades') or family_has_premium(family) else 'classic' }}{% if has_custom_badge_frame %} family-has-badge-frame{% endif %}{% if family_has_premium(family) %} family-is-premium{% endif %}">
+<section class="card family-detail-card family-theme-{{ (family.theme or 'classic') if feature_enabled('family_upgrades') or family_has_premium(family) else 'classic' }}{% if has_custom_badge_frame %} family-has-badge-frame family-frame-{{ family.frame_style or 'growth' }}{% endif %}{% if family_has_premium(family) %} family-is-premium{% endif %}">
   <header class="family-hero{% if family.banner_image or family.banner_style not in ['none','custom'] %} family-hero--has-cover{% endif %}">
     {% if (feature_enabled('family_upgrades') or family_has_premium(family)) and family.banner_image %}<img class="family-custom-banner" src="{{ url_for('api.serve_upload', filename=family.banner_image) }}" alt="" />{% endif %}
     {% if (feature_enabled('family_upgrades') or family_has_premium(family)) and family.banner_style not in ['none', 'custom'] %}<div class="family-preset-banner family-preset-banner--{{ family.banner_style }}" aria-hidden="true"></div>{% endif %}
@@ -45,25 +45,25 @@
     <a href="#family-home" data-family-tab>Home</a>
     <a href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}>Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
-    {% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a class="family-primary-tools-link" href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}
     <details class="family-growth-menu">
-      <summary>Goals</summary>
-      <div class="family-growth-menu__items">
+      <summary>More</summary>
+      <div class="family-growth-menu__items family-tabbar-secondary-menu">
+        <span class="family-nav-more__label">Grow together</span>
         <a href="#family-goal" data-family-tab>Shared goal</a>
         <a href="#family-challenges" data-family-tab>Challenges</a>
         {% if supports_quizzes %}<a href="#family-quizzes" data-family-tab>Quizzes</a>{% endif %}
         {% if supports_polls %}<a href="#family-polls" data-family-tab>Polls</a>{% endif %}
+        <span class="family-nav-more__label">Family</span>
+        <a href="#family-activity" data-family-tab>Activity</a>
+        <a href="#family-members" data-family-tab>Members</a>
+        {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
+        {% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}
+        {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit Family</a>{% endif %}
+        {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}
       </div>
     </details>
   </nav>
-  <nav class="family-tabbar-secondary" aria-label="Family activity and management">
-    <a href="#family-activity" data-family-tab>Activity</a>
-    <a href="#family-members" data-family-tab>Members</a>
-    {% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}
-    {% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}
-    {% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit</a>{% endif %}
-    {% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}
-  </nav>
+  <nav class="family-tabbar-secondary" aria-hidden="true" hidden></nav>
 
   {% if not member %}<section id="family-chat-locked" class="family-section family-empty-panel" data-family-panel data-family-panel-group="chat" hidden><h3>Family chat</h3><p>No chat is shown here because Family conversations are private to members.</p><form action="{{ url_for('family.join_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" {% if family_is_full or not family.is_active %}disabled{% endif %}>Join family to chat</button></form></section>{% endif %}
 
@@ -714,5 +714,5 @@
   </section>
   {% endif %}
 </section>
-</main><aside class="family-context-sidebar" aria-label="Family at a glance"><section><p class="eyebrow">Family at a glance</p><h3>{{ family.name }}</h3><p>{{ members|length }} members · {{ family.privacy|title }}</p></section><section><h3>Growing together</h3><p>{{ dashboard_today_activity }} meaningful moments recorded today.</p></section><section><h3>Explore this Family</h3><a href="#family-posts" data-family-tab>Posts</a><a href="#family-challenges" data-family-tab>Challenges</a>{% if supports_quizzes %}<a href="#family-quizzes" data-family-tab>Quizzes</a>{% endif %}{% if supports_polls %}<a href="#family-polls" data-family-tab>Polls</a>{% endif %}<a href="#family-members" data-family-tab>Members</a></section><section class="family-context-management"><h3>Family tools</h3><a href="#family-activity" data-family-tab>Activity</a>{% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}{% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}{% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit Family</a>{% endif %}{% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verification</a>{% endif %}</section></aside></div>
+</main><aside class="family-context-sidebar" aria-label="Family at a glance"><section><p class="eyebrow">Family at a glance</p><h3>{{ family.name }}</h3><p>{{ members|length }} members · {{ family.privacy|title }}</p></section><section><h3>Growing together</h3><p>{{ dashboard_today_activity }} meaningful moments recorded today.</p></section><section><h3>Explore this Family</h3><a href="#family-posts" data-family-tab>Posts</a><a href="#family-challenges" data-family-tab>Challenges</a>{% if supports_quizzes %}<a href="#family-quizzes" data-family-tab>Quizzes</a>{% endif %}{% if supports_polls %}<a href="#family-polls" data-family-tab>Polls</a>{% endif %}<a href="#family-members" data-family-tab>Members</a></section><section class="family-context-management"><h3>Family tools</h3><a href="#family-activity" data-family-tab>Activity</a>{% if can_invite_members %}<a href="#family-invite" data-family-tab>Invite</a>{% endif %}{% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}{% if can_edit_family or can_change_family_image %}<a href="{{ url_for('family.edit_family', family_id=family.id) }}">Edit Family</a>{% endif %}{% if is_super_admin_view and feature_enabled('verification_badges') %}<a href="{{ url_for('moderation.admin_families', q=family.name) }}">Verify</a>{% endif %}</section></aside></div>
 {% endblock %}

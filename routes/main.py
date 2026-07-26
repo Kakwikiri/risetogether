@@ -2472,6 +2472,23 @@ def update_premium_theme():
     return redirect(url_for("main.profile", username=current_user.username))
 
 
+@main_bp.route("/premium/frame", methods=["POST"])
+@login_required
+def update_premium_frame():
+    from premium import user_has_premium
+
+    if not is_feature_enabled("premium_themes") or not user_has_premium(current_user):
+        abort(403)
+    frame = request.form.get("premium_frame", "").strip()
+    if frame not in {"gold", "aurora", "royal", "sunset"}:
+        flash("Choose a valid Premium frame.", "warning")
+        return redirect(url_for("main.premium_plans"))
+    current_user.profile.premium_frame = frame
+    db.session.commit()
+    flash("Your Premium profile frame was updated.", "success")
+    return redirect(url_for("main.profile", username=current_user.username))
+
+
 @main_bp.route("/premium/choose/<plan>/<period>")
 @login_required
 def premium_checkout(plan, period):

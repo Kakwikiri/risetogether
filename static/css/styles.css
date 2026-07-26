@@ -138,6 +138,184 @@
   .message-row { align-items: center; padding: 0.6rem; }
 }
 
+/* Compact app-style Family identity and selectable Premium picture frames. */
+.family-frame-options,
+.premium-frame-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0.65rem 0 0.9rem;
+}
+.family-frame-choice,
+.premium-frame-choice {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+  justify-items: center;
+  padding: 0.75rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+}
+.family-frame-choice:has(input:checked),
+.premium-frame-choice:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.family-frame-choice input,
+.premium-frame-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.family-frame-demo,
+.premium-frame-demo {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border-radius: 18px;
+  color: white;
+  background: #26362f;
+  font-weight: 900;
+}
+.family-frame-choice--growth .family-frame-demo,
+.family-frame-growth .family-profile-image {
+  border: 3px solid #34d399;
+  outline: 3px double #f4c95d;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(52, 211, 153, 0.13);
+}
+.family-frame-choice--sunrise .family-frame-demo,
+.family-frame-sunrise .family-profile-image {
+  border: 3px solid #fb7185;
+  outline: 3px double #fbbf24;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(251, 113, 133, 0.13);
+}
+.family-frame-choice--royal .family-frame-demo,
+.family-frame-royal .family-profile-image {
+  border: 3px solid #a78bfa;
+  outline: 3px double #e9d5ff;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(167, 139, 250, 0.14);
+}
+.family-frame-choice--ocean .family-frame-demo,
+.family-frame-ocean .family-profile-image {
+  border: 3px solid #38bdf8;
+  outline: 3px double #67e8f9;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(56, 189, 248, 0.13);
+}
+.premium-frame-choice--gold .premium-frame-demo,
+.premium-frame--gold .profile-hero-avatar {
+  border: 3px solid #f4c95d;
+  outline: 3px double #fff0a8;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(244, 201, 93, 0.14);
+}
+.premium-frame-choice--aurora .premium-frame-demo,
+.premium-frame--aurora .profile-hero-avatar {
+  border: 3px solid #2dd4bf;
+  outline: 3px double #93c5fd;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(45, 212, 191, 0.14);
+}
+.premium-frame-choice--royal .premium-frame-demo,
+.premium-frame--royal .profile-hero-avatar {
+  border: 3px solid #8b5cf6;
+  outline: 3px double #f0abfc;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(139, 92, 246, 0.15);
+}
+.premium-frame-choice--sunset .premium-frame-demo,
+.premium-frame--sunset .profile-hero-avatar {
+  border: 3px solid #fb7185;
+  outline: 3px double #fdba74;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgba(251, 113, 133, 0.14);
+}
+.premium-theme-picker { display: grid; gap: 1rem; }
+.premium-theme-picker form + form { padding-top: 0.9rem; border-top: 1px solid var(--line); }
+
+@media (max-width: 560px) {
+  .family-detail-card { padding: 0 !important; }
+  .family-hero {
+    display: block;
+    min-height: 0;
+    padding: 0.7rem !important;
+  }
+  .family-hero--has-cover {
+    padding: 116px 0.7rem 0.65rem !important;
+    overflow: visible;
+  }
+  .family-hero--has-cover .family-custom-banner,
+  .family-hero--has-cover .family-preset-banner {
+    height: 142px;
+    border-radius: 0;
+  }
+  .family-hero .family-identity-row,
+  .family-hero--has-cover .family-identity-row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr);
+    width: 100%;
+    gap: 0.75rem;
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    text-align: left;
+  }
+  .family-hero .family-profile-image {
+    width: 74px;
+    height: 74px;
+    border-radius: 20px;
+  }
+  .family-hero .family-title-block {
+    width: auto;
+    min-width: 0;
+    padding-bottom: 0.05rem;
+    text-align: left;
+  }
+  .family-hero .family-title-block .eyebrow {
+    display: block;
+    font-size: 0.66rem;
+  }
+  .family-hero .family-title-block h2 {
+    margin: 0.08rem 0 0.2rem;
+    overflow: hidden;
+    font-size: 1.28rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .family-hero .premium-profile-label {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.68rem;
+  }
+  .family-hero .family-title-block .muted-meta {
+    margin: 0.35rem 0 0;
+    font-size: 0.76rem;
+  }
+  .family-header-level { margin-top: 0.35rem; }
+  .family-header-level .family-level-badge { font-size: 0.7rem; }
+  .family-actions { margin-top: 0.55rem; }
+  .family-actions:empty { display: none; }
+  .family-actions .button { min-height: 36px; padding: 0.4rem 0.7rem; }
+  .family-tabbar {
+    margin: 0;
+    padding: 0 0.3rem;
+  }
+  .family-tabbar a,
+  .family-growth-menu summary {
+    min-height: 42px !important;
+    padding: 0.45rem 0.25rem !important;
+    font-size: 0.78rem !important;
+  }
+  .family-growth-menu__items { right: 0.3rem; width: min(250px, calc(100vw - 1.2rem)); }
+  .family-frame-options,
+  .premium-frame-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* Compact social layout, multi-photo galleries, and a focused composer. */
 .media-gallery {
   display: grid;
@@ -10863,6 +11041,56 @@ body[data-page="main.people"] .people-suggestions .connection-button {
   min-height: 38px;
   padding: 0.4rem 0.7rem;
   white-space: nowrap;
+}
+
+/* Final Premium-frame precedence and compact Family profile on phones. */
+.family-frame-growth .family-profile-image { border: 3px solid #34d399; outline: 3px double #f4c95d; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(52,211,153,.13); }
+.family-frame-sunrise .family-profile-image { border: 3px solid #fb7185; outline: 3px double #fbbf24; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(251,113,133,.13); }
+.family-frame-royal .family-profile-image { border: 3px solid #a78bfa; outline: 3px double #e9d5ff; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(167,139,250,.14); }
+.family-frame-ocean .family-profile-image { border: 3px solid #38bdf8; outline: 3px double #67e8f9; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(56,189,248,.13); }
+.premium-frame--gold .profile-hero-avatar { border: 3px solid #f4c95d; outline: 3px double #fff0a8; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(244,201,93,.14); }
+.premium-frame--aurora .profile-hero-avatar { border: 3px solid #2dd4bf; outline: 3px double #93c5fd; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(45,212,191,.14); }
+.premium-frame--royal .profile-hero-avatar { border: 3px solid #8b5cf6; outline: 3px double #f0abfc; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(139,92,246,.15); }
+.premium-frame--sunset .profile-hero-avatar { border: 3px solid #fb7185; outline: 3px double #fdba74; outline-offset: 3px; box-shadow: 0 0 0 7px rgba(251,113,133,.14); }
+
+@media (max-width: 560px) {
+  .family-detail-card { padding: 0 !important; }
+  .family-detail-card .family-hero { display: block; min-height: 0; padding: .65rem !important; }
+  .family-detail-card .family-hero--has-cover { padding: 112px .65rem .6rem !important; overflow: visible; }
+  .family-detail-card .family-hero--has-cover .family-custom-banner,
+  .family-detail-card .family-hero--has-cover .family-preset-banner { height: 138px; border-radius: 0; }
+  .family-detail-card .family-hero .family-identity-row {
+    display: grid;
+    grid-template-columns: 74px minmax(0,1fr);
+    width: 100%;
+    gap: .7rem;
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    text-align: left;
+  }
+  .family-detail-card .family-hero .family-profile-image { width: 70px; height: 70px; border-radius: 19px; }
+  .family-detail-card .family-title-block { width: auto; min-width: 0; text-align: left; }
+  .family-detail-card .family-title-block .eyebrow { font-size: .64rem; }
+  .family-detail-card .family-title-block h2 {
+    margin: .08rem 0 .18rem;
+    overflow: hidden;
+    font-size: 1.22rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .family-detail-card .premium-profile-label { padding: .18rem .42rem; font-size: .65rem; }
+  .family-detail-card .family-title-block .muted-meta { margin: .3rem 0 0; font-size: .72rem; }
+  .family-detail-card .family-header-level { margin-top: .3rem; }
+  .family-detail-card .family-actions { margin-top: .5rem; }
+  .family-detail-card .family-actions:empty { display: none; }
+  .family-detail-card .family-tabbar { margin: 0; padding: 0 .25rem; }
+  .family-detail-card .family-tabbar a,
+  .family-detail-card .family-growth-menu summary { min-height: 42px !important; padding: .4rem .2rem !important; font-size: .78rem !important; }
+  .family-detail-card .family-growth-menu__items { right: .25rem; width: min(250px,calc(100vw - 1rem)); }
 }
 @media (max-width: 680px) {
   body[data-page="main.people"] .panel-sidebar .friend-row {
