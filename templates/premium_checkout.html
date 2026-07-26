@@ -6,6 +6,6 @@
   <h1>Secure payments are coming soon</h1>
   <p>The planned price is <strong>{{ payment_currency }} {{ price }} per {{ 'year' if period == 'yearly' else 'month' }}</strong>. No payment has been taken and no subscription has been created.</p>
   <div class="alert info">We will only activate purchasing after secure payment processing, receipts, cancellation and renewal handling are ready.</div>
-  <a class="button secondary" href="{{ url_for('main.premium_plans') }}">Back to plans</a>
+  <div class="button-row"><a class="button" href="{{ url_for('moderation.help_request', plan=plan, period=period) }}">Contact Admin</a><a class="button secondary" href="{{ url_for('main.premium_plans') }}">Back to plans</a></div>
 </section>
 {% endblock %}

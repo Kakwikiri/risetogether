@@ -1902,17 +1902,17 @@ def render_family_detail_page(
 @family_bp.route("/family/<int:family_id>/upgrades")
 @login_required
 def family_upgrades(family_id):
-    if not is_feature_enabled("family_upgrades"):
+    family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    premium_active = family_has_premium(family)
+    if not is_feature_enabled("family_upgrades") and not premium_active:
         flash("Family upgrades are coming soon.", "info")
         return redirect(url_for("family.family_detail", family_id=family_id))
-    family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
     if not member:
         flash("Join this Family before viewing its upgrades.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    from premium import family_has_premium
     family_points_enabled = is_feature_enabled("family_points")
-    premium_active = family_has_premium(family)
     if not family_points_enabled and not premium_active:
         abort(404)
     purchased = purchased_upgrade_keys(family.id)
@@ -2389,10 +2389,11 @@ def activate_upgrade_campaign(family_id, campaign_id):
 @family_bp.route("/family/<int:family_id>/banner", methods=["POST"])
 @login_required
 def update_family_banner(family_id):
-    if not is_feature_enabled("family_upgrades"):
-        flash("Family upgrades are coming soon.", "info")
-        return redirect(url_for("family.family_detail", family_id=family_id))
     family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    if not is_feature_enabled("family_upgrades") and not family_has_premium(family):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
     member = family_member_for_current_user(family)
     if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "custom_banner"):
         flash("Unlock the custom banner upgrade before changing the banner.", "warning")
@@ -2421,10 +2422,11 @@ def update_family_banner(family_id):
 @family_bp.route("/family/<int:family_id>/theme", methods=["POST"])
 @login_required
 def update_family_theme(family_id):
-    if not is_feature_enabled("family_upgrades"):
+    family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    if not is_feature_enabled("family_upgrades") and not family_has_premium(family):
         flash("Family upgrades are coming soon.", "info")
         return redirect(url_for("family.family_detail", family_id=family_id))
-    family = Family.query.get_or_404(family_id)
     member = family_member_for_current_user(family)
     if not family_has_permission(member, "activate_upgrade") or not family_has_upgrade(family.id, "extra_themes"):
         flash("Unlock extra Family themes before changing the theme.", "warning")
@@ -2442,10 +2444,11 @@ def update_family_theme(family_id):
 @family_bp.route("/family/<int:family_id>/certificate-style", methods=["POST"])
 @login_required
 def update_family_certificate_style(family_id):
-    if not is_feature_enabled("family_upgrades"):
-        flash("Family upgrades are coming soon.", "info")
-        return redirect(url_for("family.family_detail", family_id=family_id))
     family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    if not is_feature_enabled("family_upgrades") and not family_has_premium(family):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
     member = family_member_for_current_user(family)
     style = request.form.get("certificate_style", "").strip()
     definition = CERTIFICATE_STYLES.get(style)
@@ -2463,15 +2466,15 @@ def update_family_certificate_style(family_id):
 @family_bp.route("/family/<int:family_id>/gallery", methods=["POST"])
 @login_required
 def add_family_gallery_item(family_id):
-    if not is_feature_enabled("family_upgrades"):
-        flash("Family upgrades are coming soon.", "info")
-        return redirect(url_for("family.family_detail", family_id=family_id))
     family = Family.query.get_or_404(family_id)
+    from premium import family_has_premium
+    if not is_feature_enabled("family_upgrades") and not family_has_premium(family):
+        flash("Family upgrades are coming soon.", "info")
+        return redirect(url_for("family.family_detail", family_id=family.id))
     member = family_member_for_current_user(family)
     if not member or not family_has_upgrade(family.id, "family_gallery"):
         flash("The Family gallery has not been unlocked.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
-    from premium import family_has_premium
     gallery_limit = 100 if (
         family_has_premium(family) and is_feature_enabled("premium_storage")
     ) else 30

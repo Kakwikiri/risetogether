@@ -4,9 +4,9 @@
   <form action="" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <label>Subject</label>
-    <input type="text" name="subject" required />
+    <input type="text" name="subject" required value="{{ premium_subject or '' }}" />
     <label>Message</label>
-    <textarea name="message" rows="6" required placeholder="Tell the admin what you need help with or what improvement you suggest..."></textarea>
+    <textarea name="message" rows="6" required placeholder="Tell the admin what you need help with or what improvement you suggest...">{{ premium_message or '' }}</textarea>
     <button class="button" type="submit">Send request</button>
   </form>
 </section>

@@ -97,14 +97,10 @@ def user_has_premium(user=None):
 
 
 def family_has_premium(family):
-    from feature_flags import is_feature_enabled_for_family
-
-    return bool(
-        family
-        and is_feature_enabled_for_family("premium_membership", family)
-        and is_feature_enabled_for_family("premium_families", family)
-        and active_family_subscription(family.id)
-    )
+    # The subscription is authoritative. Rollout flags control whether the
+    # product can be offered or tested, but must never invalidate access that
+    # has already been granted to a Family.
+    return bool(family and active_family_subscription(family.id))
 
 
 def upload_limit_for(media_type, user=None):

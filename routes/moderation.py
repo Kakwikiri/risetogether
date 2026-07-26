@@ -926,7 +926,21 @@ def help_request():
         db.session.commit()
         flash("Your help request has been sent to admin.", "success")
         return redirect(url_for("main.home"))
-    return render_template("help_request.html")
+    plan = request.args.get("plan", "").strip().lower()
+    period = request.args.get("period", "").strip().lower()
+    premium_subject = ""
+    premium_message = ""
+    if plan in {"personal", "family"} and period in {"monthly", "yearly"}:
+        premium_subject = f"Premium payment help · {plan.title()} {period.title()}"
+        premium_message = (
+            f"I would like help purchasing the {plan.title()} Premium "
+            f"{period} package. Please tell me which payment options are available."
+        )
+    return render_template(
+        "help_request.html",
+        premium_subject=premium_subject,
+        premium_message=premium_message,
+    )
 
 
 @mod_bp.route("/feedback", methods=["GET", "POST"])

@@ -93,7 +93,7 @@ class EconomyPremiumTests(unittest.TestCase):
             db.session.commit()
             self.assertEqual(upload_limit_for("video", user), 75 * 1024 * 1024)
             self.assertTrue(family_has_upgrade(family.id, "custom_banner"))
-            self.assertFalse(family_has_upgrade(family.id, "challenge_slots"))
+            self.assertTrue(family_has_upgrade(family.id, "challenge_slots"))
             db.session.add(SiteSetting(key=feature_flag_key("premium_challenges"), value="true"))
             db.session.commit()
             self.assertTrue(family_has_upgrade(family.id, "challenge_slots"))
