@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260726-family-tools-layout-leave";
+  const APP_VERSION = "20260726-family-tools-consolidated";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -298,6 +298,13 @@ document.addEventListener("DOMContentLoaded", () => {
           if (other !== card) other.open = false;
         });
       });
+    });
+  });
+  document.querySelectorAll("[data-banner-file]").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.files?.length) {
+        input.closest(".family-banner-upload")?.querySelector('input[type="radio"]')?.click();
+      }
     });
   });
 

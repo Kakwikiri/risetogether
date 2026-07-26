@@ -2484,7 +2484,10 @@ def add_family_gallery_item(family_id):
         flash("Family upgrades are coming soon.", "info")
         return redirect(url_for("family.family_detail", family_id=family.id))
     member = family_member_for_current_user(family)
-    if not member or not family_has_upgrade(family.id, "family_gallery"):
+    if (
+        not family_has_permission(member, "activate_upgrade")
+        or not family_has_upgrade(family.id, "family_gallery")
+    ):
         flash("The Family gallery has not been unlocked.", "warning")
         return redirect(url_for("family.family_detail", family_id=family.id))
     gallery_limit = 100 if (
