@@ -2641,6 +2641,27 @@ def join_family(family_id):
     return redirect(url_for("family.family_detail", family_id=family.id))
 
 
+@family_bp.route("/family/<int:family_id>/leave", methods=["POST"])
+@login_required
+def leave_family(family_id):
+    family = Family.query.get_or_404(family_id)
+    membership = FamilyMember.query.filter_by(
+        family_id=family.id, user_id=current_user.id
+    ).first_or_404()
+    if membership.role == "owner" or family.owner_id == current_user.id:
+        flash("Transfer Family ownership before leaving this Family.", "warning")
+        return redirect(url_for("family.family_detail", family_id=family.id))
+    previous_role = membership.role
+    db.session.delete(membership)
+    log_family_action(
+        family, "member_left", target_user_id=current_user.id,
+        previous_role=previous_role, reason="Member chose to leave the Family.",
+    )
+    db.session.commit()
+    flash(f"You left {family.name}.", "success")
+    return redirect(url_for("family.families"))
+
+
 @family_bp.route("/family/<int:family_id>/poll/create", methods=["POST"])
 @login_required
 def create_poll(family_id):

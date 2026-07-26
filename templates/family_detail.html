@@ -37,6 +37,7 @@
       {% endif %}
       {% endif %}
       {% if is_super_admin_view and not member %}<span class="status-pill">Owner view · chat remains private</span>{% endif %}
+      {% if member and member.role != 'owner' %}<form class="family-leave-form" action="{{ url_for('family.leave_family', family_id=family.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button secondary" type="submit" data-confirm="Leave {{ family.name }}? You will lose access to its private chat and member tools.">Leave Family</button></form>{% endif %}
     </div>
   </header>
 
@@ -44,6 +45,7 @@
     <a href="#family-home" data-family-tab>Home</a>
     <a href="{{ url_for('chat.family_chat', family_id=family.id) if member else '#family-chat-locked' }}" {% if not member %}data-family-tab{% endif %}>Chat</a>
     <a href="#family-posts" data-family-tab>Posts</a>
+    {% if member and (feature_enabled('family_upgrades') or family_has_premium(family)) %}<a class="family-primary-tools-link" href="{{ url_for('family.family_upgrades', family_id=family.id) }}">{{ 'Premium tools' if family_has_premium(family) else 'Tools' }}</a>{% endif %}
     <details class="family-growth-menu">
       <summary>Goals</summary>
       <div class="family-growth-menu__items">

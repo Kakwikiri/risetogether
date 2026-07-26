@@ -8785,9 +8785,9 @@ body.nav-menu-open {
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
-.upgrade-card > summary { display: grid; min-height: 100%; cursor: pointer; list-style: none; }
+.upgrade-card > summary { display: grid; cursor: pointer; list-style: none; }
 .upgrade-card > summary::-webkit-details-marker { display: none; }
-.upgrade-card[open] { grid-column: 1 / -1; }
+.upgrade-card[open] { grid-column: 1 / -1; align-self: start; height: auto; overflow: visible; position: relative; z-index: 2; }
 .upgrade-card-action { margin-top: auto; padding-top: 0.7rem; color: var(--accent-strong); }
 .upgrade-card-panel { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--line); }
 .upgrade-card.is-unlocked {
@@ -8816,23 +8816,39 @@ body.nav-menu-open {
 .family-theme-preview > input,
 .certificate-preview > input,
 .family-banner-option > input[type="radio"] { position: absolute; opacity: 0; }
-.family-theme-preview span,
-.family-banner-option > span { position: relative; z-index: 1; color: white; font-weight: 850; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.family-theme-preview { align-content: center; justify-items: center; text-align: center; color: white; }
+.family-theme-preview strong,
+.family-theme-preview small,
+.family-banner-option > span { position: relative; z-index: 1; color: white; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.family-preview-symbol { display: flex; align-items: end; gap: 0.2rem; margin-bottom: 0.35rem; font-size: 1.15rem; }
+.family-preview-symbol i { font-style: normal; font-size: 1.8rem; }
 .family-theme-preview--classic { background: linear-gradient(135deg, #073f39, #20bda8); }
 .family-theme-preview--sunrise { background: linear-gradient(135deg, #803b43, #ec8b4f); }
 .family-theme-preview--ocean { background: linear-gradient(135deg, #064a70, #22a8d8); }
 .family-theme-preview--forest { background: linear-gradient(135deg, #164e2c, #5aaa63); }
-.certificate-preview { min-height: 160px; place-content: center; text-align: center; color: #5c4314; background: linear-gradient(145deg, #fffdf4, #f5e6b1); border-color: rgba(160, 124, 42, .35); }
+.certificate-preview { min-height: 240px; place-content: center; text-align: center; color: #5c4314; background: linear-gradient(145deg, #fffdf4, #f5e6b1); border: 7px double rgba(160, 124, 42, .45); }
 .certificate-preview--sunrise { color: #743d23; background: linear-gradient(145deg, #fff7e8, #ffc38f); }
 .certificate-preview--unity { color: #563f37; background: linear-gradient(145deg, #fff8f1, #e9c6ad); }
 .certificate-preview--excellence { color: #46316c; background: linear-gradient(145deg, #faf6ff, #cdb9ed); }
 .certificate-preview--legacy { color: #f1cf75; background: linear-gradient(145deg, #17191d, #3a3122); }
 .certificate-preview-mark { font-size: 1.6rem; }
-.certificate-preview small { margin-top: 0.35rem; }
+.certificate-preview-brand { margin-bottom: 0.45rem; font-size: 0.62rem; font-weight: 900; letter-spacing: 0.15em; }
+.certificate-preview small { margin-top: 0.35rem; font-family: Georgia, serif; font-size: 0.85rem; }
+.certificate-preview-challenge { margin-top: 0.4rem; font-size: 0.64rem; opacity: 0.8; }
+.certificate-preview em { margin-top: 0.65rem; font-family: Georgia, serif; font-size: 0.72rem; }
 .family-banner-option { min-height: 125px; align-content: end; background-size: cover; }
+.family-banner-option:not(.family-banner-upload)::before { content: "◌  ↑  ◌"; position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.9); font-size: 1.65rem; font-weight: 900; text-shadow: 0 2px 12px rgba(0,0,0,.4); }
 .family-banner-upload { color: var(--ink); background: var(--soft); border: 1px dashed var(--line); }
 .family-banner-upload > span { color: var(--ink); text-shadow: none; }
 .family-banner-upload input[type="file"] { position: relative; z-index: 2; width: 100%; margin-top: 0.55rem; }
+@media (min-width: 761px) {
+  .upgrade-grid { grid-template-columns: 1fr; gap: 0; }
+  .upgrade-card { border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+  .upgrade-card[open] { border-left: 3px solid var(--accent); }
+}
+@media (max-width: 760px) {
+  .family-primary-tools-link { display: none !important; }
+}
 .family-gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

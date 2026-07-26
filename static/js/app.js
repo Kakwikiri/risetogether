@@ -16,7 +16,7 @@ window.fetch = (resource, options = {}) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_VERSION = "20260726-family-visual-tools";
+  const APP_VERSION = "20260726-family-tools-layout-leave";
   const dismissedUpdateKey = "risetogether-dismissed-update-version";
   const syncVisualViewportHeight = () => {
     const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -288,6 +288,17 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     clear();
+  });
+
+  document.querySelectorAll(".upgrade-grid").forEach((grid) => {
+    grid.querySelectorAll(".upgrade-card").forEach((card) => {
+      card.addEventListener("toggle", () => {
+        if (!card.open) return;
+        grid.querySelectorAll(".upgrade-card[open]").forEach((other) => {
+          if (other !== card) other.open = false;
+        });
+      });
+    });
   });
 
   const toast = document.querySelector("[data-toast]");
